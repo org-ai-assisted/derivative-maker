@@ -44,7 +44,10 @@ jobs:
     steps:
       - name: Install git for actions/checkout
         ## Inline because checkout has not yet run - the ci/ script
-        ## would not be on disk yet.
+        ## would not be on disk yet. Not cached: pre-checkout step
+        ## runs before the cache action (which needs the workspace
+        ## for hashFiles); git's deb is small (~50 MB) so the
+        ## redownload cost is negligible.
         run: |
           set -e
           cat /etc/os-release
@@ -55,6 +58,27 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           persist-credentials: false
+
+      ## debian:trixie's /etc/apt/apt.conf.d/docker-clean wipes
+      ## /var/cache/apt/archives after every install; defeats the
+      ## cache. Drop it and tell apt to keep the downloaded .debs
+      ## so the cache action below can save them at end-of-job.
+      - name: Configure apt to keep downloaded debs
+        run: |
+          rm -f /etc/apt/apt.conf.d/docker-clean
+          printf '%s\n' 'Binary::apt::APT::Keep-Downloaded-Packages "true";' \
+              > /etc/apt/apt.conf.d/keep-cache
+
+      ## First-party actions/cache. Caches downloaded .debs so the
+      ## subsequent ./ci/lint-install reuses them instead of
+      ## redownloading from the Debian mirror.
+      - name: Cache apt packages
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: /var/cache/apt/archives
+          key: ${{ runner.os }}-apt-lint-${{ hashFiles('.github/workflows/lint.yml', 'ci/lint-install') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-lint-
 
       - name: Install lint dependencies (Debian apt)
         run: ./ci/lint-install
