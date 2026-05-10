@@ -21,10 +21,6 @@ permissions:
 jobs:
   review:
     uses: org-ai-assisted/developer-meta-files/.github/workflows/reusable-claude-code-review.yml@master
-    ## Explicit secret forwarding (NOT 'secrets: inherit'). With
-    ## inherit, every caller-side secret would flow into the
-    ## reusable; the explicit map caps the reusable's secrets
-    ## context to exactly ANTHROPIC_API_KEY.
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
     permissions:
