@@ -8,6 +8,13 @@
 ## Inputs:
 ##   $1 - container name (e.g. "dryrun")
 ##   $2 - debian image reference (digest-pinned recommended)
+##   $3 - optional host path to bind-mount as /var/cache/apt/archives
+##        inside the container. Used by .github/workflows/dry-run.yml
+##        with actions/cache to persist downloaded .debs across runs.
+##        The caller is responsible for disabling 'docker-clean'
+##        inside the container before any apt-get install runs;
+##        otherwise its post-invoke hook would wipe the host-side
+##        cache directory via the bind-mount.
 ##
 ## Non-obvious flags:
 ##   no --rm    : leave the container around on failure so the
@@ -23,13 +30,14 @@ set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
 
-if [ "$#" -ne 2 ]; then
-   printf '%s\n' "usage: ${BASH_SOURCE[0]} <container-name> <image>" >&2
+if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+   printf '%s\n' "usage: ${BASH_SOURCE[0]} <container-name> <image> [apt-cache-host-path]" >&2
    exit 64
 fi
 
 container_name="$1"
 image="$2"
+apt_cache_host_path="${3:-}"
 
 ## container_entrypoint is absolute: docker-run resolves the entry
 ## command before --workdir takes effect.
@@ -37,19 +45,27 @@ host_repo="${PWD}"
 container_repo=/work
 container_entrypoint="${container_repo}/docker/dry-run-entrypoint"
 
-docker run \
-   --detach \
-   --privileged \
-   --cgroupns=host \
-   --name "${container_name}" \
-   --tmpfs /run \
-   --tmpfs /run/lock \
-   --volume /sys/fs/cgroup:/sys/fs/cgroup:rw \
-   --volume "${host_repo}":"${container_repo}" \
-   --workdir "${container_repo}" \
-   -- \
-   "${image}" \
-   "${container_entrypoint}"
+run_args=(
+   --detach
+   --privileged
+   --cgroupns=host
+   --name "${container_name}"
+   --tmpfs /run
+   --tmpfs /run/lock
+   --volume /sys/fs/cgroup:/sys/fs/cgroup:rw
+   --volume "${host_repo}":"${container_repo}"
+   --workdir "${container_repo}"
+)
+
+if [ -n "${apt_cache_host_path}" ]; then
+   ## Caller passed an apt-cache host path. Make sure it exists
+   ## (actions/cache may have skipped restore on a cache miss) and
+   ## bind-mount it as the in-container apt archive directory.
+   mkdir -p -- "${apt_cache_host_path}"
+   run_args+=(--volume "${apt_cache_host_path}":/var/cache/apt/archives)
+fi
+
+docker run "${run_args[@]}" -- "${image}" "${container_entrypoint}"
 
 ## 'degraded' counts: container default units (resolved, networkd-
 ## wait-online, getty, ...) routinely fail in a minimal container and
