@@ -64,8 +64,44 @@ jobs:
           FORK_BRANCH: ${{ github.head_ref || github.ref_name }}
         run: ./ci/checkout-fork-submodule-branches "${FORK_BRANCH}"
 
+      ## Bind-mount target for actions/cache. Lives on the runner
+      ## host; the container mounts it as /var/cache/apt/archives.
+      ## Created here so actions/cache has a path to write to even
+      ## on a cache miss (otherwise the save step at end-of-job
+      ## would warn 'no files were found').
+      - name: Prepare apt cache directory
+        run: mkdir -p "${RUNNER_TEMP}/apt-archives"
+
+      ## First-party actions/cache on the host. The container
+      ## bind-mounts this directory as /var/cache/apt/archives via
+      ## the 3rd arg to dry-run-start-container below.
+      ##
+      ## Cache key invalidates when the workflow, the docker
+      ## startup script, or any ci/dry-run.d/ script changes - the
+      ## last covers package-list edits without forcing a manual
+      ## key bump.
+      - name: Cache apt packages
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5.0.5
+        with:
+          path: ${{ runner.temp }}/apt-archives
+          key: ${{ runner.os }}-apt-dryrun-${{ hashFiles('.github/workflows/dry-run.yml', 'docker/dry-run-start-container', 'ci/dry-run.d/**') }}
+          restore-keys: |
+            ${{ runner.os }}-apt-dryrun-
+
       - name: Start systemd-enabled Debian container
-        run: ./docker/dry-run-start-container dryrun "${DEBIAN_IMAGE}"
+        run: ./docker/dry-run-start-container dryrun "${DEBIAN_IMAGE}" "${RUNNER_TEMP}/apt-archives"
+
+      ## Disable the container's docker-clean apt hook (which would
+      ## wipe the bind-mounted host cache after every install) and
+      ## tell apt to retain downloaded debs so the cache action's
+      ## end-of-job save captures them.
+      - name: Configure apt to keep downloaded debs (inside container)
+        run: |
+          docker exec dryrun bash -c '
+            rm -f /etc/apt/apt.conf.d/docker-clean
+            printf "%s\n" "Binary::apt::APT::Keep-Downloaded-Packages \"true\";" \
+                > /etc/apt/apt.conf.d/keep-cache
+          '
 
       - name: Run dry-run inside container
         run: docker exec --env CI=true dryrun ./ci/dry-run
