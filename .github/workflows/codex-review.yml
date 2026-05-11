@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   review:
-    uses: org-ai-assisted/developer-meta-files/.github/workflows/reusable-codex-review.yml@master
+    uses: ${{ vars.REUSABLE_OWNER }}/developer-meta-files/.github/workflows/reusable-codex-review.yml@master
     with:
       pr-ref: ${{ inputs.pr_ref || '' }}
     secrets: inherit
