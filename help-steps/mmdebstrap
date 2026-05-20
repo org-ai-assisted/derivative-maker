@@ -29,6 +29,17 @@ set -o errtrace
 ## use plain (uncolored) log messages.
 true "INFO: Currently running: $0 (derivative-maker help-steps/mmdebstrap wrapper)"
 
+## This wrapper is invoked standalone by grml-debootstrap / pbuilder /
+## cowbuilder. It deliberately does not source 'pre' or 'variables', so the
+## shared 'error' function is not available here. Define a minimal,
+## self-contained one (same pattern as 'pbuilder-chroot-script-create-vbox-vm').
+## Without this, a failing sanity test below aborts with the confusing
+## 'error: command not found' instead of the intended message.
+error() {
+   printf '%s\n' "ERROR: $0: $*" >&2
+   exit 1
+}
+
 args_original="$*"
 
 ## Diagnostic argument filter.
@@ -167,12 +178,19 @@ export PATH="$new_path"
 
 ### }}}
 
-## Sanity test.
-[ -n "${APTGETOPT_SERIALIZED:-}" ] || error "APTGETOPT_SERIALIZED is unset!"
-
-## Debugging.
-mapfile -t APTGETOPT <<< "$APTGETOPT_SERIALIZED"
-printf "%s\n" "APTGETOPT: ${APTGETOPT[*]}"
+## Debugging only.
+##
+## APTGETOPT_SERIALIZED is NOT consumed by the 'mmdebstrap' invocation below
+## (apt options are passed via '--aptopt="$dist_aptgetopt_file"'). It is only
+## printed here for diagnostics and can legitimately be empty (for example
+## when neither '--unsafe-io' nor the approx proxy added any 'apt-get -o'
+## options in help-steps/variables), so its absence must not abort the build.
+if [ -n "${APTGETOPT_SERIALIZED:-}" ]; then
+   mapfile -t APTGETOPT <<< "$APTGETOPT_SERIALIZED"
+   printf "%s\n" "APTGETOPT: ${APTGETOPT[*]}"
+else
+   true "INFO: APTGETOPT_SERIALIZED is empty or unset; skipping APTGETOPT debug output (not required by this wrapper)."
+fi
 
 ## Debugging.
 true "BUILDPLACE: ${BUILDPLACE:-}"
@@ -242,11 +260,12 @@ else
    ## /home/user/derivative-maker/help-steps/mmdebstrap --verbose --debug --format directory --variant=required --architectures=amd64 --aptopt=/home/user/derivative-binary/30_derivative-maker.conf --include=apt,sudo,devscripts,debhelper,strip-nondeterminism,fakeroot,apt-transport-tor,eatmydata,aptitude,cowdancer,fasttrack-archive-keyring trixie /var/cache/pbuilder/base.cow_amd64 /home/user/derivative-maker/build_sources/debian_stable_current_clearnet.sources
 fi
 
-## Sanity tests.
+## Sanity tests for variables actually used by the 'mmdebstrap' invocation
+## below. APTGETOPT / APTGETOPT_SERIALIZED are intentionally not checked here:
+## they are diagnostic-only in this wrapper and not passed to 'mmdebstrap'.
 [ -n "${dist_build_apt_stable_release:-}" ] || error "dist_build_apt_stable_release is unset!"
 [ -n "${BUILDPLACE:-}" ] || error "BUILDPLACE is unset!"
 [ -n "${dist_build_sources_list_primary:-}" ] || error "dist_build_sources_list_primary is unset!"
-[ -n "${APTGETOPT:-}" ] || error "APTGETOPT is unset!"
 
 ## '--variant=required' is only supported by 'mmdebstrap'. It might not be supported by 'debootstrap'.
 
