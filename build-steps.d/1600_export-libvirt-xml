@@ -8,6 +8,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -30,8 +32,13 @@ export-libvirt-xml() {
    elif [ "${dist_build_type_short:-}" = "custom-workstation" ]; then
       true
    else
-      cp "$libvirt_source_network_file_external" "$libvirt_target_network_file_external"
-      cp "$libvirt_source_network_file_internal" "$libvirt_target_network_file_internal"
+      ## The Whonix-External / Whonix-Internal libvirt network XML files were
+      ## removed from the 'libvirt-dist' package, so there is nothing to copy
+      ## here anymore. Left commented (not deleted) to document the former
+      ## behavior in case per-network XML returns.
+      #cp "$libvirt_source_network_file_external" "$libvirt_target_network_file_external"
+      #cp "$libvirt_source_network_file_internal" "$libvirt_target_network_file_internal"
+      true
    fi
 }
 
