@@ -1123,7 +1123,13 @@ if [ "${dist_build_qcow2:-}" = "true" ]; then
    dist_build_files_to_upload+=("$libvirt_target_qcow2_xz_archive_file")
 fi
 
-if [ "${dist_build_installer_dist:-}" = "true" ]; then
+## Default this target flag at its source so consumers (notably
+## dm-upload-images) can read it bare under 'nounset'; parse-cmd sets it
+## 'true' only for a '--target installer-dist' build.
+[ -n "${dist_build_installer_dist:-}" ] || dist_build_installer_dist="false"
+export dist_build_installer_dist
+
+if [ "${dist_build_installer_dist}" = "true" ]; then
    [ -n "${ssh_uploader_account:-}" ] || ssh_uploader_account="root"
    [ -n "${dist_server_with_upload_location_list:-}" ] || dist_server_with_upload_location_list="
 ${ssh_uploader_account}@kicksecure.com:/var/rsync/dist-installer-cli
