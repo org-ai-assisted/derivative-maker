@@ -165,8 +165,29 @@ export_vbox_vm() {
                --version "${dist_build_version}"
    fi
 
-   ## Sanity test.
-   $SUDO_TO_VBOX_TEMP test -r "${HOMEVAR_VBOX_TEMP}/temp.ova"
+   ## The export is stable when run in isolation, so a missing '.ova' here
+   ## points at pipeline / copy-on-write state rather than the export command.
+   ## On the failure path only (no cost on success), dump diagnostics that
+   ## distinguish the two failure modes: 'VBoxManage' ran via
+   ## '$SUDO_TO_VBOX_TEMP' (sudo -u dm-vbox-temp), whose env_reset drops
+   ## cowbuilder's cowdancer 'LD_PRELOAD' / 'COWDANCER_ILISTFILE' while this
+   ## shell runs under cowdancer -- so compare the dm-vbox-temp (no-cowdancer)
+   ## and root (cowdancer) views, and search the chroot's own fs, to tell a
+   ## genuinely-absent file (e.g. a concurrent base rebuild) from one merely
+   ## invisible to a single view.
+   if [ ! -r "${HOMEVAR_VBOX_TEMP}/temp.ova" ]; then
+      true "ERROR-DIAG: temp.ova absent right after 'Successfully exported'."
+      true "ERROR-DIAG: expected --output: ${HOMEVAR_VBOX_TEMP}/temp.ova"
+      true "ERROR-DIAG: chroot HOME=${HOME:-UNSET} LD_PRELOAD=${LD_PRELOAD:-UNSET}"
+      true "ERROR-DIAG: SUDO_TO_VBOX_TEMP='${SUDO_TO_VBOX_TEMP:-UNSET}' SUDO_TO_ROOT='${SUDO_TO_ROOT:-UNSET}'"
+      true "ERROR-DIAG: root (cowdancer) view of ${HOMEVAR_VBOX_TEMP}:"
+      ls -la -- "${HOMEVAR_VBOX_TEMP}/" || true
+      true "ERROR-DIAG: dm-vbox-temp (no-cowdancer) view of ${HOMEVAR_VBOX_TEMP}:"
+      $SUDO_TO_VBOX_TEMP ls -la -- "${HOMEVAR_VBOX_TEMP}/" || true
+      true "ERROR-DIAG: chroot-fs search for '*.ova':"
+      find / -xdev -name '*.ova' 2>/dev/null || true
+      error "temp.ova not readable at '${HOMEVAR_VBOX_TEMP}/temp.ova' after export."
+   fi
    ## Move from dm-vbox-temp user home folder to '$binary_image_ova_file',
    ## which is under the bind-mounted '$binary_build_folder_dist' (so it
    ## lands on the host).
