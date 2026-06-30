@@ -1186,6 +1186,33 @@ fi
 
 ## }}}
 
+## {{{ AI-agent detection and sign-and-tag toggle
+
+## ai_detected: generic "an AI coding agent is driving this build" flag.
+## Placed after buildconfig.d sourcing so an explicit value (env or
+## buildconfig.d) wins. Claude Code is the first supported agent; add
+## further agents as additional lines below (each flips the flag to 'true').
+if ! [ -v ai_detected ]; then
+   ai_detected="false"
+   [ -z "${CLAUDECODE:-}" ] || ai_detected="true"   ## Claude Code
+fi
+export ai_detected
+
+## dist_build_sign_and_tag: whether 'help-steps/sign-and-tag' signs and tags
+## HEAD and every submodule. Default 'true' for real builds, but 'false' when
+## an AI agent is driving: re-signing rewrites submodule HEADs and re-bumps
+## the parent's submodule gitlinks, dirtying the branch -- undesirable for
+## AI-authored local work. An explicit value (--sign-and-tag, env, or
+## buildconfig.d) always wins.
+if [ "${ai_detected}" = "true" ]; then
+   [ -v dist_build_sign_and_tag ] || dist_build_sign_and_tag="false"
+else
+   [ -v dist_build_sign_and_tag ] || dist_build_sign_and_tag="true"
+fi
+export dist_build_sign_and_tag
+
+## }}}
+
 ## {{{ OpenPGP policy + cert paths
 ##
 ## Layered the same way as buildconfig.d/*.conf via
