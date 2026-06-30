@@ -1211,6 +1211,19 @@ else
 fi
 export dist_build_sign_and_tag
 
+## dist_build_ignore_unsigned: the signature-skip flag consumed by
+## help-steps/git_sanity_test, alongside dist_build_ignore_untagged /
+## dist_build_ignore_uncommitted. Defaults to the inverse of
+## dist_build_sign_and_tag -- if we are not signing, we cannot verify
+## signatures -- but an explicit value (--allow-unsigned, env, or
+## buildconfig.d) wins.
+if [ "${dist_build_sign_and_tag}" = "true" ]; then
+   [ -v dist_build_ignore_unsigned ] || dist_build_ignore_unsigned="false"
+else
+   [ -v dist_build_ignore_unsigned ] || dist_build_ignore_unsigned="true"
+fi
+export dist_build_ignore_unsigned
+
 ## }}}
 
 ## {{{ OpenPGP policy + cert paths

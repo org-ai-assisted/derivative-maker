@@ -187,6 +187,7 @@ Advanced Options:
   --retry-after [script]          : Specify a script to run after retry. [default: none)
   --allow-uncommitted [true|false]: Permit builds with uncommitted changes (default: false).
   --allow-untagged [true|false]   : Permit builds from non-tagged sources (default: false).
+  --allow-unsigned [true|false]   : Skip git_sanity_test commit-signature verification (default: follows --sign-and-tag; auto 'true' when an AI agent is detected).
   --sign-and-tag [true|false]     : Sign and tag HEAD and submodules (default: true; auto 'false' when an AI agent is detected).
   --kernel [packages]             : Specify kernel packages (e.g., 'linux-image-amd64' or 'none').
   --headers [packages]            : Specify kernel header packages.
@@ -601,6 +602,19 @@ dist_build_one_parse_cmd() {
                   export dist_build_ignore_uncommitted="true"
                else
                   printf '%s\n' "${red}${bold}ERROR: supported options for --allow-uncommitted are 'true' or 'false'.${reset}"
+                  exit 1
+               fi
+               shift 2
+               ;;
+           --allow-unsigned)
+               if [ "${2:-}" = "false" ]; then
+                  true "${cyan}INFO: Would verify commit signatures (git_sanity_test).${reset}"
+                  export dist_build_ignore_unsigned="false"
+               elif [ "${2:-}" = "true" ]; then
+                  true "${cyan}INFO: Would skip commit signature verification (git_sanity_test).${reset}"
+                  export dist_build_ignore_unsigned="true"
+               else
+                  printf '%s\n' "${red}${bold}ERROR: supported options for --allow-unsigned are 'true' or 'false'.${reset}"
                   exit 1
                fi
                shift 2
