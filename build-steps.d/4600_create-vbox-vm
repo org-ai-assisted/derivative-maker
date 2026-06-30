@@ -3,6 +3,10 @@
 ## Copyright (C) 2012 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
 
+## Intentional word-splitting of the optional COWBUILDER_PREFIX argument;
+## quoting it would break the cowbuilder call.
+# shellcheck disable=SC2086
+
 ## Host-side wrapper. All VBoxManage calls run inside the amd64 cowbuilder
 ## chroot set up by 'build-steps.d/*_cowbuilder-setup' so the build host
 ## does not need VirtualBox installed. This is required to build the
@@ -15,6 +19,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -97,7 +103,7 @@ main() {
    ## 'env_file' is forwarded to the chroot script as '$1'.
    $SUDO_TO_ROOT \
       --preserve-env \
-         $COWBUILDER_PREFIX \
+         ${COWBUILDER_PREFIX:-} \
             cowbuilder \
                --host-arch "$host_architecture" \
                --architecture "$dist_build_multiarch_package_item" \

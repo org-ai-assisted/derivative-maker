@@ -3,11 +3,22 @@
 ## Copyright (C) 2012 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
 
+## Static-analysis waivers for this legacy, sourced build library:
+## - intentional word-splitting of command arguments;
+## - 'command -v' for dependency probing during early bootstrap, before the
+##   'has' helper is guaranteed present;
+## - 'rm' of specific, known files (not user-supplied paths).
+# shellcheck disable=SC2086
+## style-ok: no-has
+## style-ok: no-safe-rm
+
 #set -x
 set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
 true "${BASH_SOURCE[0]} INFO: begin"
 
@@ -547,6 +558,15 @@ if [ "${dist_build_source_run:-}" = "true" ]; then
    [ -n "${dist_build_desktop:-}" ] || dist_build_desktop="none"
 fi
 
+## Some flavor/target combinations do not set 'dist_build_type_long' in the
+## per-flavor blocks above -- e.g. the 'kicksecure-cli' / 'kicksecure-lxqt'
+## blocks only set it when 'dist_build_type' is 'vm' or 'host', so a
+## '--target source' build leaves it unset. Give it a useful value in all
+## cases by defaulting to 'dist_build_type_short' (always set by the flavor
+## blocks, and equal to 'dist_build_type_long' for kicksecure builds), so
+## every consumer can rely on it being set.
+[ -n "${dist_build_type_long:-}" ] || dist_build_type_long="${dist_build_type_short:-}"
+
 export dist_build_type_long
 
 export VMNAME VMRAM VRAM
@@ -806,6 +826,13 @@ if [ "${dist_build_sources_clearnet_or_onion:-}" = 'onion' ]; then
       export CURL_PROXY
    fi
 fi
+
+## CURL_RESUME resumes a partially-downloaded file (curl '--continue-at -',
+## the same value tb-updater uses for '--resume'). Default it and export so
+## build steps that reference ${CURL_RESUME:-} resume large downloads; an
+## inherited value still wins.
+[ -n "${CURL_RESUME:-}" ] || CURL_RESUME="--continue-at -"
+export CURL_RESUME
 
 ## Export COWBUILDER_PREFIX so it is available in make-helper.bsh.
 export COWBUILDER_PREFIX
@@ -1467,6 +1494,7 @@ env_vars_keep_list="
    tb_disable_anon_ws_dns_conf
    anon_shared_inst_tb
    CURL_PROXY
+   CURL_RESUME
    SKIP_SCRIPTS
    SOURCE_DATE_EPOCH
    dist_aptgetopt_file
