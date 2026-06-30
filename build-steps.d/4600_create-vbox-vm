@@ -87,8 +87,12 @@ main() {
 
    local bindmounts
    ## Keep host and chroot absolute paths identical so $binary_image_raw_file
-   ## and $binary_build_folder_dist referenced from the env file resolve
+   ## and $binary_build_folder_dist (passed through the environment) resolve
    ## correctly inside the chroot.
+   ## Space-separated by design: pbuilder word-splits BINDMOUNTS internally
+   ## ('for i in $BINDMOUNTS'), so a bind path containing a space is unsupported
+   ## by pbuilder itself -- a bash array here would not help. These are
+   ## controlled build paths with no spaces.
    bindmounts="$binary_build_folder_dist $source_code_folder_dist"
 
    local cowbuilder_exit_code
