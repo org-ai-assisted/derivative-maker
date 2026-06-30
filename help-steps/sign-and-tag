@@ -32,9 +32,9 @@ source "${repo_root}/help-steps/variables"
 
 cd -- "${repo_root}"
 
-## Opt-out for AI-driven / local work via dist_build_sign_and_tag (set in
-## help-steps/variables, e.g. defaulted from ai_detected, or via
-## --sign-and-tag / buildconfig.d). Skip cleanly BEFORE the redistributable
+## Opt-out for local work via dist_build_sign_and_tag (set in
+## help-steps/variables; default 'true', overridden via --sign-and-tag or a
+## buildconfig.d snippet). Skip cleanly BEFORE the redistributable
 ## and policy checks and the destructive 'commit --amend -S' submodule walk:
 ## re-signing rewrites submodule HEADs and re-bumps the parent's submodule
 ## gitlinks, which dirties the branch.

@@ -187,8 +187,8 @@ Advanced Options:
   --retry-after [script]          : Specify a script to run after retry. [default: none)
   --allow-uncommitted [true|false]: Permit builds with uncommitted changes (default: false).
   --allow-untagged [true|false]   : Permit builds from non-tagged sources (default: false).
-  --allow-unsigned [true|false]   : Skip git_sanity_test commit-signature verification (default: follows --sign-and-tag; auto 'true' when an AI agent is detected).
-  --sign-and-tag [true|false]     : Sign and tag HEAD and submodules (default: true; auto 'false' when an AI agent is detected).
+  --allow-unsigned [true|false]   : Skip git_sanity_test commit-signature verification (default: false).
+  --sign-and-tag [true|false]     : Sign and tag HEAD and submodules (default: true).
   --kernel [packages]             : Specify kernel packages (e.g., 'linux-image-amd64' or 'none').
   --headers [packages]            : Specify kernel header packages.
   --remote-derivative-packages    : Choose to use remote derivative packages instead of building derivative packages from source code. (default: false).
