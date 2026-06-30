@@ -24,20 +24,22 @@ set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
 
-true "INFO: Currently running chroot script: ${BASH_SOURCE[0]} $*"
+true "INFO: Currently running chroot script: ${BASH_SOURCE[0]}"
 
-env_file="${1:-}"
-if [ -z "$env_file" ] || [ ! -r "$env_file" ]; then
-   printf '%s\n' "ERROR: env file '$env_file' not readable inside chroot." >&2
-   exit 1
-fi
-
-## Restores VMNAME, vm_names_to_be_exported, vm_multiple, dist_build_version,
-## HOMEVAR_VBOX_TEMP, SUDO_TO_VBOX_TEMP, binary_image_ova_file, plus the
-## export presentation strings (producturl, vendor, vendorurl, description,
-## eulafile_user) appended by the 'dm-prepare-release' host wrapper.
-# shellcheck disable=SC1090
-source "$env_file"
+## Variables arrive through the environment: the 'dm-prepare-release' host
+## wrapper exports them and invokes cowbuilder with '--preserve-env', so they
+## are carried into this chroot (VMNAME, vm_names_to_be_exported, vm_multiple,
+## dist_build_version, HOMEVAR_VBOX_TEMP, SUDO_TO_VBOX_TEMP, binary_image_ova_file,
+## and the presentation strings producturl/vendor/vendorurl/description/
+## eulafile_user). Fail loud if a required one did not make it across.
+for required_var in \
+   VMNAME vm_names_to_be_exported vm_multiple HOMEVAR_VBOX_TEMP \
+   SUDO_TO_VBOX_TEMP binary_image_ova_file eulafile_user producturl ; do
+   if [ ! -v "$required_var" ]; then
+      printf '%s\n' "ERROR: required variable '$required_var' not present in the chroot environment (--preserve-env)." >&2
+      exit 1
+   fi
+done
 
 ## This script runs as root inside the cowbuilder chroot (via
 ## 'cowbuilder --execute'), so 'sudo' to root is redundant. Worse, sudo's
