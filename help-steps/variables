@@ -135,6 +135,23 @@ MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 [ -n "${source_code_folder_dist:-}" ] || source_code_folder_dist="$(dirname -- "$MYDIR")"
 export source_code_folder_dist
 
+## '$binary_build_folder_dist' and '$source_code_folder_dist' are bind-mounted
+## into the cowbuilder chroot for the VirtualBox VM steps -- see
+## 'build-steps.d/4600_create-vbox-vm' and 'dm-prepare-release' (in
+## developer-meta-files), which pass them via 'cowbuilder --bindmounts'.
+## pbuilder word-splits BINDMOUNTS on whitespace internally
+## ('for i in $BINDMOUNTS'), so a path containing whitespace silently breaks the
+## bind-mount. Fail early here, with a clear message, instead of late with a
+## cryptic pbuilder error.
+for space_check_var in binary_build_folder_dist source_code_folder_dist ; do
+   case "${!space_check_var}" in
+      *[[:space:]]*)
+         error "${space_check_var} must not contain whitespace (it is bind-mounted into the cowbuilder chroot and pbuilder word-splits BINDMOUNTS): '${!space_check_var}'"
+         ;;
+   esac
+done
+unset space_check_var
+
 [ -n "${dist_parent_folder:-}" ] || dist_parent_folder="$(dirname -- "$source_code_folder_dist")"
 [ -n "${dist_developer_meta_files_folder:-}" ] || dist_developer_meta_files_folder="${source_code_folder_dist}/packages/kicksecure/developer-meta-files"
 
