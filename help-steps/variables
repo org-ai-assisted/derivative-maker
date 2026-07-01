@@ -806,6 +806,16 @@ fi
 #[ -n "${REPO_PROXY:-}" ] || REPO_PROXY="http://127.0.0.1:9977"
 [ -n "${APPROX_PROXY_ENABLE:-}" ] || APPROX_PROXY_ENABLE='yes'
 
+## The '*_PREFIX' variables optionally prepend 'env http_proxy=... ' to the
+## debootstrap / cowbuilder / live-build invocations when building via a proxy
+## (the '+=' lines in the block below). Initialize them at their source so
+## consumers get a defined value under 'set -o nounset' whether or not that
+## block appends anything -- e.g. build-steps.d/*_create-raw-image references
+## '$DEBOOTSTRAP_PREFIX' unguarded.
+[ -v DEBOOTSTRAP_PREFIX ] || DEBOOTSTRAP_PREFIX=""
+[ -v COWBUILDER_PREFIX ] || COWBUILDER_PREFIX=""
+[ -v LIVEBUILD_PREFIX ] || LIVEBUILD_PREFIX=""
+
 if [ "${APPROX_PROXY_ENABLE}" = "yes" ]; then
    ## apt parameters must be without quotes
    ## apt parameters must be without equals sign
@@ -854,11 +864,19 @@ export CURL_RESUME
 ## Export COWBUILDER_PREFIX so it is available in make-helper.bsh.
 export COWBUILDER_PREFIX
 
+## Variables removed from the environment before entering a target chroot
+## (chroot_run). These name host-only state that must not leak into the built
+## image: TEMP/TMPDIR are host temp dirs, and HELPER_SCRIPTS_PATH points at the
+## host build tree -- inside the chroot the INSTALLED helper-scripts must be
+## used, and package postinsts source "${HELPER_SCRIPTS_PATH:-}/..." expecting
+## it empty so the installed '/usr/libexec/helper-scripts' path is used
+## (a leaked host path makes e.g. dist-base-files.postinst fail).
 chroot_env_vars_var_remove_list="
    TEMP
    TEMPDIR
    TMP
    TMPDIR
+   HELPER_SCRIPTS_PATH
 "
 
 chroot_remove_env_list=""
@@ -1231,6 +1249,25 @@ export dist_build_sign_and_tag
 ## verified.
 [ -v dist_build_ignore_unsigned ] || dist_build_ignore_unsigned="false"
 export dist_build_ignore_unsigned
+
+## dist_build_script_skip_package_install: optional whitespace-separated list of
+## packages a custom-config build wants skipped at install time (see
+## build-steps.d/*_install-packages, which iterates it with an unguarded
+## 'for'). Default empty (skip nothing) at its source so those loops do not
+## trip 'set -o nounset'.
+[ -v dist_build_script_skip_package_install ] || dist_build_script_skip_package_install=""
+export dist_build_script_skip_package_install
+
+## install_package_list / flavor_meta_packages_to_install: optional
+## whitespace-separated extra-package lists a custom-config build may set (see
+## build-steps.d/*_install-packages, which iterates and debug-prints them
+## unguarded; parse-cmd sets install_package_list only for a few flavors).
+## 'docker/derivative-maker-docker-run' passes both empty via '--env'; default
+## them at their source too so a direct build does not trip 'set -o nounset'.
+[ -v install_package_list ] || install_package_list=""
+export install_package_list
+[ -v flavor_meta_packages_to_install ] || flavor_meta_packages_to_install=""
+export flavor_meta_packages_to_install
 
 ## }}}
 

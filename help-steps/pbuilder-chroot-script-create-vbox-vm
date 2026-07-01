@@ -121,13 +121,32 @@ convert_raw_to_vdi() {
 
 general_setup() {
    ## Create a new VM. Name: $VMNAME
-   $SUDO_TO_VBOX_TEMP VBoxManage createvm --name "$VMNAME" --register
-
-   if ! printf '%s\n' "$dist_build_target_arch" | grep --fixed-strings -- "64" ; then
-      $SUDO_TO_VBOX_TEMP VBoxManage modifyvm "$VMNAME" --ostype Debian
-   else
-      $SUDO_TO_VBOX_TEMP VBoxManage modifyvm "$VMNAME" --ostype Debian_64
-   fi
+   ##
+   ## The platform architecture is fixed at 'createvm' time and the OS type must
+   ## match it, so select both from '$dist_build_target_arch' with an exact
+   ## 'case' (a substring test for '64' would misfile 'arm64' as x86-64).
+   ## VirtualBox for ARM Linux does not exist; the amd64 VBoxManage here only
+   ## writes the '.ova' -- a tar of the arm64 '.vdi' plus an ARM '.ovf' -- for an
+   ## arm64 guest.
+   case "$dist_build_target_arch" in
+      i386)
+         $SUDO_TO_VBOX_TEMP VBoxManage createvm --name "$VMNAME" --register
+         $SUDO_TO_VBOX_TEMP VBoxManage modifyvm "$VMNAME" --ostype Debian
+         ;;
+      amd64)
+         $SUDO_TO_VBOX_TEMP VBoxManage createvm --name "$VMNAME" --register
+         $SUDO_TO_VBOX_TEMP VBoxManage modifyvm "$VMNAME" --ostype Debian_64
+         ;;
+      arm64)
+         $SUDO_TO_VBOX_TEMP VBoxManage createvm --name "$VMNAME" --platform-architecture arm --register
+         $SUDO_TO_VBOX_TEMP VBoxManage modifyvm "$VMNAME" --ostype Debian_arm64
+         ## ARM has no legacy BIOS; boot via EFI.
+         $SUDO_TO_VBOX_TEMP VBoxManage modifyvm "$VMNAME" --firmware efi
+         ;;
+      *)
+         error "Unsupported dist_build_target_arch '$dist_build_target_arch' for VirtualBox VM creation."
+         ;;
+   esac
 
    ## SATA AHCI is VirtualBox's default for VMs created using the VirtualBox
    ## graphical user interface (GUI) for Debian 64-bit VMs.
@@ -159,8 +178,10 @@ general_setup() {
    ## Settings->Display->Video Memory
    $SUDO_TO_VBOX_TEMP VBoxManage modifyvm "$VMNAME" --vram "$VRAM"
 
-   ## Enable PAE.
-   $SUDO_TO_VBOX_TEMP VBoxManage modifyvm "$VMNAME" --pae on
+   ## Enable PAE. x86-only feature; VirtualBox rejects '--pae' for ARM VMs.
+   if [ ! "$dist_build_target_arch" = "arm64" ]; then
+      $SUDO_TO_VBOX_TEMP VBoxManage modifyvm "$VMNAME" --pae on
+   fi
 
    ## 3 virtual CPU cores by default.
    ## No longer 4 virtual CPU cores by default.
