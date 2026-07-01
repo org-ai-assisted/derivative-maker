@@ -364,6 +364,15 @@ else
 
    ## Non-redistributable builds use '--tb open' by default.
    [ -n "${anon_shared_inst_tb:-}" ] || anon_shared_inst_tb="open"
+
+   ## Non-redistributable (personal / test) builds do not publish or enable
+   ## the binary derivative apt repository. Default it here too -- the
+   ## redistributable branch above defaults it to 'true' -- so a direct
+   ## './derivative-maker' invocation (no dm-build-official wrapper, i.e.
+   ## dist_build_redistributable unset/false) does not leave it unset and
+   ## trip 'set -o nounset' when repository_dist_initializer_setup reads it.
+   [ -n "${build_remote_repo_enable:-}" ] || build_remote_repo_enable="false"
+   export build_remote_repo_enable
 fi
 ## Export sq_git_trust_root so 'help-steps/git_sanity_test' can read it.
 export sq_git_trust_root
