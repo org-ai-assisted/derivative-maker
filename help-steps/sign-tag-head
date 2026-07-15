@@ -59,6 +59,37 @@ else
    tags_at_head=()
 fi
 
+commit_full_sha="$(git rev-parse HEAD)"
+
+## Prune STALE self-created tags so the build is RE-RUN-SAFE. Every tag this script
+## creates is named '<nearest-tag-or-"tag">_<full HEAD sha>' (see below), signed by the
+## build's EPHEMERAL local key. On the NEXT run that key's certificate is no longer in the
+## trust store, so verify_ref fails -- and the old code then aborted, demanding a manual
+## 'git tag -d', for a tag the build itself had left behind (after either a success or, as
+## here, a failed run). A tag whose name ends with '_<current HEAD full sha>' AND fails
+## verification is unambiguously our own residue FOR THIS COMMIT: a real release tag is never
+## named that way. Delete it and let a fresh signed tag be recreated below. Any OTHER
+## unverifiable tag is foreign and left untouched -- it still trips the checks below and
+## needs a human.
+kept_tags=()
+for tag_ref in ${tags_at_head[@]+"${tags_at_head[@]}"}; do
+   tag_name="${tag_ref#refs/tags/}"
+   case "${tag_name}" in
+      *"_${commit_full_sha}")
+         if verify_ref "${tag_ref}" tag "${context_label} tag"; then
+            kept_tags+=("${tag_ref}")
+         else
+            printf '%s\n' "${BASH_SOURCE[0]}: ${context_label}: removing STALE self-created tag '${tag_name}' at HEAD (prior-build ephemeral signing key no longer trusted); will re-sign" >&2
+            git tag -d "${tag_name}" >/dev/null
+         fi
+         ;;
+      *)
+         kept_tags+=("${tag_ref}")
+         ;;
+   esac
+done
+tags_at_head=(${kept_tags[@]+"${kept_tags[@]}"})
+
 case "${#tags_at_head[@]}" in
    0)
       true "INFO: ${context_label} has no tag at HEAD; will create a signed tag below"
