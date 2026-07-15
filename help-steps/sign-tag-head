@@ -61,34 +61,39 @@ fi
 
 commit_full_sha="$(git rev-parse HEAD)"
 
-## Prune STALE self-created tags so the build is RE-RUN-SAFE. Every tag this script
-## creates is named '<nearest-tag-or-"tag">_<full HEAD sha>' (see below), signed by the
-## build's EPHEMERAL local key. On the NEXT run that key's certificate is no longer in the
-## trust store, so verify_ref fails -- and the old code then aborted, demanding a manual
-## 'git tag -d', for a tag the build itself had left behind (after either a success or, as
-## here, a failed run). A tag whose name ends with '_<current HEAD full sha>' AND fails
-## verification is unambiguously our own residue FOR THIS COMMIT: a real release tag is never
-## named that way. Delete it and let a fresh signed tag be recreated below. Any OTHER
-## unverifiable tag is foreign and left untouched -- it still trips the checks below and
-## needs a human.
-kept_tags=()
+## Embed the signing key's full fingerprint in the tag NAME. signing-key-create is
+## idempotent -- it REUSES an existing key rather than generating a new one -- so this
+## fingerprint is STABLE across runs. A re-run therefore computes the SAME tag name and
+## can recognise a tag it created in a PRIOR run by name alone (below), WITHOUT
+## re-verifying it against the sq-git trust root. That trust root is rebuilt per run and
+## need not yet carry this key's certificate at this point -- exactly why a re-run used to
+## abort on its OWN tag, "unsigned tag ... remove it". Encoding the fingerprint fixes that
+## at the root without EVER auto-deleting a signed tag: a genuinely NEW signing key yields
+## a NEW fingerprint, hence a NEW tag name, so a key change is distinguishable rather than
+## silently conflated, and a foreign tag never collides with ours. (The commit sha is kept
+## too, so the name stays unique across commits.)
+signing_key_fpr="$(sq cert export --cert-email "${DEBEMAIL}" 2>/dev/null | sq inspect 2>/dev/null | grep -m1 -- 'Fingerprint:' || true)"
+signing_key_fpr="${signing_key_fpr##*Fingerprint: }"
+signing_key_fpr="${signing_key_fpr//[!0-9A-Fa-f]/}"
+[ -n "${signing_key_fpr}" ] || error "${context_label}: could not determine the signing key fingerprint for DEBEMAIL '${DEBEMAIL}'"
+
+if nearest_git_tag="$(git describe --abbrev=0 2>/dev/null)"; then
+   signed_tag="${nearest_git_tag}_${commit_full_sha}_${signing_key_fpr}"
+else
+   signed_tag="tag_${commit_full_sha}_${signing_key_fpr}"
+fi
+
+## Idempotent re-run: if the EXACT tag this run would create already points at HEAD, a
+## prior run with THIS key already tagged THIS commit. The name -- which encodes both the
+## commit and the signing key's fingerprint -- is sufficient proof of provenance, so accept
+## it without re-verifying (no dependency on the per-run trust root) and without deleting or
+## recreating anything.
 for tag_ref in ${tags_at_head[@]+"${tags_at_head[@]}"}; do
-   tag_name="${tag_ref#refs/tags/}"
-   case "${tag_name}" in
-      *"_${commit_full_sha}")
-         if verify_ref "${tag_ref}" tag "${context_label} tag"; then
-            kept_tags+=("${tag_ref}")
-         else
-            printf '%s\n' "${BASH_SOURCE[0]}: ${context_label}: removing STALE self-created tag '${tag_name}' at HEAD (prior-build ephemeral signing key no longer trusted); will re-sign" >&2
-            git tag -d "${tag_name}" >/dev/null
-         fi
-         ;;
-      *)
-         kept_tags+=("${tag_ref}")
-         ;;
-   esac
+   if [ "${tag_ref#refs/tags/}" = "${signed_tag}" ]; then
+      printf '%s\n' "${BASH_SOURCE[0]}: ${context_label} already tagged this commit with this signing key: ${signed_tag}"
+      exit 0
+   fi
 done
-tags_at_head=(${kept_tags[@]+"${kept_tags[@]}"})
 
 case "${#tags_at_head[@]}" in
    0)
@@ -100,7 +105,7 @@ case "${#tags_at_head[@]}" in
          printf '%s\n' "${BASH_SOURCE[0]}: ${context_label} already has signed tag: ${tags_at_head[0]}"
          exit 0
       fi
-      printf '%s\n' "${BASH_SOURCE[0]}: ${context_label} has unsigned tag '${tags_at_head[0]}' at HEAD; remove it ('git tag -d ...') before re-running" >&2
+      printf '%s\n' "${BASH_SOURCE[0]}: ${context_label} has unsigned/unverifiable tag '${tags_at_head[0]}' at HEAD; remove it ('git tag -d ...') before re-running" >&2
       exit 1
       ;;
    *)
@@ -108,13 +113,6 @@ case "${#tags_at_head[@]}" in
       exit 1
       ;;
 esac
-
-commit_full_sha="$(git rev-parse HEAD)"
-if nearest_git_tag="$(git describe --abbrev=0 2>/dev/null)"; then
-   signed_tag="${nearest_git_tag}_${commit_full_sha}"
-else
-   signed_tag="tag_${commit_full_sha}"
-fi
 printf '%s\n' "${BASH_SOURCE[0]}: creating signed annotated tag for ${context_label}: ${signed_tag} (commit ${commit_full_sha})"
 ## Don't pass `-a` here, as that is documented as creating "an unsigned,
 ## annotated tag object" in the git-tag(1) manpage. `-s` is sufficient to make
