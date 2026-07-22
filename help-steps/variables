@@ -1657,11 +1657,10 @@ mkdir --parents -- "$binary_build_folder_dist"
 mkdir --parents -- "$make_cowbuilder_dist_folder"
 
 ## pbuilder's post-bootstrap 'apt-get update' uses its own APTGETOPT, not DIST_APTGETOPT, so pass
-## DIST_APTGETOPT through -- notably Acquire::Check-Valid-Until=false for '--freshness frozen' (the
-## pinned snapshot Release is expired by design). @Q quotes each element so the array round-trips
-## when pbuilder sources this configfile.
+## the build's apt options through -- notably Acquire::Check-Valid-Until=false for '--freshness
+## frozen'. All options are plain '-o key=value' tokens (no spaces), so no per-element quoting.
 if [ "${#DIST_APTGETOPT[@]}" -gt 0 ]; then
-   pbuilder_aptgetopt_block="APTGETOPT=(${DIST_APTGETOPT[*]@Q})
+   pbuilder_aptgetopt_block="APTGETOPT=(${DIST_APTGETOPT[*]})
 export APTGETOPT"
 else
    pbuilder_aptgetopt_block=""
