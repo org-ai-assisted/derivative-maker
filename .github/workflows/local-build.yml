@@ -5,7 +5,7 @@ name: Build
 ## the same image TWICE as two INDEPENDENT jobs (separate runner VMs, the
 ## reproducible-builds gold standard -- not one job building twice), then a
 ## third job compares the two images with diffoscope via developer-meta-files'
-## dm-reproducible-compare. Every difference is reported (no allowlist).
+## dm-reproducible-compare-artifacts. Every difference is reported (no allowlist).
 ## The two builds ARE the build test, so a green run means the image both builds
 ## and is reproducible.
 ## Kept simple -- one target per run (the default, or a workflow_dispatch choice),

@@ -6,7 +6,7 @@
 ## AI-Assisted
 
 ## Verify a built image reproduces, by comparing it against a reference build
-## with diffoscope (via developer-meta-files' 'dm-reproducible-compare').
+## with diffoscope (via developer-meta-files' 'dm-reproducible-compare-artifacts').
 ##
 ## Image reproducibility is verified the way Debian and Tails do it (there is
 ## no upstream image-level rebuilder daemon; rebuilderd et al. are package/
@@ -73,10 +73,14 @@ compare_target() {
    ## reproducible-compare returns 1 when the artifacts differ; record it, do
    ## not fail the build on non-reproducibility.
    compare_exit_code="0"
-   "$dist_developer_meta_files_folder/usr/bin/dm-reproducible-compare" \
+   ## The comparator locates ONE artifact of '$target' under each directory rather than
+   ## taking two file paths, so pass the containing directories. Both paths were resolved
+   ## to existing files above, so their dirnames are the right search roots.
+   "$dist_developer_meta_files_folder/usr/bin/dm-reproducible-compare-artifacts" \
+      --target "$target" \
+      --dir-a "$(dirname -- "$reference_artifact")" \
+      --dir-b "$(dirname -- "$artifact")" \
       --output "$report_out" \
-      "$reference_artifact" \
-      "$artifact" \
       || compare_exit_code="$?"
 
    if [ "$compare_exit_code" = "0" ]; then
@@ -107,21 +111,27 @@ main() {
    if [ "${dist_build_reproducible_reference_folder:-}" = "" ]; then
       true "${bold}${cyan}INFO: dist_build_reproducible_reference_folder is unset, so there is no reference \
 build to compare against; skipping. To verify reproducibility, build a reference, then rebuild with \
-dist_build_reproducible_reference_folder pointing at it (or run 'dm-reproducible-compare' on two \
+dist_build_reproducible_reference_folder pointing at it (or run 'dm-reproducible-compare-artifacts' on two \
 build outputs directly).${reset}"
       return 0
    fi
 
+   ## Target names are the comparator's own vocabulary (iso|virtualbox|qcow2), not the
+   ## dist_build_* flag names: it maps them to the artifact glob it searches for. 'raw' is
+   ## deliberately absent -- the comparator has no raw target, and the raw is a build
+   ## intermediate that dm-prepare-release deletes once the released archive exists.
    if [ "${dist_build_raw:-}" = "true" ]; then
-      compare_target "raw" "$binary_image_raw_file"
+      true "${cyan}INFO: raw is a build intermediate with no released artifact; the comparator has no 'raw' target, skipping.${reset}"
    fi
 
    if [ "${dist_build_virtualbox:-}" = "true" ]; then
-      compare_target "ova" "$binary_image_ova_file"
+      compare_target "virtualbox" "$binary_image_ova_file"
    fi
 
+   ## The released qcow2 artifact is the compressed '.qcow2.libvirt.xz' (the bare '.qcow2'
+   ## is deleted after it is built), which is what the comparator locates for this target.
    if [ "${dist_build_qcow2:-}" = "true" ]; then
-      compare_target "qcow2" "$binary_image_qcow2_file"
+      compare_target "qcow2" "$libvirt_target_qcow2_xz_archive_file"
    fi
 
    if [ "${dist_build_iso:-}" = "true" ]; then
