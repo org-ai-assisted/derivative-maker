@@ -12,10 +12,8 @@ name: Build
 ## not a build-everything matrix, to avoid superfluous builds.
 ## The compare job's conclusion IS the reproducibility pass/fail signal: green
 ## == bit-for-bit reproducible, red == a difference remains.
-## Until the images are fully reproducible this lane is EXPECTED to be red; that
-## red is the honest "not there yet" signal and the diffoscope report artifact
-## says exactly what still differs. The build runs through the official
-## orchestration (help-steps/dm-build-official) with a single-flavor smoke
+## The diffoscope report artifact says exactly what differs. The build runs through
+## the official orchestration (help-steps/dm-build-official) with a single-flavor smoke
 ## (kicksecure-cli for qcow2/virtualbox, kicksecure-lxqt for iso), so there is
 ## ONE build path and no duplicate build
 ## logic; all compare logic lives in developer-meta-files' dm-reproducible-compare-artifacts,
