@@ -121,16 +121,34 @@ if [ -z "$arch" ]; then
    usage
 fi
 
+## The build writes its images to '$HOME/derivative-binary' (docker-run bind-mounts the
+## host's binary volume there; help-steps/variables derives the same path from HOMEVAR),
+## NOT to a directory inside the source tree.
+[ -n "${binary_build_folder_dist:-}" ] || binary_build_folder_dist="${HOME}/derivative-binary"
+
+## Collect into the binary volume: it is the only bind-mounted, writable location that
+## outlives the '--rm' build container.
 if [ -z "$output_dir" ]; then
-   output_dir="$( mktemp --directory --tmpdir="${source_code_folder_dist%/*}" reproducible-build-twice.XXXXXX )"
+   output_dir="$( mktemp --directory --tmpdir="${binary_build_folder_dist}" reproducible-build-twice.XXXXXX )"
 fi
 mkdir --parents -- "$output_dir"
 report="$output_dir/report.txt"
 
-## Remove a prior build's image tree so 'find' below sees only the current build's
-## output. Left deliberately narrow: it clears only the emitted-binary directory.
+## Pin the image version for BOTH builds, from the pre-sign HEAD of this one tree.
+## ci/build's own capture is per-build, which is correct on a fresh CI runner but not
+## here: build a's sign-and-tag amends and tags HEAD, so build b would derive the
+## generated tag as its version and differ for a non-defect reason.
+pushd -- "$source_code_folder_dist" >/dev/null
+dist_build_version="$( git describe --always --abbrev=1000000000 )"
+popd >/dev/null
+export dist_build_version
+
+## Remove this build's emitted-image directory so 'find' below sees only the current
+## build's output. Scoped to the per-version directory: its siblings under
+## '$binary_build_folder_dist' are the cowbuilder base, the local apt repo and the
+## package caches, which a build legitimately reuses and must not lose.
 clean_binary() {
-   safe-rm --recursive --force -- "$source_code_folder_dist/derivative-binary/"* 2>/dev/null || true
+   safe-rm --recursive --force -- "${binary_build_folder_dist}/${dist_build_version}" 2>/dev/null || true
 }
 
 ## Run one build and collect its artifact into $output_dir/<tag>/.
@@ -152,7 +170,7 @@ build_one() {
    ## pipe after one line, which would SIGPIPE find/sort (exit 141 under pipefail +
    ## inherit_errexit) once their output exceeds the pipe buffer, breaking the exit
    ## contract with no diagnostic.
-   found="$( find "$source_code_folder_dist/derivative-binary" -type f -name "$artifact_glob" | LC_ALL=C sort )"
+   found="$( find "${binary_build_folder_dist}/${dist_build_version}" -type f -name "$artifact_glob" | LC_ALL=C sort )"
    found="${found%%$'\n'*}"
    if [ -z "$found" ]; then
       printf '%s\n' "${0##*/}: build ${tag} produced no ${artifact_glob}" >&2
