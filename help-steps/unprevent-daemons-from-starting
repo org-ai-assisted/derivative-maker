@@ -8,6 +8,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -24,7 +26,17 @@ main() {
       $SUDO_TO_ROOT chroot "${CHROOT_FOLDER}" update-alternatives --remove policy-rc.d /usr/sbin/policy-rc.d.derivative-maker
 
       ## Remove file
-      $SUDO_TO_ROOT rm --verbose --force "${CHROOT_FOLDER}/usr/sbin/policy-rc.d.derivative-maker"
+      $SUDO_TO_ROOT safe-rm --verbose --force "${CHROOT_FOLDER}/usr/sbin/policy-rc.d.derivative-maker"
+
+      ## non-deterministic
+      ## The '--remove' above appends two wall-clock-stamped lines to
+      ## /var/log/alternatives.log, so two builds of the same source differ there. This runs
+      ## OUTSIDE the chroot and AFTER initializer-dist's 80_cleanup has truncated /var/log,
+      ## so that truncation cannot cover it -- truncate here instead, at the step that
+      ## writes the entry. Truncate rather than delete, to keep the file's owner and mode.
+      if [ -f "${CHROOT_FOLDER}/var/log/alternatives.log" ]; then
+         $SUDO_TO_ROOT cp /dev/null "${CHROOT_FOLDER}/var/log/alternatives.log"
+      fi
    fi
 
    sync || true

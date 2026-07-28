@@ -5,17 +5,15 @@ name: Build
 ## the same image TWICE as two INDEPENDENT jobs (separate runner VMs, the
 ## reproducible-builds gold standard -- not one job building twice), then a
 ## third job compares the two images with diffoscope via developer-meta-files'
-## dm-reproducible-compare. Every difference is reported (no allowlist).
+## dm-reproducible-compare-artifacts. Every difference is reported (no allowlist).
 ## The two builds ARE the build test, so a green run means the image both builds
 ## and is reproducible.
 ## Kept simple -- one target per run (the default, or a workflow_dispatch choice),
 ## not a build-everything matrix, to avoid superfluous builds.
 ## The compare job's conclusion IS the reproducibility pass/fail signal: green
 ## == bit-for-bit reproducible, red == a difference remains.
-## Until the images are fully reproducible this lane is EXPECTED to be red; that
-## red is the honest "not there yet" signal and the diffoscope report artifact
-## says exactly what still differs. The build runs through the official
-## orchestration (help-steps/dm-build-official) with a single-flavor smoke
+## The diffoscope report artifact says exactly what differs. The build runs through
+## the official orchestration (help-steps/dm-build-official) with a single-flavor smoke
 ## (kicksecure-cli for qcow2/virtualbox, kicksecure-lxqt for iso), so there is
 ## ONE build path and no duplicate build
 ## logic; all compare logic lives in developer-meta-files' dm-reproducible-compare-artifacts,
@@ -72,7 +70,11 @@ env:
   ## For an iso run, build no multi-target VM images so only the iso is produced
   ## (an lxqt iso+qcow2+ova build on both runners is far heavier); the VM targets
   ## build 'virtualbox qcow2' as usual.
-  REPRO_MULTI_TARGET_LIST: ${{ inputs.target != 'iso' && 'virtualbox qcow2' || '' }}
+  ## EXPERIMENT BRANCH: build ONLY the dispatched VM target, not 'virtualbox qcow2'.
+  ## The VirtualBox export calls helper-scripts' vbox-ova-reproducible-normalize, which
+  ## exists only on a helper-scripts branch the gitlink does not point at, so the .ova
+  ## leg aborts dm-prepare-release. The qcow2 is the reproducibility subject here.
+  REPRO_MULTI_TARGET_LIST: ${{ inputs.target != 'iso' && inputs.target || '' }}
 
 jobs:
   build:
