@@ -10,6 +10,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
 container=docker
 export container
@@ -19,16 +21,10 @@ if [ $# -eq 0 ]; then
   exit 1
 fi
 
-## A TTY is only required for interactive use (e.g. "bash", "journalctl -f").
-## Headless CI runs still pass "docker run --tty" (it allocates a pty so the
-## systemd entrypoint service streams build output to docker stdout for live
-## logs); they drop "--interactive" and set CI=true instead. See the
-## "--tty --env CI=true" branch in derivative-maker-docker-run. Hence the
-## CI=true check below is what suppresses the error on those headless runs.
-if [ ! -t 0 ] && [ "${CI:-}" != "true" ]; then
-  printf '%s\n' 'ERROR: TTY needs to be enabled ("docker run -t ...").' >&2
-  exit 1
-fi
+## Do not add a check to see if fd 0 is a TTY here. Docker is passed '--tty'
+## unconditionally, so such a check would be pointless. Interactivity is
+## disabled for CI builds, but that has no influence on whether a TTY is
+## available.
 
 env | tee -- /etc/docker-entrypoint-env >/dev/null
 
@@ -62,4 +58,7 @@ declare -a systemd_args=(
 
 printf '%s\n' "$0: starting $systemd ${systemd_args[*]}"
 
+## style-ok: allow-exec -- this IS the container entrypoint: systemd must BECOME pid 1,
+## not run as a child of it. Running it as a child would leave this shell as pid 1, so
+## systemd would refuse to boot and signal handling / reaping would be wrong.
 exec "$systemd" "${systemd_args[@]}"
