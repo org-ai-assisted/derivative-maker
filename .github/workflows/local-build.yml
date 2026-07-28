@@ -72,7 +72,11 @@ env:
   ## For an iso run, build no multi-target VM images so only the iso is produced
   ## (an lxqt iso+qcow2+ova build on both runners is far heavier); the VM targets
   ## build 'virtualbox qcow2' as usual.
-  REPRO_MULTI_TARGET_LIST: ${{ inputs.target != 'iso' && 'virtualbox qcow2' || '' }}
+  ## EXPERIMENT BRANCH: build ONLY the dispatched VM target, not 'virtualbox qcow2'.
+  ## The VirtualBox export calls helper-scripts' vbox-ova-reproducible-normalize, which
+  ## exists only on a helper-scripts branch the gitlink does not point at, so the .ova
+  ## leg aborts dm-prepare-release. The qcow2 is the reproducibility subject here.
+  REPRO_MULTI_TARGET_LIST: ${{ inputs.target != 'iso' && inputs.target || '' }}
 
 jobs:
   build:
