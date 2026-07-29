@@ -28,9 +28,13 @@ on:
         type: choice
         ## A choice input defaults to the first option (qcow2); the env fallback
         ## below ('inputs.target || qcow2') covers schedule/push.
+        ## 'virtualbox' is deliberately absent: the .ova export calls helper-scripts'
+        ## vbox-ova-reproducible-normalize, which is not in the pinned gitlink, so
+        ## dm-prepare-release aborts after a ~50 minute build. Offering a choice that
+        ## deterministically fails is worse than not offering it. Restore it once
+        ## org-ai-assisted/helper-scripts#69 lands and the gitlink is bumped.
         options:
           - qcow2
-          - virtualbox
           - iso
   push:
     branches:
@@ -70,10 +74,9 @@ env:
   ## For an iso run, build no multi-target VM images so only the iso is produced
   ## (an lxqt iso+qcow2+ova build on both runners is far heavier); the VM targets
   ## build 'virtualbox qcow2' as usual.
-  ## EXPERIMENT BRANCH: build ONLY the dispatched VM target, not 'virtualbox qcow2'.
-  ## The VirtualBox export calls helper-scripts' vbox-ova-reproducible-normalize, which
-  ## exists only on a helper-scripts branch the gitlink does not point at, so the .ova
-  ## leg aborts dm-prepare-release. The qcow2 is the reproducibility subject here.
+  ## Build ONLY the dispatched VM target rather than the whole 'virtualbox qcow2' set: the
+  ## lane compares one target per run, so building the other is pure runner time, and the
+  ## .ova leg cannot currently complete anyway (see the target choices above).
   REPRO_MULTI_TARGET_LIST: ${{ inputs.target != 'iso' && inputs.target || '' }}
 
 jobs:
