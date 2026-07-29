@@ -25,7 +25,7 @@ true "INFO: - by cowbuilder which is expected to run as root (sudo), or"
 true "INFO: - using root (sudo)."
 true "INFO: \$0: '$0' | \$*: '$*'"
 
-if [ "$EUID" != "0" ]; then
+if [ "${EUID}" != "0" ]; then
    printf '%s\n' "ERROR: This must be run as root (sudo)!"
    exit 1
 fi
@@ -35,17 +35,17 @@ command -v sq >/dev/null
 #declare -p | awk '{print $3}' | sort
 
 ## Debugging.
-cat -- "/home/$user_name/pbuilder_config_file"
+cat -- "/home/${user_name}/pbuilder_config_file"
 
-source "/home/$user_name/pbuilder_config_file"
+source "/home/${user_name}/pbuilder_config_file"
 
 true "---------------"
-true "INFO: HOMEVAR_VBOX_TEMP: $HOMEVAR_VBOX_TEMP"
-true "INFO: BUILDPLACE: $BUILDPLACE"
-true "INFO: DIST_APTGETOPT_SERIALIZED: $DIST_APTGETOPT_SERIALIZED"
+true "INFO: HOMEVAR_VBOX_TEMP: ${HOMEVAR_VBOX_TEMP}"
+true "INFO: BUILDPLACE: ${BUILDPLACE}"
+true "INFO: DIST_APTGETOPT_SERIALIZED: ${DIST_APTGETOPT_SERIALIZED}"
 true "---------------"
 
-mapfile -t DIST_APTGETOPT <<< "$DIST_APTGETOPT_SERIALIZED"
+mapfile -t DIST_APTGETOPT <<< "${DIST_APTGETOPT_SERIALIZED}"
 printf "%s\n" "DIST_APTGETOPT: ${DIST_APTGETOPT[*]}"
 
 test -f "${if_no_pbuilder_base_folder}/var/cache/derivative-maker/temporary-repository/newer.sources"
@@ -84,17 +84,17 @@ else
    target_release_option="--target-release=${apt_target_release}"
 fi
 
-pushd "$temp_newer_packages"
+pushd "${temp_newer_packages}"
 
 ## Use dpkg multiarch so we can download other architectures than the build host's one using apt-get.
-for dist_build_multiarch_package_item in $make_cross_build_platform_list ; do
-   dpkg --add-architecture "$dist_build_multiarch_package_item"
+for dist_build_multiarch_package_item in ${make_cross_build_platform_list} ; do
+   dpkg --add-architecture "${dist_build_multiarch_package_item}"
 done
 
 apt-get \
    "${DIST_APTGETOPT[@]}" \
-   $apt_unattended_opts \
-   $target_release_option \
+   ${apt_unattended_opts} \
+   ${target_release_option} \
    -o Dir::Etc::sourcelist="${if_no_pbuilder_base_folder}/var/cache/derivative-maker/temporary-repository/newer.sources" \
    -o Dir::Etc::sourceparts="-" \
    -- \
@@ -124,26 +124,26 @@ apt-get \
 
 apt-get \
    "${DIST_APTGETOPT[@]}" \
-   $apt_unattended_opts \
-   $target_release_option \
+   ${apt_unattended_opts} \
+   ${target_release_option} \
    -o Dir::Etc::sourcelist="${if_no_pbuilder_base_folder}/var/cache/derivative-maker/temporary-repository/newer.sources" \
    -o Dir::Etc::sourceparts="-" \
    download \
    -- \
-   $newer_package_list
+   ${newer_package_list}
 
 if [ "${download_source_package:-}" = "true" ]; then
    apt-get \
       "${DIST_APTGETOPT[@]}" \
-      $apt_unattended_opts \
-      $target_release_option \
+      ${apt_unattended_opts} \
+      ${target_release_option} \
       --yes \
       --download-only \
       -o Dir::Etc::sourcelist="${if_no_pbuilder_base_folder}/var/cache/derivative-maker/temporary-repository/newer.sources" \
       -o Dir::Etc::sourceparts="-" \
       -- \
       source \
-      $newer_package_list
+      ${newer_package_list}
 fi
 
 popd

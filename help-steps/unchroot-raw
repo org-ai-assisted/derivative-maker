@@ -13,12 +13,12 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-source "$MYDIR/pre"
-source "$MYDIR/variables"
+source "${MYDIR}/pre"
+source "${MYDIR}/variables"
 
 error_handler_unchroot-raw() {
    : echo "
-${red}${bold}BASH_COMMAND${reset}: $BASH_COMMAND
+${red}${bold}BASH_COMMAND${reset}: ${BASH_COMMAND}
 ${red}${bold}ERROR ${BASH_SOURCE[0]}: | caller: $(caller)${reset}
 "
    exit 1
@@ -32,10 +32,10 @@ main() {
    if [ "${dist_build_install_to_root:-}" = "true" ]; then
       true
    else
-      "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER/dev/pts"
-      "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER/dev"
-      "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER/proc"
-      "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER/sys"
+      "${dist_source_help_steps_folder}/unmount-helper" "${CHROOT_FOLDER}/dev/pts"
+      "${dist_source_help_steps_folder}/unmount-helper" "${CHROOT_FOLDER}/dev"
+      "${dist_source_help_steps_folder}/unmount-helper" "${CHROOT_FOLDER}/proc"
+      "${dist_source_help_steps_folder}/unmount-helper" "${CHROOT_FOLDER}/sys"
 
       ## TODO: image should not contain folders /run /sys /proc /dev?
       ## https://github.com/grml/grml-debootstrap/issues/276
@@ -66,28 +66,28 @@ main() {
    fi
 
    local derivative_name_item
-   for derivative_name_item in $derivative_name_list ; do
-      "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER/$DEB_INSTALL_FOLDER/$derivative_name_item"
-      if test -d "$CHROOT_FOLDER/$DEB_INSTALL_FOLDER/$derivative_name_item" ; then
-         $SUDO_TO_ROOT rmdir --ignore-fail-on-non-empty -- "$CHROOT_FOLDER/$DEB_INSTALL_FOLDER/$derivative_name_item"
+   for derivative_name_item in ${derivative_name_list} ; do
+      "${dist_source_help_steps_folder}/unmount-helper" "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}/${derivative_name_item}"
+      if test -d "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}/${derivative_name_item}" ; then
+         ${SUDO_TO_ROOT} rmdir --ignore-fail-on-non-empty -- "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}/${derivative_name_item}"
       fi
    done
-   if test -d "$CHROOT_FOLDER/$DEB_INSTALL_FOLDER" ; then
-      $SUDO_TO_ROOT rmdir --ignore-fail-on-non-empty -- "$CHROOT_FOLDER/$DEB_INSTALL_FOLDER"
+   if test -d "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}" ; then
+      ${SUDO_TO_ROOT} rmdir --ignore-fail-on-non-empty -- "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}"
    fi
 
    ## Also possibly unmount '.backup' file for bare metal builds.
-   "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER"/etc/resolv.conf
-   "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER"/etc/hosts
-   "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER"/etc/hostname
-   "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER"/etc/network/interfaces
+   "${dist_source_help_steps_folder}/unmount-helper" "${CHROOT_FOLDER}"/etc/resolv.conf
+   "${dist_source_help_steps_folder}/unmount-helper" "${CHROOT_FOLDER}"/etc/hosts
+   "${dist_source_help_steps_folder}/unmount-helper" "${CHROOT_FOLDER}"/etc/hostname
+   "${dist_source_help_steps_folder}/unmount-helper" "${CHROOT_FOLDER}"/etc/network/interfaces
 
    if [ "${dist_build_install_to_root:-}" = "true" ]; then
       ## $CHROOT_FOLDER would be /, not wise to kill all
       true
    else
       ## kill dbus-launch when building Non-Qubes-Whonix inside a Qubes Debian template
-      $SUDO_TO_ROOT "$MYDIR/umount_kill.sh" "$CHROOT_FOLDER"
+      ${SUDO_TO_ROOT} "${MYDIR}/umount_kill.sh" "${CHROOT_FOLDER}"
    fi
 
    sync

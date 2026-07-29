@@ -39,8 +39,8 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-source "$MYDIR/pre"
-source "$MYDIR/variables"
+source "${MYDIR}/pre"
+source "${MYDIR}/variables"
 
 ## Print the mount points still attached under '$1', deepest first
 ## ('sort --reverse' orders '/a/b/c' before '/a/b'). Path-boundary prefix
@@ -77,7 +77,7 @@ main() {
    ## when busy.
    while IFS="" read -r mount_target; do
       [ -n "${mount_target}" ] || continue
-      $SUDO_TO_ROOT umount --lazy -- "${mount_target}" || true
+      ${SUDO_TO_ROOT} umount --lazy -- "${mount_target}" || true
    done < <(lb_mounts_under "${live_build_folder}")
 
    sync

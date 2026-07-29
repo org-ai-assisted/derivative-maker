@@ -18,12 +18,12 @@ shopt -s inherit_errexit
 shopt -s shift_verbose
 
 image_kind="${IMAGE_KIND:-}"
-if [ -z "$image_kind" ]; then
+if [ -z "${image_kind}" ]; then
    printf '%s\n' "${0##*/}: IMAGE_KIND must be set" >&2
    exit 64
 fi
 
-case "$image_kind" in
+case "${image_kind}" in
    iso)
       find_glob='Kicksecure-*.iso'
       ;;
@@ -37,10 +37,10 @@ case "$image_kind" in
       ;;
 esac
 
-image_path="$(find boot-image -type f -name "$find_glob" | head --lines=1)"
-if [ -z "$image_path" ]; then
+image_path="$(find boot-image -type f -name "${find_glob}" | head --lines=1)"
+if [ -z "${image_path}" ]; then
    printf '%s\n' "${0##*/}: no ${image_kind} image found under boot-image/" >&2
    exit 1
 fi
 
-printf 'path=%s\n' "$image_path" >> "${GITHUB_OUTPUT}"
+printf 'path=%s\n' "${image_path}" >> "${GITHUB_OUTPUT}"

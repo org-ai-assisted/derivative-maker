@@ -43,11 +43,11 @@ true "INFO: 0: $0"
 ## forwarded arguments because the downstream build steps do not know it.
 forwarded_args=()
 for arg_item in "$@"; do
-  if [ "$arg_item" = "--show-steps" ]; then
+  if [ "${arg_item}" = "--show-steps" ]; then
     TESTING_MODE=1
     export TESTING_MODE
   else
-    forwarded_args+=("$arg_item")
+    forwarded_args+=("${arg_item}")
   fi
 done
 set -- ${forwarded_args[@]+"${forwarded_args[@]}"}
@@ -73,7 +73,7 @@ fi
 ## - Official builds default to Intel/AMD64 at the time of writing.
 build_args=()
 if ! [ "${dist_build_target_arch:-}" = "" ]; then
-  architecture="$dist_build_target_arch"
+  architecture="${dist_build_target_arch}"
 elif [ "${CI:-}" = "true" ]; then
   architecture=arm64
   ## Build the Kicksecure/Whonix derivative packages from source rather than
@@ -85,7 +85,7 @@ elif [ "${CI:-}" = "true" ]; then
 else
   architecture="amd64"
 fi
-build_args+=(--arch "$architecture")
+build_args+=(--arch "${architecture}")
 
 ## Ordered as follows for the following reasons:
 ## - 1) Build '--flavor kicksecure-lxqt' because building ISO, which is newer,
@@ -184,7 +184,7 @@ esac
 flavor_multi_target_args=()
 if [ -n "${dist_build_multi_target_list+x}" ]; then
   for multi_target_item in ${dist_build_multi_target_list}; do
-    flavor_multi_target_args+=("--target" "$multi_target_item")
+    flavor_multi_target_args+=("--target" "${multi_target_item}")
   done
 else
   flavor_multi_target_args=("${multi_target_args[@]}")
@@ -205,7 +205,7 @@ fi
 for flavor_item in "${flavors_list[@]}"; do
   ## Not yet using multi_target_args as the sanity test for Whonix-Gateway ISO would complain that the VMs
   ## have not been built yet.
-  run_cmd ./build-steps.d/*_sanity-tests "${build_args[@]}" --target windows "${multi_target_args[@]}" --flavor "$flavor_item" "$@"
+  run_cmd ./build-steps.d/*_sanity-tests "${build_args[@]}" --target windows "${multi_target_args[@]}" --flavor "${flavor_item}" "$@"
 done
 
 ############################################################
@@ -293,7 +293,7 @@ for flavor_item in "${flavors_list[@]}"; do
       ## kicksecure-debug boot-test flavor (a minimal live ISO for fast CI
       ## iteration). Not for Kicksecure CLI. Not yet for Whonix.
       true "INFO: ISO build flavor."
-      run_cmd ./derivative-maker "${build_args[@]}" "${skip_shared_args[@]}" --target iso --flavor "$flavor_item" "$@"
+      run_cmd ./derivative-maker "${build_args[@]}" "${skip_shared_args[@]}" --target iso --flavor "${flavor_item}" "$@"
       ;;
     *)
       true "INFO: Non-ISO build flavor."
@@ -304,7 +304,7 @@ for flavor_item in "${flavors_list[@]}"; do
   ## flavor_multi_target_args / dist_build_multi_target_list above: an ISO-only leg
   ## sets it empty so only the ISO built above is produced).
   if [ "${#flavor_multi_target_args[@]}" -gt 0 ]; then
-    run_cmd ./derivative-maker "${build_args[@]}" "${skip_shared_args[@]}" "${flavor_multi_target_args[@]}" --flavor "$flavor_item" "$@"
+    run_cmd ./derivative-maker "${build_args[@]}" "${skip_shared_args[@]}" "${flavor_multi_target_args[@]}" --flavor "${flavor_item}" "$@"
   else
     true "INFO: dist_build_multi_target_list empty: no multi-target VM image build for ${flavor_item}."
   fi
@@ -348,7 +348,7 @@ fi
 
 ## Uploading.
 for flavor_item in "${flavors_list[@]}"; do
-  if printf '%s\n' "$flavor_item" | grep -- "gateway" &>/dev/null; then
+  if printf '%s\n' "${flavor_item}" | grep -- "gateway" &>/dev/null; then
     ## Not needed for gateway due to unified images.
     continue
   fi
@@ -356,7 +356,7 @@ for flavor_item in "${flavors_list[@]}"; do
   case "${flavor_item:-}" in
     kicksecure-lxqt)
       true "INFO: ISO build flavor."
-      run_cmd dm-upload-images "${build_args[@]}" --target iso --flavor "$flavor_item" "$@"
+      run_cmd dm-upload-images "${build_args[@]}" --target iso --flavor "${flavor_item}" "$@"
       ;;
     *)
       true "INFO: Non-ISO build flavor."
@@ -367,7 +367,7 @@ for flavor_item in "${flavors_list[@]}"; do
   ## --target to its own destination via the parallel upload-location array), or
   ## skip when its target list is empty (their files were not built above).
   if [ "${#flavor_multi_target_args[@]}" -gt 0 ]; then
-    run_cmd dm-upload-images "${build_args[@]}" "${flavor_multi_target_args[@]}" --flavor "$flavor_item" "$@"
+    run_cmd dm-upload-images "${build_args[@]}" "${flavor_multi_target_args[@]}" --flavor "${flavor_item}" "$@"
   else
     true "INFO: dist_build_multi_target_list empty: no multi-target image upload for ${flavor_item}."
   fi

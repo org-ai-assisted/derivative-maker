@@ -43,7 +43,7 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
@@ -56,19 +56,19 @@ compare_target() {
    target="$1"
    artifact="$2"
 
-   if [ ! -f "$artifact" ]; then
-      true "${cyan}INFO: no $target artifact at '$artifact', skipping.${reset}"
+   if [ ! -f "${artifact}" ]; then
+      true "${cyan}INFO: no ${target} artifact at '${artifact}', skipping.${reset}"
       return 0
    fi
 
-   reference_artifact="${dist_build_reproducible_reference_folder}/$(basename -- "$artifact")"
-   if [ ! -f "$reference_artifact" ]; then
-      true "${cyan}INFO: no reference $target artifact at '$reference_artifact', skipping compare.${reset}"
+   reference_artifact="${dist_build_reproducible_reference_folder}/$(basename -- "${artifact}")"
+   if [ ! -f "${reference_artifact}" ]; then
+      true "${cyan}INFO: no reference ${target} artifact at '${reference_artifact}', skipping compare.${reset}"
       return 0
    fi
 
-   report_out="$binary_build_folder_dist/$(basename -- "$artifact").diffoscope.txt"
-   true "${cyan}INFO: comparing $target build vs reference with diffoscope...${reset}"
+   report_out="${binary_build_folder_dist}/$(basename -- "${artifact}").diffoscope.txt"
+   true "${cyan}INFO: comparing ${target} build vs reference with diffoscope...${reset}"
 
    ## reproducible-compare returns 1 when the artifacts differ; record it, do
    ## not fail the build on non-reproducibility.
@@ -76,19 +76,19 @@ compare_target() {
    ## The comparator locates ONE artifact of '$target' under each directory rather than
    ## taking two file paths, so pass the containing directories. Both paths were resolved
    ## to existing files above, so their dirnames are the right search roots.
-   "$dist_developer_meta_files_folder/usr/bin/dm-reproducible-compare-artifacts" \
-      --target "$target" \
-      --dir-a "$(dirname -- "$reference_artifact")" \
-      --dir-b "$(dirname -- "$artifact")" \
-      --output "$report_out" \
+   "${dist_developer_meta_files_folder}/usr/bin/dm-reproducible-compare-artifacts" \
+      --target "${target}" \
+      --dir-a "$(dirname -- "${reference_artifact}")" \
+      --dir-b "$(dirname -- "${artifact}")" \
+      --output "${report_out}" \
       || compare_exit_code="$?"
 
-   if [ "$compare_exit_code" = "0" ]; then
-      true "${bold}${green}INFO: $target reproducible: identical to the reference build.${reset}"
-   elif [ "$compare_exit_code" = "1" ]; then
-      true "${bold}${red}WARNING: $target differs from the reference build; see '$report_out'.${reset}"
+   if [ "${compare_exit_code}" = "0" ]; then
+      true "${bold}${green}INFO: ${target} reproducible: identical to the reference build.${reset}"
+   elif [ "${compare_exit_code}" = "1" ]; then
+      true "${bold}${red}WARNING: ${target} differs from the reference build; see '${report_out}'.${reset}"
    else
-      error "reproducible-compare failed for $target (exit $compare_exit_code)."
+      error "reproducible-compare failed for ${target} (exit ${compare_exit_code})."
    fi
 }
 
@@ -125,17 +125,17 @@ build outputs directly).${reset}"
    fi
 
    if [ "${dist_build_virtualbox:-}" = "true" ]; then
-      compare_target "virtualbox" "$binary_image_ova_file"
+      compare_target "virtualbox" "${binary_image_ova_file}"
    fi
 
    ## The released qcow2 artifact is the compressed '.qcow2.libvirt.xz' (the bare '.qcow2'
    ## is deleted after it is built), which is what the comparator locates for this target.
    if [ "${dist_build_qcow2:-}" = "true" ]; then
-      compare_target "qcow2" "$libvirt_target_qcow2_xz_archive_file"
+      compare_target "qcow2" "${libvirt_target_qcow2_xz_archive_file}"
    fi
 
    if [ "${dist_build_iso:-}" = "true" ]; then
-      compare_target "iso" "$binary_image_iso_file"
+      compare_target "iso" "${binary_image_iso_file}"
    fi
 }
 

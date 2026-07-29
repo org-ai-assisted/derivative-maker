@@ -13,7 +13,7 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
@@ -23,30 +23,30 @@ source pre
 source variables
 
 main() {
-   true "make_use_debsign: $make_use_debsign"
+   true "make_use_debsign: ${make_use_debsign}"
 
    sq-git policy describe --policy-file "${sq_git_policy_file}" >/dev/null
 
-   true "INFO: Attempting to test digital signature creation using --signer-email $DEBEMAIL"
+   true "INFO: Attempting to test digital signature creation using --signer-email ${DEBEMAIL}"
 
-   printf '%s\n' "test" | tee -- "$binary_build_folder_dist/test_sign_file" >/dev/null
-   safe-rm --force -- "$binary_build_folder_dist/test_sign_file.asc"
-   chown -- "$user_name:$user_name" "$binary_build_folder_dist/test_sign_file"
+   printf '%s\n' "test" | tee -- "${binary_build_folder_dist}/test_sign_file" >/dev/null
+   safe-rm --force -- "${binary_build_folder_dist}/test_sign_file.asc"
+   chown -- "${user_name}:${user_name}" "${binary_build_folder_dist}/test_sign_file"
 
-   sq inspect --cert-email "$DEBEMAIL" &>/dev/null
-   sq cert lint --cert-email "$DEBEMAIL" &>/dev/null
+   sq inspect --cert-email "${DEBEMAIL}" &>/dev/null
+   sq cert lint --cert-email "${DEBEMAIL}" &>/dev/null
 
    ## Not possible to use 'sqop' (stateless). derivative_signing_public_key_item is only the public key. Not the private key.
    #sqop sign "${derivative_signing_public_key_item}" < "$binary_build_folder_dist/test_sign_file" > "$binary_build_folder_dist/test_sign_file.asc"
    ## 'sqop' (stateless) cannot be used. 'sq' (keystore) must be used for 'split-gpg-2' compatibility.
-   sq sign --signature-notation testvar testcontent --signer-email "$DEBEMAIL" --signature-file="$binary_build_folder_dist/test_sign_file.asc" -- "$binary_build_folder_dist/test_sign_file"
+   sq sign --signature-notation testvar testcontent --signer-email "${DEBEMAIL}" --signature-file="${binary_build_folder_dist}/test_sign_file.asc" -- "${binary_build_folder_dist}/test_sign_file"
 
-   sq verify --signer-email "$DEBEMAIL" --signature-file="$binary_build_folder_dist/test_sign_file.asc" -- "$binary_build_folder_dist/test_sign_file"
+   sq verify --signer-email "${DEBEMAIL}" --signature-file="${binary_build_folder_dist}/test_sign_file.asc" -- "${binary_build_folder_dist}/test_sign_file"
    ## Not possible when using '--signer-email'.
    #sqop verify "$binary_build_folder_dist/test_sign_file.asc" -- "${derivative_signing_public_key_item}" < "$binary_build_folder_dist/test_sign_file"
 
-   safe-rm -- "$binary_build_folder_dist/test_sign_file"
-   safe-rm -- "$binary_build_folder_dist/test_sign_file.asc"
+   safe-rm -- "${binary_build_folder_dist}/test_sign_file"
+   safe-rm -- "${binary_build_folder_dist}/test_sign_file.asc"
 
    ## Signify keys are used by 'dm-prepare-release' in package 'developer-meta-files'.
    ## TODO: stub

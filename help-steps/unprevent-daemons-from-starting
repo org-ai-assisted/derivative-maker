@@ -15,18 +15,18 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-source "$MYDIR/pre"
-source "$MYDIR/variables"
+source "${MYDIR}/pre"
+source "${MYDIR}/variables"
 
 main() {
    sync || true
 
    if [ -e "${CHROOT_FOLDER}/usr/sbin/policy-rc.d.derivative-maker" ]; then
       ## Uninstall alternative
-      $SUDO_TO_ROOT chroot "${CHROOT_FOLDER}" update-alternatives --remove policy-rc.d /usr/sbin/policy-rc.d.derivative-maker
+      ${SUDO_TO_ROOT} chroot "${CHROOT_FOLDER}" update-alternatives --remove policy-rc.d /usr/sbin/policy-rc.d.derivative-maker
 
       ## Remove file
-      $SUDO_TO_ROOT safe-rm --verbose --force "${CHROOT_FOLDER}/usr/sbin/policy-rc.d.derivative-maker"
+      ${SUDO_TO_ROOT} safe-rm --verbose --force "${CHROOT_FOLDER}/usr/sbin/policy-rc.d.derivative-maker"
 
       ## non-deterministic
       ## The '--remove' above appends two wall-clock-stamped lines to
@@ -35,7 +35,7 @@ main() {
       ## so that truncation cannot cover it -- truncate here instead, at the step that
       ## writes the entry. Truncate rather than delete, to keep the file's owner and mode.
       if [ -f "${CHROOT_FOLDER}/var/log/alternatives.log" ]; then
-         $SUDO_TO_ROOT cp /dev/null "${CHROOT_FOLDER}/var/log/alternatives.log"
+         ${SUDO_TO_ROOT} cp /dev/null "${CHROOT_FOLDER}/var/log/alternatives.log"
       fi
    fi
 

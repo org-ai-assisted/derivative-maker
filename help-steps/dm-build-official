@@ -15,7 +15,7 @@ set -o pipefail
 set -o errtrace
 
 MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
-cd -- "$MYDIR"
+cd -- "${MYDIR}"
 cd ..
 
 true "$0: START"

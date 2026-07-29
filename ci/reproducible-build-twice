@@ -95,14 +95,14 @@ while [ "$#" -gt 0 ]; do
    esac
 done
 
-case "$target" in
+case "${target}" in
    iso)
       artifact_glob="*.iso"
-      [ -n "$flavor" ] || flavor="kicksecure-lxqt"
+      [ -n "${flavor}" ] || flavor="kicksecure-lxqt"
       ;;
    virtualbox)
       artifact_glob="*.ova"
-      [ -n "$flavor" ] || flavor="kicksecure-cli"
+      [ -n "${flavor}" ] || flavor="kicksecure-cli"
       ;;
    qcow2)
       ## The shipped, released artifact is the compressed '.qcow2.libvirt.xz' (the
@@ -110,7 +110,7 @@ case "$target" in
       ## not the bare pre-release '.qcow2'. If a build stops before release packaging
       ## it will emit no '.xz' and build_one reports it -- run the packaging step.
       artifact_glob="*.qcow2.libvirt.xz"
-      [ -n "$flavor" ] || flavor="kicksecure-cli"
+      [ -n "${flavor}" ] || flavor="kicksecure-cli"
       ;;
    *)
       printf '%s\n' "${0##*/}: unknown or missing --target (want iso|virtualbox|qcow2)" >&2
@@ -118,7 +118,7 @@ case "$target" in
       ;;
 esac
 
-if [ -z "$arch" ]; then
+if [ -z "${arch}" ]; then
    printf '%s\n' "${0##*/}: --arch is required (e.g. amd64)." >&2
    usage
 fi
@@ -130,17 +130,17 @@ fi
 
 ## Collect into the binary volume: it is the only bind-mounted, writable location that
 ## outlives the '--rm' build container.
-if [ -z "$output_dir" ]; then
+if [ -z "${output_dir}" ]; then
    output_dir="$( mktemp --directory --tmpdir="${binary_build_folder_dist}" reproducible-build-twice.XXXXXX )"
 fi
-mkdir --parents -- "$output_dir"
-report="$output_dir/report.txt"
+mkdir --parents -- "${output_dir}"
+report="${output_dir}/report.txt"
 
 ## Pin the image version for BOTH builds, from the pre-sign HEAD of this one tree.
 ## ci/build's own capture is per-build, which is correct on a fresh CI runner but not
 ## here: build a's sign-and-tag amends and tags HEAD, so build b would derive the
 ## generated tag as its version and differ for a non-defect reason.
-pushd -- "$source_code_folder_dist" >/dev/null
+pushd -- "${source_code_folder_dist}" >/dev/null
 dist_build_version="$( git describe --always --abbrev=1000000000 )"
 popd >/dev/null
 export dist_build_version
@@ -155,16 +155,16 @@ clean_binary() {
 
 ## Run one build and collect its artifact into $output_dir/<tag>/.
 build_one() {
-   local tag="$1" dest="$output_dir/$2" build_rc found
+   local tag="$1" dest="${output_dir}/$2" build_rc found
    printf '%s\n' "=== build ${tag}: ${flavor} ${target} ${arch} (freshness=${freshness}) ==="
    clean_binary
    build_rc=0
    ## pushd/popd rather than a '( cd && ... )' subshell: scopes the cd without a
    ## subshell (and dodges the errexit-in-conditional-subshell footgun).
-   pushd -- "$source_code_folder_dist" >/dev/null
-   ./ci/build --arch "$arch" --target "$target" --flavor "$flavor" --freshness "$freshness" || build_rc="$?"
+   pushd -- "${source_code_folder_dist}" >/dev/null
+   ./ci/build --arch "${arch}" --target "${target}" --flavor "${flavor}" --freshness "${freshness}" || build_rc="$?"
    popd >/dev/null
-   if [ "$build_rc" -ne 0 ]; then
+   if [ "${build_rc}" -ne 0 ]; then
       printf '%s\n' "${0##*/}: build ${tag} failed (exit ${build_rc})" >&2
       exit 3
    fi
@@ -172,19 +172,19 @@ build_one() {
    ## pipe after one line, which would SIGPIPE find/sort (exit 141 under pipefail +
    ## inherit_errexit) once their output exceeds the pipe buffer, breaking the exit
    ## contract with no diagnostic.
-   found="$( find "${binary_build_folder_dist}/${dist_build_version}" -type f -name "$artifact_glob" | LC_ALL=C sort )"
+   found="$( find "${binary_build_folder_dist}/${dist_build_version}" -type f -name "${artifact_glob}" | LC_ALL=C sort )"
    found="${found%%$'\n'*}"
-   if [ -z "$found" ]; then
+   if [ -z "${found}" ]; then
       printf '%s\n' "${0##*/}: build ${tag} produced no ${artifact_glob}" >&2
       exit 3
    fi
    ## Start from a clean $dest: a rerun into the same --output-dir with a different --flavor
    ## must not leave a stale artifact that the compare's 'find | sort | first' could pick over
    ## the newly built one. $dest is a dedicated per-tag subdir ($output_dir/a|b), safe to wipe.
-   safe-rm --recursive --force -- "$dest"
-   mkdir --parents -- "$dest"
-   cp -- "$found" "$dest/"
-   printf '%s\n' "  collected: $dest/${found##*/}"
+   safe-rm --recursive --force -- "${dest}"
+   mkdir --parents -- "${dest}"
+   cp -- "${found}" "${dest}/"
+   printf '%s\n' "  collected: ${dest}/${found##*/}"
 }
 
 build_one a a
@@ -195,7 +195,7 @@ build_one b b
 ## exactly one artifact of $target under each dir, so the two build outputs collected
 ## into a/ and b/ are compared bit-for-bit. Its exit maps onto ours: 0 identical
 ## (reproducible), 1 differ, 2 setup / artifact-not-found.
-compare_bin="$source_code_folder_dist/packages/kicksecure/developer-meta-files/usr/bin/dm-reproducible-compare-artifacts"
+compare_bin="${source_code_folder_dist}/packages/kicksecure/developer-meta-files/usr/bin/dm-reproducible-compare-artifacts"
 compare_rc=0
-"$compare_bin" --target "$target" --dir-a "$output_dir/a" --dir-b "$output_dir/b" --output "$report" || compare_rc="$?"
-exit "$compare_rc"
+"${compare_bin}" --target "${target}" --dir-a "${output_dir}/a" --dir-b "${output_dir}/b" --output "${report}" || compare_rc="$?"
+exit "${compare_rc}"
