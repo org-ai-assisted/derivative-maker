@@ -1,9 +1,16 @@
 ---
 ## Sidebar UI ordering: GitHub sorts the Actions tab alphabetically
 ## by 'name:'. The '00 ' prefix forces this workflow to the top of
-## the list because it is the canonical release pipeline; operators
+## the list because it is the first gate a change meets; operators
 ## should see its status first.
-name: 00 Run automated builder
+##
+## Scope: the build DRY-RUN only. Real image builds belong to
+## local-build.yml (reproducibility: builds twice + diffoscope) and
+## local-boot-test.yml (build + boot). Both drive
+## help-steps/dm-build-official directly and need no secrets, so they
+## run on forks; keeping the heavy build out of this per-PR gate also
+## avoids a third copy of that build path.
+name: 00 Build dry-run
 
 on:
   pull_request:
@@ -16,11 +23,6 @@ on:
       - '*'
   workflow_dispatch:
 
-## Upstream-only gate: build:if uses a literal repo string (not env)
-## because GitHub Actions does not expose env in job-level if:.
-## Required secrets (vault password, etc.) only exist on the canonical
-## repo, so forks must skip the heavy paths.
-##
 ## See agents/github-actions-security.md.
 
 permissions:
@@ -39,14 +41,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ## Dry-run smoke must pass before the heavy automated builder
-  ## kicks off. Calls dry-run.yml as a reusable workflow
-  ## (on: workflow_call) so dry-run + build run as ONE Actions UI
-  ## record - one workflow_run with two job nodes - rather than two
-  ## independent workflows whose success states could diverge.
-  ## See agents/github-actions-security.md (workflow_call section)
-  ## for why we prefer 'uses: ./...' over an event-driven
-  ## workflow_run trigger here.
+  ## Calls local-build-dry-run.yml as a reusable workflow
+  ## (on: workflow_call) rather than giving that file its own PR
+  ## trigger, so the dry-run reports under this workflow's single
+  ## Actions UI record. See agents/github-actions-security.md
+  ## (workflow_call section) for why we prefer 'uses: ./...' over an
+  ## event-driven workflow_run trigger here.
   dry-run:
     uses: ./.github/workflows/local-build-dry-run.yml
     ## The reusable workflow only needs contents: read. Pass it
@@ -55,110 +55,3 @@ jobs:
     ## permission the called workflow expects.
     permissions:
       contents: read
-
-  build:
-    needs: dry-run
-    if: github.repository == 'Whonix/derivative-maker'
-    runs-on: ubuntu-latest
-    timeout-minutes: 240
-    ## ANSIBLE_VAULT_PASSWORD lives in step-level env on the
-    ## three steps that consume it (Run automated builder, Handle
-    ## artifacts, Teardown build) - not here at job level. Keeping
-    ## it off the job env removes it from the environment of the
-    ## Checkout / Install ansible / Upload artifacts steps that
-    ## don't need it. Matches the step-level pattern coverity's
-    ## reusable adopted for COVERITY_TOKEN / COVERITY_EMAIL after
-    ## its canonical-repos refactor (see
-    ## developer-meta-files/agents/github-actions-consumer-templates.md
-    ## "Coverity canonical-repos gate placement").
-    env:
-      GIT_REPO: ${{ github.repository }}
-      REF_NAME: ${{ github.ref_name }}
-      REF_TYPE: ${{ github.ref_type }}
-      GITHUB_EVENT_NAME: ${{ github.event_name }}
-    steps:
-      - name: Checkout repository (with submodules)
-        ## submodules: recursive so help-steps/pre's xtrace.bsh and
-        ## the rest of packages/kicksecure/helper-scripts/ are on
-        ## disk; fetch-depth: 0 so the helper-scripts submodule's
-        ## pinned SHA is reachable.
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-        with:
-          submodules: recursive
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Install ansible
-        run: |
-          sudo --non-interactive apt-get update --error-on=any
-          sudo --non-interactive apt-get install --yes --no-install-recommends \
-            ansible
-
-      - name: Run automated builder
-        env:
-          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
-        run: |
-          ./automated_builder/scripts/run_automated_builder.sh "$ANSIBLE_VAULT_PASSWORD"
-
-      - name: Handle artifacts
-        if: always()
-        env:
-          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
-        run: |
-          ./automated_builder/scripts/handle_artifacts.sh "$ANSIBLE_VAULT_PASSWORD"
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
-        if: always()
-        with:
-          name: logs
-          path: ./automated_builder/logs/
-
-      - name: Teardown build
-        if: always()
-        env:
-          ANSIBLE_VAULT_PASSWORD: ${{ secrets.ANSIBLE_VAULT_PASSWORD }}
-        run: |
-          ./automated_builder/scripts/teardown_build.sh "$ANSIBLE_VAULT_PASSWORD"
-
-      - name: Reclaim workspace ownership
-        if: always()
-        ## The automated builder runs ansible playbooks that invoke
-        ## sudo / mmdebstrap / chroot, leaving root-owned files in
-        ## $GITHUB_WORKSPACE. The host runner can no longer mkdir
-        ## into the workspace (e.g. for actions/checkout below)
-        ## until ownership is restored. Same fix as the 'dry-run'
-        ## job in local-build-dry-run.yml. Passwordless sudo is
-        ## available on ubuntu-latest hosted runners.
-        run: sudo chown -R "$(id -u):$(id -g)" "${GITHUB_WORKSPACE}"
-
-      - name: Checkout dist-ai (shared CI helper binaries)
-        if: always()
-        ## Needed for usr/bin/step-summary-emit. derivative-maker
-        ## does not vendor a copy; checkout @master keeps the org's
-        ## single source of truth. Pinned SHA matches the existing
-        ## actions/checkout in this file. Checked out into
-        ## .github/dist-ai (sibling of the recursive workspace, not
-        ## inside any submodule path).
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-        with:
-          repository: org-ai-assisted/dist-ai
-          ref: master
-          path: .github/dist-ai
-          persist-credentials: false
-
-      - name: Emit step summary
-        if: always()
-        ## Headline panel for the Actions tab. The dry-run job has
-        ## its own panel (local-build-dry-run.yml); this one covers
-        ## the heavy build job. Template values through env: per
-        ## developer-meta-files#87.
-        env:
-          JOB_STATUS: ${{ job.status }}
-        run: |
-          ./.github/dist-ai/usr/bin/step-summary-emit \
-            --tool 'Automated builder' \
-            --column-header field \
-            --row "outcome=${JOB_STATUS}" \
-            --row "ref-type=${REF_TYPE}" \
-            --row "ref-name=${REF_NAME}"
