@@ -11,10 +11,6 @@
 # shellcheck disable=SC2086
 ## style-ok: no-has
 ## style-ok: no-safe-rm
-## style-ok: no-tmp-hardcode -- EMPTY_DIR is a path INSIDE the target chroot
-## ('${CHROOT_FOLDER}/${EMPTY_DIR}'), used as apt's empty sourcelist via
-## buildconfig.d/30_apt_opts.conf. TMP/TMPDIR are host state, deliberately stripped
-## before entering a chroot, so it cannot be derived from them and must stay fixed.
 
 #set -x
 set -o errexit
