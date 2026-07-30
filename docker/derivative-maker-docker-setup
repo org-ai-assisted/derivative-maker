@@ -68,14 +68,46 @@ if [ -n "${DM_FROZEN_SNAPSHOT}" ]; then
    ## Fail loud instead of silently installing from the live archive: every
    ## configured deb source must carry the pin. Catches a base image that keeps
    ## its sources under a name not overwritten above.
-   unpinned_sources="$(grep --recursive --no-filename --extended-regexp \
-      '^[[:space:]]*(URIs:|deb[[:space:]])' \
-      /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null \
-      | grep --invert-match -- "${DM_FROZEN_SNAPSHOT}" || true)"
+   ##
+   ## Judged per URI, not per line. A deb822 'URIs:' field takes SEVERAL
+   ## whitespace-separated URIs and apt fetches from every one, so a line holding
+   ## the pinned URI next to a live one would satisfy any whole-line match while
+   ## still pulling from the live archive.
+   unpinned_sources=""
+   pinned_seen="false"
+   while read -r config_line; do
+      ## Drop the leading keyword so only URI tokens are judged.
+      case "${config_line}" in
+         *URIs:*) config_line="${config_line#*URIs:}" ;;
+         *) config_line="${config_line#*deb}" ;;
+      esac
+      ## Deliberately unquoted: splitting the field into its URI tokens is the point.
+      for uri_token in ${config_line}; do
+         ## Options ('[trusted=yes]'), suites and components are not URIs.
+         case "${uri_token}" in
+            *://*) ;;
+            *) continue ;;
+         esac
+         case "${uri_token}" in
+            *"${DM_FROZEN_SNAPSHOT}"*) pinned_seen="true" ;;
+            *) unpinned_sources="${unpinned_sources}${uri_token}"$'\n' ;;
+         esac
+      done
+   done <<< "$(grep --recursive --no-filename --extended-regexp \
+      '^[[:space:]]*(URIs:|deb(-src)?[[:space:]])' \
+      /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null || true)"
+
    if [ -n "${unpinned_sources}" ]; then
       printf '%s\n' \
          "${BASH_SOURCE[0]}: ERROR: apt source not pinned to '${DM_FROZEN_SNAPSHOT}':" \
          "${unpinned_sources}" >&2
+      exit 1
+   fi
+   ## A tree with no pinned URI at all would satisfy the check above vacuously,
+   ## which reads identically to success while apt has nothing to install from.
+   if [ ! "${pinned_seen}" = "true" ]; then
+      printf '%s\n' \
+         "${BASH_SOURCE[0]}: ERROR: no apt source carries the pin '${DM_FROZEN_SNAPSHOT}'." >&2
       exit 1
    fi
 fi
