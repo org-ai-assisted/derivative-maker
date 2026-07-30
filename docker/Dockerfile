@@ -21,13 +21,28 @@ HOME=/home/user
 ARG DM_UID=1000
 ENV DM_UID=${DM_UID}
 
-## snapshot.debian.org timestamp the setup script pins apt to, so the tools
-## installed here come from the same snapshot the build uses under
-## '--freshness frozen'. derivative-maker-docker-run reads it from
-## build_sources/debian_stable_frozen_clearnet.sources and passes it as a
-## --build-arg. Empty by default: a plain 'docker build' still works, it just
-## installs from the base image's live sources.
-ARG DM_FROZEN_SNAPSHOT=""
+## Trust store first: the pinned sources below are https, and the slim base image
+## has no ca-certificates (Priority: standard, so not in the base system). Runs
+## against the base image's live sources -- the one unpinned fetch here, explained
+## in the script.
+COPY apt-bootstrap-ca-certificates /usr/bin
+RUN chmod 0755 /usr/bin/apt-bootstrap-ca-certificates \
+    && /usr/bin/apt-bootstrap-ca-certificates
+
+## Static apt configuration, pinned to the same snapshot.debian.org timestamp the
+## build uses under '--freshness frozen'. Shipped as files rather than generated
+## at image-build time, so what apt reads is reviewable in the repo. apt/sources.list
+## is empty and replaces the base image's, leaving the snapshot as the only source.
+COPY apt/debian.sources /etc/apt/sources.list.d/debian.sources
+COPY apt/99dm-frozen-snapshot /etc/apt/apt.conf.d/99dm-frozen-snapshot
+COPY apt/sources.list /etc/apt/sources.list
+
+## COPY preserves the source file mode, and under a hardened umask (027/007) the
+## checked-out files are 0660, which apt cannot read as any other user. Force the
+## modes apt expects.
+RUN chmod 0644 /etc/apt/sources.list.d/debian.sources \
+      /etc/apt/apt.conf.d/99dm-frozen-snapshot \
+      /etc/apt/sources.list
 
 COPY derivative-maker-docker-setup /usr/bin
 COPY build-data/docker-entrypoint.target /etc/systemd/system
