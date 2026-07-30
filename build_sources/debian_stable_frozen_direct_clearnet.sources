@@ -1,0 +1,23 @@
+## Frozen snapshot, fetched directly rather than through approx.
+##
+## - Used by the build IMAGE, where approx is not yet running and 127.0.0.1 is the
+##   build container, so the proxied debian_stable_frozen_clearnet.sources cannot serve it.
+## - Same pin as that file, so image tooling and the build resolve one snapshot.
+## - Both archives take the same timestamp; snapshot.debian.org resolves a pin per
+##   archive to the nearest preceding snapshot.
+## - dm-update-frozen-snapshot rewrites this timestamp with the other pin files and
+##   refuses when they disagree. Keep timestamp-shaped strings out of these comments:
+##   the pin is read from the 'URIs:' lines.
+Types: deb
+URIs: https://snapshot.debian.org/archive/debian/20260730T083809Z
+Suites: trixie trixie-updates
+Components: main contrib non-free non-free-firmware
+Enabled: yes
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+
+Types: deb
+URIs: https://snapshot.debian.org/archive/debian-security/20260730T083809Z
+Suites: trixie-security
+Components: main contrib non-free non-free-firmware
+Enabled: yes
+Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
