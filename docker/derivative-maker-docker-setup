@@ -61,12 +61,19 @@ if [ -n "${DM_FROZEN_SNAPSHOT}" ]; then
       for uri_token in ${config_line}; do
          ## Options ('[trusted=yes]'), suites and components are not URIs.
          case "${uri_token}" in
-            *://*) ;;
-            *) continue ;;
+            *://*)
+               ;;
+            *)
+               continue
+               ;;
          esac
          case "${uri_token}" in
-            *"${DM_FROZEN_SNAPSHOT}"*) pinned_seen="true" ;;
-            *) unpinned_sources="${unpinned_sources}${uri_token}"$'\n' ;;
+            *"${DM_FROZEN_SNAPSHOT}"*)
+               pinned_seen="true"
+               ;;
+            *)
+               unpinned_sources="${unpinned_sources}${uri_token}"$'\n'
+               ;;
          esac
       done
    done <<< "$(grep --recursive --no-filename --extended-regexp \
