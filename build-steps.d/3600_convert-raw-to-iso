@@ -160,6 +160,15 @@ Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg" \
    ## keeps the backslash, and later '.'-sourced, where '\$' -> '$' restores the
    ## literal '\${dm_smbios_extra}' into LB_BOOTAPPEND_LIVE -> APPEND_LIVE -> every
    ## live menuentry.
+   ##
+   ## The placeholder ends up in the live cmdline TWICE: once from here, once from the
+   ## scraped chroot 'linux' line further down (vm-config-dist
+   ## etc/default/grub.d/99_smbios-cmdline.cfg puts it there). Deliberate, and harmless:
+   ## both expand to the same injected text and the kernel takes the LAST occurrence,
+   ## which is the scraped one -- 99_smbios-cmdline.cfg appends to
+   ## GRUB_CMDLINE_LINUX_DEFAULT, so it trails everything grub-mkconfig emits. Keeping
+   ## this copy is the belt-and-braces half: the scrape is '|| true', so without it a
+   ## failed grub-mkconfig would silently drop SMBIOS injection from the ISO entirely.
 
    ## Sanity test.
    test -n "${dist_build_hostname}"
