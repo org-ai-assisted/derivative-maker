@@ -16,110 +16,42 @@ shopt -s shift_verbose
 
 ## TODO: root check or use sudo
 
-## Set at source: the Dockerfile ARG is absent for a plain 'docker build' with
-## no --build-arg, and nounset would abort on the reference below.
-[ -v DM_FROZEN_SNAPSHOT ] || DM_FROZEN_SNAPSHOT=""
+## Frozen snapshot pin, applied as apt OPTIONS rather than configuration files:
+## - Dir::Etc::sourcelist names the ONLY sources file apt reads
+## - Dir::Etc::sourceparts=- disables sources.list.d entirely
+## so the base image's own sources are simply never consulted; nothing is
+## overwritten or blanked.
+## - Check-Valid-Until=false because a dated snapshot Release ages past it.
+## Matches buildconfig.d/30_apt_opts.conf, which passes the same setting as an
+## option for the build.
+DM_FROZEN_SOURCES='/etc/apt/dm-frozen.sources'
+dm_apt_options=(
+   -o "Dir::Etc::sourcelist=${DM_FROZEN_SOURCES}"
+   -o 'Dir::Etc::sourceparts=-'
+   -o 'Acquire::Check-Valid-Until=false'
+)
 
-if [ -n "${DM_FROZEN_SNAPSHOT}" ]; then
-   ## Pin this image's apt to the SAME snapshot.debian.org timestamp the build
-   ## uses under '--freshness frozen'. The base image digest is pinned but the
-   ## packages layered on top are not, so with the live archive here the two
-   ## disagree: a DSA moves a runtime library ahead of the snapshot, and then a
-   ## '-dev' package the build pulls FROM the snapshot, carrying a strict '='
-   ## dependency on that library, is uninstallable. DSA-6404-1 (expat) is that
-   ## case. The pin's single source of truth is
-   ## build_sources/debian_stable_frozen_clearnet.sources, read by
-   ## derivative-maker-docker-run and passed in here.
-   ##
-   ## Both archives take the same timestamp: snapshot.debian.org resolves any
-   ## timestamp to the nearest preceding snapshot per archive, so a
-   ## security-only timestamp is valid for the main archive too.
-   ##
-   ## http, not https: the slim base image ships no ca-certificates (installed
-   ## further down), and apt's integrity guarantee here is the archive keyring
-   ## signature named by 'Signed-By', not the transport.
+## The pin is read back out of the file apt is pointed at, because that file is
+## the only thing apt obeys; verifying anything else would prove the wrong
+## statement. Only 'URIs:' lines count -- comment prose carries example dates.
+DM_FROZEN_SNAPSHOT="$(grep -E '^[[:space:]]*URIs:' "${DM_FROZEN_SOURCES}" \
+   | grep -oE '[0-9]{8}T[0-9]{6}Z' | sort --unique | head -n 1 || true)"
+dm_frozen_snapshot_count="$(grep -E '^[[:space:]]*URIs:' "${DM_FROZEN_SOURCES}" \
+   | grep -oE '[0-9]{8}T[0-9]{6}Z' | sort --unique | grep --count . || true)"
+
+## Exactly one snapshot, or the two archives resolve to different ones and the
+## security archive can sit silently on an older snapshot.
+if [ ! "${dm_frozen_snapshot_count}" = "1" ]; then
    printf '%s\n' \
-      'Types: deb' \
-      "URIs: http://snapshot.debian.org/archive/debian/${DM_FROZEN_SNAPSHOT}" \
-      'Suites: trixie trixie-updates' \
-      'Components: main contrib non-free non-free-firmware' \
-      'Enabled: yes' \
-      'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' \
-      '' \
-      'Types: deb' \
-      "URIs: http://snapshot.debian.org/archive/debian-security/${DM_FROZEN_SNAPSHOT}" \
-      'Suites: trixie-security' \
-      'Components: main contrib non-free non-free-firmware' \
-      'Enabled: yes' \
-      'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' \
-      | tee -- /etc/apt/sources.list.d/debian.sources >/dev/null
-
-   ## The base image may also ship the one-line format; an empty file is valid
-   ## and leaves nothing unpinned behind. Truncated rather than deleted so no
-   ## 'rm' is needed before safe-rm exists in the image.
-   if [ -f /etc/apt/sources.list ]; then
-      : > /etc/apt/sources.list
-   fi
-
-   ## A snapshot Release is dated, so it ages past its Valid-Until.
-   printf '%s\n' 'Acquire::Check-Valid-Until "false";' \
-      | tee -- /etc/apt/apt.conf.d/99dm-frozen-snapshot >/dev/null
-
-   ## Fail loud instead of silently installing from the live archive: every
-   ## configured deb source must carry the pin. Catches a base image that keeps
-   ## its sources under a name not overwritten above.
-   ##
-   ## Judged per URI, not per line. A deb822 'URIs:' field takes SEVERAL
-   ## whitespace-separated URIs and apt fetches from every one, so a line holding
-   ## the pinned URI next to a live one would satisfy any whole-line match while
-   ## still pulling from the live archive.
-   unpinned_sources=""
-   pinned_seen="false"
-   while read -r config_line; do
-      ## Drop the leading keyword so only URI tokens are judged.
-      case "${config_line}" in
-         *URIs:*) config_line="${config_line#*URIs:}" ;;
-         *) config_line="${config_line#*deb}" ;;
-      esac
-      ## Deliberately unquoted: splitting the field into its URI tokens is the point.
-      for uri_token in ${config_line}; do
-         ## Options ('[trusted=yes]'), suites and components are not URIs.
-         case "${uri_token}" in
-            *://*)
-               ;;
-            *)
-               continue
-               ;;
-         esac
-         case "${uri_token}" in
-            *"${DM_FROZEN_SNAPSHOT}"*)
-               pinned_seen="true"
-               ;;
-            *)
-               unpinned_sources="${unpinned_sources}${uri_token}"$'\n'
-               ;;
-         esac
-      done
-   done <<< "$(grep --recursive --no-filename --extended-regexp \
-      '^[[:space:]]*(URIs:|deb(-src)?[[:space:]])' \
-      /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null || true)"
-
-   if [ -n "${unpinned_sources}" ]; then
-      printf '%s\n' \
-         "${BASH_SOURCE[0]}: ERROR: apt source not pinned to '${DM_FROZEN_SNAPSHOT}':" \
-         "${unpinned_sources}" >&2
-      exit 1
-   fi
-   ## A tree with no pinned URI at all would satisfy the check above vacuously,
-   ## which reads identically to success while apt has nothing to install from.
-   if [ ! "${pinned_seen}" = "true" ]; then
-      printf '%s\n' \
-         "${BASH_SOURCE[0]}: ERROR: no apt source carries the pin '${DM_FROZEN_SNAPSHOT}'." >&2
-      exit 1
-   fi
+      "${BASH_SOURCE[0]}: ERROR: expected exactly one pinned snapshot in '${DM_FROZEN_SOURCES}', found ${dm_frozen_snapshot_count}." >&2
+   exit 1
+fi
+if [ -z "${DM_FROZEN_SNAPSHOT}" ]; then
+   printf '%s\n' "${BASH_SOURCE[0]}: ERROR: no pinned snapshot in '${DM_FROZEN_SOURCES}'." >&2
+   exit 1
 fi
 
-apt-get update
+apt-get "${dm_apt_options[@]}" update
 
 ## TODO: remove
 ## 'build-steps.d/1100_sanity-tests' function 'check_required_packages_installed' already installs
@@ -149,7 +81,7 @@ getent passwd approx >/dev/null \
   || useradd --system --gid 102 --uid 101 --no-create-home --home-dir /var/lib/approx --shell /usr/sbin/nologin approx
 
 DEBIAN_FRONTEND=noninteractive \
-  apt-get install \
+  apt-get "${dm_apt_options[@]}" install \
     --no-install-recommends \
     --yes \
     sq sqv sqop sequoia-git sequoia-chameleon-gnupg gpg-agent \
@@ -166,7 +98,7 @@ if [ "${USER}" = "root" ]; then
    ## Host: install the docker engine + client (see the comment above the
    ## apt-get call). Never needed inside the image.
    DEBIAN_FRONTEND=noninteractive \
-      apt-get install \
+      apt-get "${dm_apt_options[@]}" install \
          --no-install-recommends \
          --yes \
          docker.io docker-cli

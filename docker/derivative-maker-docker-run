@@ -139,30 +139,43 @@ volume_prepare() {
 DM_SNAPSHOT_LABEL='org.kicksecure.derivative-maker.frozen-snapshot'
 
 frozen_snapshot_timestamp() {
-  ## The reproducibility pin lives in build_sources as a path segment (see
-  ## debian_stable_frozen_clearnet.sources). Read it there rather than
-  ## restating it, so the image's apt and the build can never drift apart.
-  ## Only 'URIs:' lines are considered; the surrounding prose names
-  ## 'debian-frozen' too.
-  local sources_file line timestamp
-  sources_file="${SOURCE_VOLUME}/build_sources/debian_stable_frozen_clearnet.sources"
-  [ -f "${sources_file}" ] || return 1
-  while read -r line; do
-    case "${line}" in
-      "URIs:"*"/debian-frozen/"*)
-        timestamp="${line##*/debian-frozen/}"
-        ## Reject anything that is not a snapshot timestamp, so a malformed
-        ## URI cannot be passed through as a silently-unpinned build-arg.
-        case "${timestamp}" in
-          [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z)
-            printf '%s\n' "${timestamp}"
-            return 0
-            ;;
-        esac
-        ;;
-    esac
-  done < "${sources_file}"
+  ## dm-update-frozen-snapshot writes the pin here as a bare one-line timestamp,
+  ## so this is a 'cat' rather than a deb822 parse. That tool keeps this file and
+  ## both build_sources frozen .sources files in step, and refuses to bump when
+  ## they disagree.
+  local pin_file timestamp
+  pin_file="${SOURCE_VOLUME}/build_sources/frozen-snapshot-timestamp"
+  [ -f "${pin_file}" ] || return 1
+  timestamp="$(< "${pin_file}")"
+  timestamp="${timestamp//[[:space:]]/}"
+  ## Guard the shape: a malformed value would otherwise be compared against the
+  ## image label and quietly force a rebuild every run.
+  case "${timestamp}" in
+    [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z)
+      printf '%s\n' "${timestamp}"
+      return 0
+      ;;
+  esac
   return 1
+}
+
+frozen_snapshot_sanity_test() {
+  ## Simple cross-check, deliberately not clever: the plain file must match what
+  ## the two deb822 files carry on their 'URIs:' lines. Comment prose in those
+  ## files contains example dates, which is why only URIs lines are considered.
+  local expected="$1" deb822_file found
+  for deb822_file in \
+    "${SOURCE_VOLUME}/build_sources/debian_stable_frozen_clearnet.sources" \
+    "${SOURCE_VOLUME}/build_sources/debian_stable_frozen_direct_clearnet.sources" ; do
+    [ -f "${deb822_file}" ] || continue
+    found="$(grep -E '^[[:space:]]*URIs:' -- "${deb822_file}" \
+      | grep -oE '[0-9]{8}T[0-9]{6}Z' | sort --unique | tr '\n' ' ')"
+    found="${found% }"
+    if [ ! "${found}" = "${expected}" ]; then
+      printf '%s\n' "${0##*/}: ERROR: ${deb822_file} is pinned to '${found:-none}', but build_sources/frozen-snapshot-timestamp says '${expected}'." >&2
+      return 1
+    fi
+  done
 }
 
 build_docker_image() {
@@ -175,6 +188,7 @@ build_docker_image() {
   ## is fatal rather than silently producing an image that disagrees with the
   ## build. Resolved before the reuse test below, which compares against it.
   frozen_snapshot="$(frozen_snapshot_timestamp)"
+  frozen_snapshot_sanity_test "${frozen_snapshot}"
   ## Query the SAME daemon that build/run use (sudo). A non-sudo query can hit a
   ## different or missing daemon, then wrongly rebuild every run, or skip the
   ## build and let 'docker run' fall back to pulling the unpinned name.
@@ -202,13 +216,13 @@ build_docker_image() {
         build \
         --build-arg \
         DM_UID="${dm_uid}" \
-        --build-arg \
-        DM_FROZEN_SNAPSHOT="${frozen_snapshot}" \
         --label \
         "${DM_SNAPSHOT_LABEL}=${frozen_snapshot}" \
         --tag \
         "${image_ref}" \
-        "${DOCKER_DIR}"
+        --file \
+        "${DOCKER_DIR}/Dockerfile" \
+        "${SOURCE_VOLUME}"
   fi
 }
 
