@@ -21,6 +21,14 @@ HOME=/home/user
 ARG DM_UID=1000
 ENV DM_UID=${DM_UID}
 
+## snapshot.debian.org timestamp the setup script pins apt to, so the tools
+## installed here come from the same snapshot the build uses under
+## '--freshness frozen'. derivative-maker-docker-run reads it from
+## build_sources/debian_stable_frozen_clearnet.sources and passes it as a
+## --build-arg. Empty by default: a plain 'docker build' still works, it just
+## installs from the base image's live sources.
+ARG DM_FROZEN_SNAPSHOT=""
+
 COPY derivative-maker-docker-setup /usr/bin
 COPY build-data/docker-entrypoint.target /etc/systemd/system
 COPY build-data/docker-entrypoint.service /etc/systemd/system

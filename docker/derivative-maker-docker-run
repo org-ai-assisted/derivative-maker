@@ -30,8 +30,8 @@ DOCKER_USER="user"
 COMMAND=""
 DOCKER_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 SOURCE_VOLUME="$( dirname -- "${DOCKER_DIR}" )"
-BINARY_VOLUME="$HOME/binary_mnt"
-CACHER_VOLUME="$HOME/approx_cache_mnt"
+BINARY_VOLUME="${HOME}/binary_mnt"
+CACHER_VOLUME="${HOME}/approx_cache_mnt"
 ## Persist the auto-generated local APT signing key across builds. sq (sequoia) keeps
 ## the SECRET key in ~/.local/share/sequoia/keystore (the softkeys backend) and the
 ## certificates in ~/.local/share/pgp.cert.d, so KEY_VOLUME is mounted at ~/.local/share
@@ -41,8 +41,8 @@ CACHER_VOLUME="$HOME/approx_cache_mnt"
 ## additionally persists ~/.gnupg for gpg-agent /
 ## Qubes split-gpg-2 setups that DO route secret keys through gpg-agent (no-op here, where
 ## sq uses the softkeys backend, but harmless and correct for those configurations).
-KEY_VOLUME="$HOME/.key_mnt"
-GNUPG_VOLUME="$HOME/.gnupg_mnt"
+KEY_VOLUME="${HOME}/.key_mnt"
+GNUPG_VOLUME="${HOME}/.gnupg_mnt"
 IMG="kicksecure/derivative-maker-docker"
 ## Arch-qualify the image tag so an amd64 and an arm64 image can never collide
 ## in a shared docker store or image cache. The image is built natively on the
@@ -132,16 +132,49 @@ volume_prepare() {
   done
 }
 
+frozen_snapshot_timestamp() {
+  ## The reproducibility pin lives in build_sources as a path segment (see
+  ## debian_stable_frozen_clearnet.sources). Read it there rather than
+  ## restating it, so the image's apt and the build can never drift apart.
+  ## Only 'URIs:' lines are considered; the surrounding prose names
+  ## 'debian-frozen' too.
+  local sources_file line timestamp
+  sources_file="${SOURCE_VOLUME}/build_sources/debian_stable_frozen_clearnet.sources"
+  [ -f "${sources_file}" ] || return 1
+  while read -r line; do
+    case "${line}" in
+      "URIs:"*"/debian-frozen/"*)
+        timestamp="${line##*/debian-frozen/}"
+        ## Reject anything that is not a snapshot timestamp, so a malformed
+        ## URI cannot be passed through as a silently-unpinned build-arg.
+        case "${timestamp}" in
+          [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z)
+            printf '%s\n' "${timestamp}"
+            return 0
+            ;;
+        esac
+        ;;
+    esac
+  done < "${sources_file}"
+  return 1
+}
+
 build_docker_image() {
   ## Hoist the subshell out of the command arguments so 'set -o errexit'
   ## catches a failing 'id' instead of silently passing an empty --build-arg.
-  local dm_uid existing_image
+  local dm_uid existing_image frozen_snapshot
   dm_uid="$(id -u)"
   ## Query the SAME daemon that build/run use (sudo). A non-sudo query can hit a
   ## different or missing daemon, then wrongly rebuild every run, or skip the
   ## build and let 'docker run' fall back to pulling the unpinned name.
   existing_image="$(sudo "${sudo_options_maybe[@]}" -- docker images --quiet -- "${image_ref}" 2> /dev/null)" || true
   if [ -z "${existing_image}" ]; then
+    ## Resolved only when a build actually happens, so a reused image is not
+    ## gated on it. An unpinned image would install build-host tools from the
+    ## live archive while the build resolves packages from the snapshot, so a
+    ## missing or malformed pin is fatal rather than silently producing an image
+    ## that disagrees with the build.
+    frozen_snapshot="$(frozen_snapshot_timestamp)"
     sudo \
     "${sudo_options_maybe[@]}" \
     -- \
@@ -149,6 +182,8 @@ build_docker_image() {
         build \
         --build-arg \
         DM_UID="${dm_uid}" \
+        --build-arg \
+        DM_FROZEN_SNAPSHOT="${frozen_snapshot}" \
         --tag \
         "${image_ref}" \
         "${DOCKER_DIR}"

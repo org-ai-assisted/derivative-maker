@@ -16,6 +16,70 @@ shopt -s shift_verbose
 
 ## TODO: root check or use sudo
 
+## Set at source: the Dockerfile ARG is absent for a plain 'docker build' with
+## no --build-arg, and nounset would abort on the reference below.
+[ -v DM_FROZEN_SNAPSHOT ] || DM_FROZEN_SNAPSHOT=""
+
+if [ -n "${DM_FROZEN_SNAPSHOT}" ]; then
+   ## Pin this image's apt to the SAME snapshot.debian.org timestamp the build
+   ## uses under '--freshness frozen'. The base image digest is pinned but the
+   ## packages layered on top are not, so with the live archive here the two
+   ## disagree: a DSA moves a runtime library ahead of the snapshot, and then a
+   ## '-dev' package the build pulls FROM the snapshot, carrying a strict '='
+   ## dependency on that library, is uninstallable. DSA-6404-1 (expat) is that
+   ## case. The pin's single source of truth is
+   ## build_sources/debian_stable_frozen_clearnet.sources, read by
+   ## derivative-maker-docker-run and passed in here.
+   ##
+   ## Both archives take the same timestamp: snapshot.debian.org resolves any
+   ## timestamp to the nearest preceding snapshot per archive, so a
+   ## security-only timestamp is valid for the main archive too.
+   ##
+   ## http, not https: the slim base image ships no ca-certificates (installed
+   ## further down), and apt's integrity guarantee here is the archive keyring
+   ## signature named by 'Signed-By', not the transport.
+   printf '%s\n' \
+      'Types: deb' \
+      "URIs: http://snapshot.debian.org/archive/debian/${DM_FROZEN_SNAPSHOT}" \
+      'Suites: trixie trixie-updates' \
+      'Components: main contrib non-free non-free-firmware' \
+      'Enabled: yes' \
+      'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' \
+      '' \
+      'Types: deb' \
+      "URIs: http://snapshot.debian.org/archive/debian-security/${DM_FROZEN_SNAPSHOT}" \
+      'Suites: trixie-security' \
+      'Components: main contrib non-free non-free-firmware' \
+      'Enabled: yes' \
+      'Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg' \
+      | tee -- /etc/apt/sources.list.d/debian.sources >/dev/null
+
+   ## The base image may also ship the one-line format; an empty file is valid
+   ## and leaves nothing unpinned behind. Truncated rather than deleted so no
+   ## 'rm' is needed before safe-rm exists in the image.
+   if [ -f /etc/apt/sources.list ]; then
+      : > /etc/apt/sources.list
+   fi
+
+   ## A snapshot Release is dated, so it ages past its Valid-Until.
+   printf '%s\n' 'Acquire::Check-Valid-Until "false";' \
+      | tee -- /etc/apt/apt.conf.d/99dm-frozen-snapshot >/dev/null
+
+   ## Fail loud instead of silently installing from the live archive: every
+   ## configured deb source must carry the pin. Catches a base image that keeps
+   ## its sources under a name not overwritten above.
+   unpinned_sources="$(grep --recursive --no-filename --extended-regexp \
+      '^[[:space:]]*(URIs:|deb[[:space:]])' \
+      /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null \
+      | grep --invert-match -- "${DM_FROZEN_SNAPSHOT}" || true)"
+   if [ -n "${unpinned_sources}" ]; then
+      printf '%s\n' \
+         "${BASH_SOURCE[0]}: ERROR: apt source not pinned to '${DM_FROZEN_SNAPSHOT}':" \
+         "${unpinned_sources}" >&2
+      exit 1
+   fi
+fi
+
 apt-get update
 
 ## TODO: remove

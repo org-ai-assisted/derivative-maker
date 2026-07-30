@@ -121,7 +121,11 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.dm-docker-image
-          key: ${{ runner.os }}-boot-dmimg-${{ hashFiles('docker/**') }}
+          ## The frozen sources file is part of the key because the image's apt
+          ## is pinned to the timestamp it carries: without it a snapshot bump
+          ## would reuse an image built against the previous snapshot, silently
+          ## restoring the mismatch the pin exists to prevent.
+          key: ${{ runner.os }}-boot-dmimg-${{ hashFiles('docker/**', 'build_sources/debian_stable_frozen_clearnet.sources') }}
 
       - name: Load cached docker image
         if: steps.dmimg-cache.outputs.cache-hit == 'true'

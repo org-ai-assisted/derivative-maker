@@ -52,6 +52,17 @@ specific platform, pass `--platform` to buildx:
 docker buildx build --platform linux/arm64 -t derivative-maker/derivative-maker-docker:latest ./docker
 docker buildx build --platform linux/amd64 -t derivative-maker/derivative-maker-docker:latest ./docker
 ```
+A hand-run `docker build`/`buildx build` installs the build-host tools from the
+base image's live sources. For an image whose apt agrees with a
+`--freshness frozen` build, pass the snapshot pin that
+`build_sources/debian_stable_frozen_clearnet.sources` carries:
+```sh
+docker buildx build \
+  --build-arg DM_FROZEN_SNAPSHOT=20260730T083809Z \
+  -t derivative-maker/derivative-maker-docker:latest ./docker
+```
+`derivative-maker-docker-run` reads that timestamp out of the sources file and
+passes it automatically, so the normal path needs no flag.
 On Apple Silicon hosts, the default platform already matches
 (`linux/arm64`); no extra flags needed. Cross-arch builds require
 `qemu-user-static` registered with binfmt_misc.
