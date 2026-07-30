@@ -71,8 +71,7 @@ main() {
    ## list but not exported, so the '--preserve-env=' on '$SUDO_TO_ROOT' would
    ## otherwise skip them). Re-using the allowlist means there is no parallel
    ## hardcoded list to drift, and host-only state that is not in the list
-   ## (SSH_AUTH_SOCK, GPG_AGENT_INFO, ANSIBLE_VAULT_PASSWORD, ...) is not
-   ## exported here.
+   ## (SSH_AUTH_SOCK, GPG_AGENT_INFO, ...) is not exported here.
    local env_vars_var_keep_item
    for env_vars_var_keep_item in $env_vars_keep_list; do
       ## Skip variables unset in this run; an unset allowlist entry is not an

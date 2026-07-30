@@ -62,10 +62,8 @@ check-redistributable-builds-requirements() {
    ## 'signing_key()'); '~/.gnupg' is auto-created above. The
    ## redistributable folder check would otherwise fail before
    ## 'signing-key-create' has a chance to create '~/.signify',
-   ## hence the early return here. (Note: the ansible vault used by
-   ## 'automated_builder' holds the DigitalOcean API token and the
-   ## ssh keypair used to reach the build VPS, NOT release signing
-   ## keys -- those are still auto-generated per build.)
+   ## hence the early return here. Release signing keys are always
+   ## auto-generated per build; no stored key material is involved.
    if [ "${CI:-}" = "true" ]; then
       return 0
    fi

@@ -659,7 +659,7 @@ root_check() {
    fi
    true "INFO: Script running as non-root, ok."
    ## Not using 'sudo --non-interactive --validate' because that caused an
-   ## error on an ansible server "sudo: a password is required". Potential bug in sudo?
+   ## error on some CI hosts "sudo: a password is required". Potential bug in sudo?
    ## https://forums.whonix.org/t/derivative-maker-automated-ci-builder/14468/14
    true "INFO: Running 'sudo --non-interactive -- test -d /usr' to test if sudo password entry prompt is needed..."
    if sudo --non-interactive -- test -d /usr ; then
