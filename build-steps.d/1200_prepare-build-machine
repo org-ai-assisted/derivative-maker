@@ -25,14 +25,14 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
 source pre
 source variables
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 
 if [ "${dist_build_skip_prepare_build_machine:-}" = "true" ]; then
@@ -42,11 +42,11 @@ fi
 
 build_machine_setup() {
    ## https://github.com/QubesOS/qubes-issues/issues/1066
-   $SUDO_TO_ROOT systemctl stop qubes-update-check.timer || true
-   $SUDO_TO_ROOT systemctl stop qubes-update-check.service || true
+   ${SUDO_TO_ROOT} systemctl stop qubes-update-check.timer || true
+   ${SUDO_TO_ROOT} systemctl stop qubes-update-check.service || true
    ## 'safe-rm' not installed yet.
    ## https://github.com/QubesOS/qubes-issues/issues/1066#issuecomment-1987239106
-   $SUDO_TO_ROOT rm -f -- "/etc/apt/apt.conf.d/00notify-hook"
+   ${SUDO_TO_ROOT} rm -f -- "/etc/apt/apt.conf.d/00notify-hook"
 
    if [ "${dist_build_fast1:-}" = "1" ]; then
       true "${bold}${cyan}INFO: run with '--fast 1' switch, skipping ${BASH_SOURCE[0]}. ${reset}"
@@ -54,8 +54,8 @@ build_machine_setup() {
    fi
 
    ## Debugging.
-   true "INFO: Benchmarking \"$SUDO_TO_ROOT printf '%s\\n' 'This is a test printf.'\" using \"time\"..."
-   time $SUDO_TO_ROOT printf '%s\n' "This is a test printf."
+   true "INFO: Benchmarking \"${SUDO_TO_ROOT} printf '%s\\n' 'This is a test printf.'\" using \"time\"..."
+   time ${SUDO_TO_ROOT} printf '%s\n' "This is a test printf."
 
    ## Nowadays done using: ./derivative-update
    #true "INFO: Updating git sub modules..."
@@ -75,23 +75,23 @@ build_machine_setup() {
    #$SUDO_TO_ROOT "$str_replace_many_tool" trixie forky /etc/apt/sources.list.d/* || true
 
    retry_run --tries 4 --delay 15 -- \
-   $SUDO_TO_ROOT \
+   ${SUDO_TO_ROOT} \
       apt-get \
          "${DIST_APTGETOPT[@]}" \
-         -o Dir::Etc::sourcelist="$dist_build_sources_list_primary" \
+         -o Dir::Etc::sourcelist="${dist_build_sources_list_primary}" \
          -o Dir::Etc::sourceparts="-" \
          update
 
-   true "dist_build_upgrade_build_machine: $dist_build_upgrade_build_machine"
+   true "dist_build_upgrade_build_machine: ${dist_build_upgrade_build_machine}"
    if [ ! "${dist_build_upgrade_build_machine:-}" = "0" ]; then
       ## Update package lists and upgrade.
       retry_run --tries 4 --delay 15 -- \
-      $SUDO_TO_ROOT \
+      ${SUDO_TO_ROOT} \
          apt-get \
             "${DIST_APTGETOPT[@]}" \
-            -o Dir::Etc::sourcelist="$dist_build_sources_list_primary" \
+            -o Dir::Etc::sourcelist="${dist_build_sources_list_primary}" \
             -o Dir::Etc::sourceparts="-" \
-            $apt_unattended_opts \
+            ${apt_unattended_opts} \
             --no-install-recommends \
             --yes \
                dist-upgrade
@@ -101,7 +101,7 @@ build_machine_setup() {
    ## Build Dependencies for Whonix Build Script #
    ###############################################
    local packages_to_be_installed
-   packages_to_be_installed+=" $dist_build_script_build_dependency "
+   packages_to_be_installed+=" ${dist_build_script_build_dependency} "
 
    if [ "${eatmydata_install:-}" = "true" ]; then
       true "INFO: Installing eatmydata, because using '--unsafe-io true'."
@@ -111,7 +111,7 @@ build_machine_setup() {
    fi
 
    if [ "${dist_build_iso:-}" = "true" ]; then
-      true "INFO: host_architecture: $host_architecture"
+      true "INFO: host_architecture: ${host_architecture}"
       packages_to_be_installed+=" mokutil "
       packages_to_be_installed+=" keyutils "
       packages_to_be_installed+=" grub2-common "
@@ -156,8 +156,8 @@ build_machine_setup() {
       ## Build Dependency for Bare Metal Builds #
       ###########################################
       local bare_metal_basic_package_list
-      bare_metal_basic_package_list="$(grep --invert-match --extended-regexp "^\s*#" -- "$source_code_folder_dist/grml_packages" | tr "\n" " ")"
-      packages_to_be_installed+=" $bare_metal_basic_package_list "
+      bare_metal_basic_package_list="$(grep --invert-match --extended-regexp "^\s*#" -- "${source_code_folder_dist}/grml_packages" | tr "\n" " ")"
+      packages_to_be_installed+=" ${bare_metal_basic_package_list} "
    fi
    ## No host-side VirtualBox build-dependencies here: VirtualBox is now
    ## installed into the amd64 cowbuilder chroot (see
@@ -166,19 +166,19 @@ build_machine_setup() {
    ## arm64 VirtualBox OVAs ('Mac M1/M2') from an arm64 Linux host.
 
    retry_run --tries 4 --delay 15 -- \
-   $SUDO_TO_ROOT \
+   ${SUDO_TO_ROOT} \
       apt-get \
          "${DIST_APTGETOPT[@]}" \
-         -o Dir::Etc::sourcelist="$dist_build_sources_list_primary" \
+         -o Dir::Etc::sourcelist="${dist_build_sources_list_primary}" \
          -o Dir::Etc::sourceparts="-" \
-         $apt_unattended_opts \
+         ${apt_unattended_opts} \
          --no-install-recommends \
          --yes \
          install \
-         $packages_to_be_installed
+         ${packages_to_be_installed}
 
    ## Debugging.
-   $SUDO_TO_ROOT cat /usr/sbin/policy-rc.d || true
+   ${SUDO_TO_ROOT} cat /usr/sbin/policy-rc.d || true
 
    ## Debugging.
    #$SUDO_TO_ROOT cat /proc/devices
@@ -191,15 +191,15 @@ check-unicode() {
    ## overwrite with '|| true' because `grep` exits non-zero if no match was found.
    ## TODO: dm-check-unicode currently hardcoded. Does not use source_code_folder_dist.
 
-   test -x "$check_unicode_tool"
+   test -x "${check_unicode_tool}"
 
    ## dm-check-unicode is silent on a clean run, so it passes only on a
    ## zero exit AND no output; fail closed on anything else.
    local check_unicode_rc
    check_unicode_rc=0
-   grep_find_unicode_wrapper_output="$("$check_unicode_tool" "$source_code_folder_dist" 2>&1)" || check_unicode_rc="$?"
+   grep_find_unicode_wrapper_output="$("${check_unicode_tool}" "${source_code_folder_dist}" 2>&1)" || check_unicode_rc="$?"
 
-   if [ "$check_unicode_rc" = "0" ] && [ -z "${grep_find_unicode_wrapper_output:-}" ]; then
+   if [ "${check_unicode_rc}" = "0" ] && [ -z "${grep_find_unicode_wrapper_output:-}" ]; then
       true "INFO: dm-check-unicode passed cleanly (exit 0, no output), good, OK."
       return 0
    fi
@@ -210,8 +210,8 @@ https://forums.whonix.org/t/detecting-malicious-unicode-in-source-code-and-pull-
 }
 
 check-git-folder() {
-   if ! test -e "$source_code_folder_dist/packages/kicksecure/genmkfile/.git" ; then
-      error "$source_code_folder_dist/packages/kicksecure/genmkfile/.git does not exist."
+   if ! test -e "${source_code_folder_dist}/packages/kicksecure/genmkfile/.git" ; then
+      error "${source_code_folder_dist}/packages/kicksecure/genmkfile/.git does not exist."
    fi
 }
 
@@ -221,15 +221,15 @@ approx_proxy_setup() {
    fi
 
    ## Install approx proxy configuration
-   $SUDO_TO_ROOT mkdir --parents -- '/etc/approx-derivative-maker'
-   $SUDO_TO_ROOT mkdir --parents -- '/var/cache/approx-derivative-maker'
-   $SUDO_TO_ROOT mkdir --parents -- '/etc/approx-derivative-maker/curl-home'
-   $SUDO_TO_ROOT chown --recursive -- approx:approx '/var/cache/approx-derivative-maker'
+   ${SUDO_TO_ROOT} mkdir --parents -- '/etc/approx-derivative-maker'
+   ${SUDO_TO_ROOT} mkdir --parents -- '/var/cache/approx-derivative-maker'
+   ${SUDO_TO_ROOT} mkdir --parents -- '/etc/approx-derivative-maker/curl-home'
+   ${SUDO_TO_ROOT} chown --recursive -- approx:approx '/var/cache/approx-derivative-maker'
 
    ## Clear out empty files from the cache, approx uses these to mark files
    ## that could not be fetched, which could cause problems for later builds
    ## if the fetch failure was transient.
-   $SUDO_TO_ROOT find '/var/cache/approx-derivative-maker' -type f -empty -delete
+   ${SUDO_TO_ROOT} find '/var/cache/approx-derivative-maker' -type f -empty -delete
 
    ## Clear out repository metadata from the cache, approx handles it poorly.
    ## Debian bug report:
@@ -239,31 +239,31 @@ approx_proxy_setup() {
    local repo_dir
    for repo_dir in /var/cache/approx-derivative-maker/*; do
      if [ -d "${repo_dir}/dists" ]; then
-       $SUDO_TO_ROOT safe-rm --recursive --force -- "${repo_dir}/dists"
+       ${SUDO_TO_ROOT} safe-rm --recursive --force -- "${repo_dir}/dists"
      fi
    done
 
-   $SUDO_TO_ROOT cp --no-preserve=mode -- "$source_code_folder_dist/approx/approx-derivative-maker.socket" '/usr/lib/systemd/system/approx-derivative-maker.socket'
+   ${SUDO_TO_ROOT} cp --no-preserve=mode -- "${source_code_folder_dist}/approx/approx-derivative-maker.socket" '/usr/lib/systemd/system/approx-derivative-maker.socket'
    if [ "${dist_build_sources_clearnet_or_onion:-}" = "clearnet" ]; then
-      $SUDO_TO_ROOT cp --no-preserve=mode -- "$source_code_folder_dist/approx/approx-derivative-maker@.service" '/usr/lib/systemd/system/approx-derivative-maker@.service'
-      $SUDO_TO_ROOT cp --no-preserve=mode -- "$source_code_folder_dist/approx/approx.conf" '/etc/approx-derivative-maker/approx.conf'
-      $SUDO_TO_ROOT cp --no-preserve=mode -- "$source_code_folder_dist/approx/curlrc" '/etc/approx-derivative-maker/curl-home/.curlrc'
+      ${SUDO_TO_ROOT} cp --no-preserve=mode -- "${source_code_folder_dist}/approx/approx-derivative-maker@.service" '/usr/lib/systemd/system/approx-derivative-maker@.service'
+      ${SUDO_TO_ROOT} cp --no-preserve=mode -- "${source_code_folder_dist}/approx/approx.conf" '/etc/approx-derivative-maker/approx.conf'
+      ${SUDO_TO_ROOT} cp --no-preserve=mode -- "${source_code_folder_dist}/approx/curlrc" '/etc/approx-derivative-maker/curl-home/.curlrc'
    else
-      $SUDO_TO_ROOT cp --no-preserve=mode -- "$source_code_folder_dist/approx/approx-derivative-maker-tor@.service" '/usr/lib/systemd/system/approx-derivative-maker@.service'
-      $SUDO_TO_ROOT cp --no-preserve=mode -- "$source_code_folder_dist/approx/approx-tor.conf" '/etc/approx-derivative-maker/approx.conf'
-      $SUDO_TO_ROOT cp --no-preserve=mode -- "$source_code_folder_dist/approx/curlrc-tor" '/etc/approx-derivative-maker/curl-home/.curlrc'
+      ${SUDO_TO_ROOT} cp --no-preserve=mode -- "${source_code_folder_dist}/approx/approx-derivative-maker-tor@.service" '/usr/lib/systemd/system/approx-derivative-maker@.service'
+      ${SUDO_TO_ROOT} cp --no-preserve=mode -- "${source_code_folder_dist}/approx/approx-tor.conf" '/etc/approx-derivative-maker/approx.conf'
+      ${SUDO_TO_ROOT} cp --no-preserve=mode -- "${source_code_folder_dist}/approx/curlrc-tor" '/etc/approx-derivative-maker/curl-home/.curlrc'
    fi
 
-   $SUDO_TO_ROOT systemctl daemon-reload
-   $SUDO_TO_ROOT systemctl restart approx-derivative-maker.socket
+   ${SUDO_TO_ROOT} systemctl daemon-reload
+   ${SUDO_TO_ROOT} systemctl restart approx-derivative-maker.socket
 
    if [ "${dist_build_redistributable:-}" != "true" ]; then
       return 0
    fi
 
    ## When building redistributable builds, add '/var/cache/approx' to Qubes bind-dirs on build machine.
-   $SUDO_TO_ROOT mkdir --parents -- /rw/config/qubes-bind-dirs.d
-   printf '%s\n' "binds+=( '/var/cache/approx-derivative-maker' )" | $SUDO_TO_ROOT tee -- /rw/config/qubes-bind-dirs.d/40_derivative-maker_approx.conf >/dev/null
+   ${SUDO_TO_ROOT} mkdir --parents -- /rw/config/qubes-bind-dirs.d
+   printf '%s\n' "binds+=( '/var/cache/approx-derivative-maker' )" | ${SUDO_TO_ROOT} tee -- /rw/config/qubes-bind-dirs.d/40_derivative-maker_approx.conf >/dev/null
 
    true
 }
@@ -276,15 +276,15 @@ repo_proxy_test() {
       return 0
    fi
 
-   true "INFO: Testing REPO_PROXY $REPO_PROXY (most likely approx, since default)..."
+   true "INFO: Testing REPO_PROXY ${REPO_PROXY} (most likely approx, since default)..."
    local curl_exit_code=0
-   curl --fail --silent "$REPO_PROXY" || { curl_exit_code="$?" ; true; };
+   curl --fail --silent "${REPO_PROXY}" || { curl_exit_code="$?" ; true; };
    if [ "${curl_exit_code:-}" = "0" ]; then
       true "INFO: approx functional..."
       return 0
    fi
 
-   true "${red}${bold}ERROR: REPO_PROXY curl curl_exit_code: $curl_exit_code. REPO_PROXY $REPO_PROXY unreachable! Does a local firewall block connections to REPO_PROXY?${reset}"
+   true "${red}${bold}ERROR: REPO_PROXY curl curl_exit_code: ${curl_exit_code}. REPO_PROXY ${REPO_PROXY} unreachable! Does a local firewall block connections to REPO_PROXY?${reset}"
    error "See above!"
 }
 
@@ -308,22 +308,22 @@ check-vm-exists() {
    ## SKIP_SCRIPTS+= " prepare-release "
    ## then skip this function.
    local skip_script
-   for skip_script in $SKIP_SCRIPTS; do
-      if matched_word=$(printf '%s\n' "$skip_script" | grep --fixed-strings -- "prepare-release") ; then
-         printf '%s\n' "${bold}${green}${BASH_SOURCE[0]} INFO: Skipping ${FUNCNAME[0]}, because SKIP_SCRIPTS matches 'prepare-release'. matched_word: '$matched_word'${reset}"
+   for skip_script in ${SKIP_SCRIPTS}; do
+      if matched_word=$(printf '%s\n' "${skip_script}" | grep --fixed-strings -- "prepare-release") ; then
+         printf '%s\n' "${bold}${green}${BASH_SOURCE[0]} INFO: Skipping ${FUNCNAME[0]}, because SKIP_SCRIPTS matches 'prepare-release'. matched_word: '${matched_word}'${reset}"
          return 0
       fi
    done
 
    if [ "${dist_build_raw:-}" = "true" ]; then
-      if ! test -f "$binary_image_raw_file_for_unified" ; then
+      if ! test -f "${binary_image_raw_file_for_unified}" ; then
          error "\
 Trying to build...
-VMNAME: $VMNAME
-vm_names_to_be_exported: $vm_names_to_be_exported
-dist_build_desktop: $dist_build_desktop
-dist_build_raw: $dist_build_raw
-missing other VM for unified builds: $binary_image_raw_file_for_unified
+VMNAME: ${VMNAME}
+vm_names_to_be_exported: ${vm_names_to_be_exported}
+dist_build_desktop: ${dist_build_desktop}
+dist_build_raw: ${dist_build_raw}
+missing other VM for unified builds: ${binary_image_raw_file_for_unified}
 
 This means dm-prepare-release would fail later.
 
@@ -333,14 +333,14 @@ binary_image_raw_file_for_unified=/path/to/raw ./derivative-maker"
    fi
 
    if [ "${dist_build_qcow2:-}" = "true" ]; then
-      if ! test -f "$binary_image_qcow2_file_for_unified" ; then
+      if ! test -f "${binary_image_qcow2_file_for_unified}" ; then
          error "\
 Trying to build...
-VMNAME: $VMNAME
-vm_names_to_be_exported: $vm_names_to_be_exported
-dist_build_desktop: $dist_build_desktop
-dist_build_qcow2: $dist_build_qcow2
-missing other VM for unified builds: $binary_image_qcow2_file_for_unified
+VMNAME: ${VMNAME}
+vm_names_to_be_exported: ${vm_names_to_be_exported}
+dist_build_desktop: ${dist_build_desktop}
+dist_build_qcow2: ${dist_build_qcow2}
+missing other VM for unified builds: ${binary_image_qcow2_file_for_unified}
 
 This means dm-prepare-release would fail later.
 
@@ -359,8 +359,8 @@ binary_image_qcow2_file_for_unified=/path/to/qcow ./derivative-maker"
 }
 
 grml-debootstrap_installation() {
-   pushd "$source_code_folder_dist/grml-debootstrap"
-   $SUDO_TO_ROOT make install
+   pushd "${source_code_folder_dist}/grml-debootstrap"
+   ${SUDO_TO_ROOT} make install
    popd
    true
 }
@@ -371,24 +371,24 @@ packages_installation_from_backports_repository() {
    fi
 
    retry_run --tries 4 --delay 15 -- \
-   $SUDO_TO_ROOT \
+   ${SUDO_TO_ROOT} \
       apt-get \
          "${DIST_APTGETOPT[@]}" \
-         -o Dir::Etc::sourcelist="$dist_build_sources_list_debian_forky_backports" \
+         -o Dir::Etc::sourcelist="${dist_build_sources_list_debian_forky_backports}" \
          -o Dir::Etc::sourceparts="-" \
          update
 
    retry_run --tries 4 --delay 15 -- \
-   $SUDO_TO_ROOT \
+   ${SUDO_TO_ROOT} \
       apt-get \
          "${DIST_APTGETOPT[@]}" \
-         -o Dir::Etc::sourcelist="$dist_build_sources_list_debian_forky_backports" \
+         -o Dir::Etc::sourcelist="${dist_build_sources_list_debian_forky_backports}" \
          -o Dir::Etc::sourceparts="-" \
-         $apt_unattended_opts \
+         ${apt_unattended_opts} \
          --no-install-recommends \
          --yes \
          install \
-         $dist_build_script_build_dependency_debian_backports
+         ${dist_build_script_build_dependency_debian_backports}
 
    true
 }
@@ -401,19 +401,19 @@ signing_key() {
 
    if [ "${CI:-}" = "true" ]; then
       true "INFO: Create signing keys if none exist yet because CI detected..."
-      "$dist_source_help_steps_folder/signing-key-create" "$@"
+      "${dist_source_help_steps_folder}/signing-key-create" "$@"
    elif [ "${dist_build_redistributable:-}" = "true" ]; then
-      true "INFO: dist_build_redistributable=true, therefore skipping $dist_source_help_steps_folder/signing-key-create, ok.
+      true "INFO: dist_build_redistributable=true, therefore skipping ${dist_source_help_steps_folder}/signing-key-create, ok.
 Not creating signing key when building redistributable builds.
 (There is no risk of overwriting signing keys because signing-key-create is checking if signing keys already exist and never overwrites.)
 However, if signing keys are missing for redistributable builds, then the keys should be manually put in place to avoid signing redistributable builds using auto-generated keys."
       #"$dist_source_help_steps_folder/signing-key-create" "$@"
    elif [ "${build_dry_run:-}" = "true" ]; then
       true "INFO: Create signing keys if none exist yet because build_dry_run=true (exercise dm-prepare-release signing path)..."
-      "$dist_source_help_steps_folder/signing-key-create" "$@"
+      "${dist_source_help_steps_folder}/signing-key-create" "$@"
    else
       true "INFO: Create signing keys if none exist yet..."
-      "$dist_source_help_steps_folder/signing-key-create" "$@"
+      "${dist_source_help_steps_folder}/signing-key-create" "$@"
    fi
 
    ## Check if signing keys exists and is functional.
@@ -421,7 +421,7 @@ However, if signing keys are missing for redistributable builds, then the keys s
    ## Letting a builder using an OpenPGP key password cache its passwords early,
    ## so we do not pause the build process later when reprepro creates the
    ## local apt repository or when signing redistributable images.
-   "$dist_source_help_steps_folder/signing-key-test" "$@"
+   "${dist_source_help_steps_folder}/signing-key-test" "$@"
 }
 
 sudo_setup() {
@@ -444,25 +444,25 @@ sudo_setup() {
 ## file: ${BASH_SOURCE[0]}
 ## function: ${FUNCNAME[0]}
 
-## Enable passwordless sudo for '$USER'.
+## Enable passwordless sudo for '${USER}'.
 ## Avoid 'sudo: a password is required' errors during the build process.
-$USER ALL=(ALL:ALL) NOPASSWD:ALL
+${USER} ALL=(ALL:ALL) NOPASSWD:ALL
 
-Defaults:%$USER runcwd=*
+Defaults:%${USER} runcwd=*
 
 ## Does not work:
-#Defaults:%$USER runcwd=$HOMEVAR_VBOX_TEMP
-#Defaults:%$USER runcwd=$HOMEVAR_VBOX_TEMP/
-#Defaults:%$USER runcwd=$HOMEVAR_VBOX_TEMP/*
+#Defaults:%${USER} runcwd=${HOMEVAR_VBOX_TEMP}
+#Defaults:%${USER} runcwd=${HOMEVAR_VBOX_TEMP}/
+#Defaults:%${USER} runcwd=${HOMEVAR_VBOX_TEMP}/*
 "
 
-   printf "%s" "$file_content" | $SUDO_TO_ROOT SUDO_EDITOR="" VISUAL="" EDITOR=sponge -- visudo -f /etc/sudoers.d/derivative-maker >/dev/null
+   printf "%s" "${file_content}" | ${SUDO_TO_ROOT} SUDO_EDITOR="" VISUAL="" EDITOR=sponge -- visudo -f /etc/sudoers.d/derivative-maker >/dev/null
 
    ## Debugging.
-   $SUDO_TO_ROOT cat /etc/sudoers.d/derivative-maker
+   ${SUDO_TO_ROOT} cat /etc/sudoers.d/derivative-maker
 
    ## Sanity test.
-   $SUDO_TO_ROOT visudo --strict --check /etc/sudoers.d/derivative-maker
+   ${SUDO_TO_ROOT} visudo --strict --check /etc/sudoers.d/derivative-maker
 }
 
 main() {

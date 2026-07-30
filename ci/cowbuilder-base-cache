@@ -30,27 +30,27 @@ fi
 
 mode="${1:-}"
 [ -n "${BOOT_ARCH:-}" ] || BOOT_ARCH="amd64"
-arch="$BOOT_ARCH"
+arch="${BOOT_ARCH}"
 runner_owner="$(id -u):$(id -g)"
-cache_dir="$HOME/cowbuilder-base-cache"
-base_tar="$cache_dir/pbuilder-base.tar"
-pbuilder_dir="$HOME/binary_mnt/pbuilder"
+cache_dir="${HOME}/cowbuilder-base-cache"
+base_tar="${cache_dir}/pbuilder-base.tar"
+pbuilder_dir="${HOME}/binary_mnt/pbuilder"
 base_name="base.cow_${arch}"
 
-case "$mode" in
+case "${mode}" in
    pack)
-      if ! sudo -- test -d "$pbuilder_dir/$base_name"; then
-         printf '%s\n' "${0##*/}: no cowbuilder base at '$pbuilder_dir/$base_name' to pack"
+      if ! sudo -- test -d "${pbuilder_dir}/${base_name}"; then
+         printf '%s\n' "${0##*/}: no cowbuilder base at '${pbuilder_dir}/${base_name}' to pack"
          exit 0
       fi
-      mkdir --parents -- "$cache_dir"
+      mkdir --parents -- "${cache_dir}"
       sudo tar --create --preserve-permissions --xattrs --acls --numeric-owner \
-         --file "$base_tar" --directory "$pbuilder_dir" "$base_name"
-      sudo chown --recursive -- "$runner_owner" "$cache_dir"
+         --file "${base_tar}" --directory "${pbuilder_dir}" "${base_name}"
+      sudo chown --recursive -- "${runner_owner}" "${cache_dir}"
       printf '%s\n' "${0##*/}: packed cowbuilder base for cache"
       ;;
    unpack)
-      if [ ! -f "$base_tar" ]; then
+      if [ ! -f "${base_tar}" ]; then
          printf '%s\n' "${0##*/}: no cached cowbuilder base; a fresh one will be built"
          exit 0
       fi
@@ -58,11 +58,11 @@ case "$mode" in
       ## build uid) with docker-run's 770, so docker-run's volume_prepare -- which
       ## only touches a dir it makes fresh -- leaves the mount and the root-owned
       ## base we drop into it alone.
-      mkdir --parents -- "$HOME/binary_mnt"
-      chmod 0770 -- "$HOME/binary_mnt"
-      sudo mkdir --parents -- "$pbuilder_dir"
+      mkdir --parents -- "${HOME}/binary_mnt"
+      chmod 0770 -- "${HOME}/binary_mnt"
+      sudo mkdir --parents -- "${pbuilder_dir}"
       sudo tar --extract --preserve-permissions --xattrs --acls --numeric-owner \
-         --file "$base_tar" --directory "$pbuilder_dir"
+         --file "${base_tar}" --directory "${pbuilder_dir}"
       printf '%s\n' "${0##*/}: cowbuilder base restored from cache"
       ;;
    free)
@@ -71,14 +71,14 @@ case "$mode" in
       ## 'pack' above, then removed here (before the artifact upload) so upload-artifact
       ## does not EACCES walking into the root-owned 0700 chroot. No-op if absent
       ## (default builds keep the base at /var/cache/pbuilder, outside this tree).
-      if sudo -- test -d "$pbuilder_dir"; then
+      if sudo -- test -d "${pbuilder_dir}"; then
          ## style-ok: no-safe-rm -- runs on the hosted CI runner where safe-rm
          ## (private-ai-config/helper-scripts) is not present; a throwaway root-owned
          ## chroot removed best-effort before the artifact upload.
-         sudo rm --recursive --force -- "$pbuilder_dir"
-         printf '%s\n' "${0##*/}: freed cowbuilder base tree '$pbuilder_dir'"
+         sudo rm --recursive --force -- "${pbuilder_dir}"
+         printf '%s\n' "${0##*/}: freed cowbuilder base tree '${pbuilder_dir}'"
       else
-         printf '%s\n' "${0##*/}: no cowbuilder base tree at '$pbuilder_dir' to free"
+         printf '%s\n' "${0##*/}: no cowbuilder base tree at '${pbuilder_dir}' to free"
       fi
       ;;
    *)

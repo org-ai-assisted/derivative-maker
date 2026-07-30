@@ -15,7 +15,7 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
@@ -23,9 +23,9 @@ source pre
 source variables
 
 export-libvirt-xml() {
-   mkdir --parents "$binary_build_folder_dist"
+   mkdir --parents "${binary_build_folder_dist}"
 
-   cp "$libvirt_source_kvm_file" "$libvirt_target_kvm_file"
+   cp "${libvirt_source_kvm_file}" "${libvirt_target_kvm_file}"
 
    #if [ "${dist_build_type_short:-}" = "kicksecure" ]; then
       #true

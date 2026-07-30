@@ -8,12 +8,14 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 
 dist_build_source_run="true"
 
@@ -26,7 +28,7 @@ git_sanity_test="${dist_source_help_steps_folder}/git_sanity_test"
 
 error_handler_dist_build_one() {
    true "${red}${bold}ERROR in $0${reset}"
-   true "${red}${bold}BASH_COMMAND${reset}: $BASH_COMMAND"
+   true "${red}${bold}BASH_COMMAND${reset}: ${BASH_COMMAND}"
    true "${red}\$*: $*${reset}"
    true "${red}${bold}INFO: Now exiting from $0 (because error was detected, see above).${reset}"
    exit 1
@@ -134,7 +136,7 @@ update_repo() {
     true "INFO: latest tag requested: yes"
     latest_tag_commit="$(git rev-list --tags --max-count=1)" || error 'Failed to find latest tag commit.'
     [[ -z "${latest_tag_commit:-}" ]] && error 'No tags found.'
-    target_tag="$(git describe --tags -- "$latest_tag_commit")" || error 'Failed to find latest git tag.'
+    target_tag="$(git describe --tags -- "${latest_tag_commit}")" || error 'Failed to find latest git tag.'
   else
     true "INFO: latest tag requested: no"
   fi
@@ -230,7 +232,7 @@ update_repo() {
           "${dist_build_current_git_head}" "${branch_reset_commit}"
       ## NOTE: 'current_branch' format is like 'refs/heads/master',
       ## 'upstream_branch' format is like 'origin/master'.
-      upstream_branch="$(git for-each-ref --format='%(upstream:short)' "$current_branch")" \
+      upstream_branch="$(git for-each-ref --format='%(upstream:short)' "${current_branch}")" \
         || abort_update \
           'Getting upstream branch name failed!' \
           "${dist_build_current_git_head}" "${branch_reset_commit}"
@@ -297,7 +299,7 @@ update_repo() {
 }
 
 main() {
-  if [ "$EUID" = "0" ]; then
+  if [ "${EUID}" = "0" ]; then
     true "${red}${bold}ERROR: This must NOT be run as root (sudo)!${reset}"
     exit 1
   fi

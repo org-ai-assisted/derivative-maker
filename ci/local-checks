@@ -35,4 +35,4 @@ printf '\n'
 if (( rc != 0 )); then
   printf '\nFAILED\n' >&2
 fi
-exit "$rc"
+exit "${rc}"

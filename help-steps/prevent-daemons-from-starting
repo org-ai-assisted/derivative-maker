@@ -13,12 +13,12 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-source "$MYDIR/pre"
-source "$MYDIR/variables"
+source "${MYDIR}/pre"
+source "${MYDIR}/variables"
 
 error_handler_prevent_daemons_from_starting() {
    : echo "
-${red}${bold}BASH_COMMAND${reset}: $BASH_COMMAND
+${red}${bold}BASH_COMMAND${reset}: ${BASH_COMMAND}
 ${red}${bold}ERROR ${BASH_SOURCE[0]}: | caller: $(caller)${reset}
 "
    exit 1
@@ -33,10 +33,10 @@ main() {
 
    if [ ! -e "${CHROOT_FOLDER}/usr/sbin/policy-rc.d.derivative-maker" ]; then
       ## Copy custom policy-rc.d into position
-      $SUDO_TO_ROOT cp --preserve --verbose "${source_code_folder_dist}/packages/kicksecure/helper-scripts/usr/share/helper-scripts/policy-rc.d" "${CHROOT_FOLDER}/usr/sbin/policy-rc.d.derivative-maker"
+      ${SUDO_TO_ROOT} cp --preserve --verbose "${source_code_folder_dist}/packages/kicksecure/helper-scripts/usr/share/helper-scripts/policy-rc.d" "${CHROOT_FOLDER}/usr/sbin/policy-rc.d.derivative-maker"
 
       ## Install alternative
-      $SUDO_TO_ROOT chroot "${CHROOT_FOLDER}" update-alternatives --install /usr/sbin/policy-rc.d policy-rc.d /usr/sbin/policy-rc.d.derivative-maker 1000
+      ${SUDO_TO_ROOT} chroot "${CHROOT_FOLDER}" update-alternatives --install /usr/sbin/policy-rc.d policy-rc.d /usr/sbin/policy-rc.d.derivative-maker 1000
    fi
 
    sync

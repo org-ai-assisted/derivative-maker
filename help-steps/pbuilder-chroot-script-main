@@ -22,18 +22,18 @@ true "INFO: Currently running cowbuilder main chroot script."
 ## /usr/share/doc/pbuilder/examples/D10tmp
 ## https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=725434;msg=45
 if [ -n "${TMP:-}" ]; then
-   [ -d "$TMP" ] || mkdir -p -- "$TMP" || true
-   chmod 1777 -- "$TMP" || true
+   [ -d "${TMP}" ] || mkdir -p -- "${TMP}" || true
+   chmod 1777 -- "${TMP}" || true
 fi
 if [ -n "${TMPDIR:-}" ]; then
-   [ -d "$TMPDIR" ] || mkdir -p -- "$TMPDIR" || true
-   chmod 1777 -- "$TMPDIR" || true
+   [ -d "${TMPDIR}" ] || mkdir -p -- "${TMPDIR}" || true
+   chmod 1777 -- "${TMPDIR}" || true
 fi
 
 ## Debugging.
-cat -- "/home/$user_name/pbuilder_config_file"
+cat -- "/home/${user_name}/pbuilder_config_file"
 
-source "/home/$user_name/pbuilder_config_file"
+source "/home/${user_name}/pbuilder_config_file"
 
 ## help-steps/pre is not available in the pbuilder chroot, so define a minimal
 ## error handler and source just the standalone retry_run helper (copied in by
@@ -43,12 +43,12 @@ error() {
    exit 1
 }
 # shellcheck source=./retry-run
-source "/home/$user_name/retry-run"
+source "/home/${user_name}/retry-run"
 
 ## Debugging.
-true "apt_unattended_opts: $apt_unattended_opts"
+true "apt_unattended_opts: ${apt_unattended_opts}"
 
-mapfile -t DIST_APTGETOPT <<< "$DIST_APTGETOPT_SERIALIZED"
+mapfile -t DIST_APTGETOPT <<< "${DIST_APTGETOPT_SERIALIZED}"
 printf "%s\n" "DIST_APTGETOPT: ${DIST_APTGETOPT[*]}"
 
 if [ "${dist_build_unsafe_io:-}" = "true" ]; then
@@ -103,8 +103,8 @@ fi
 #  apt-get "${DIST_APTGETOPT[@]}" $apt_unattended_opts --yes --target-release=bookworm-backports install debhelper
 #fi
 
-retry_run --tries 4 --delay 15 -- apt-get "${DIST_APTGETOPT[@]}" $apt_unattended_opts --yes dist-upgrade
+retry_run --tries 4 --delay 15 -- apt-get "${DIST_APTGETOPT[@]}" ${apt_unattended_opts} --yes dist-upgrade
 
-adduser --quiet --group --system --home "/home/$user_name" "$user_name"
+adduser --quiet --group --system --home "/home/${user_name}" "${user_name}"
 
 true "INFO: End of script cowbuilder main chroot script."

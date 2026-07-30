@@ -15,11 +15,11 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-source "$MYDIR/pre"
-source "$MYDIR/variables"
+source "${MYDIR}/pre"
+source "${MYDIR}/variables"
 
 exception_handler_unmount-raw() {
-   true "${red}${bold}BASH_COMMAND${reset}: $BASH_COMMAND
+   true "${red}${bold}BASH_COMMAND${reset}: ${BASH_COMMAND}
 ${red}${bold}ERROR ${BASH_SOURCE[0]}: | caller: $(caller)${reset}"
    exit 1
 }
@@ -31,25 +31,25 @@ unmount_raw() {
       true
    else
       ## hack for help-steps/analyze-image
-      CHROOT_FOLDER="$mount_folder"
+      CHROOT_FOLDER="${mount_folder}"
    fi
 
    sync
 
    true "INFO: Start of ${FUNCNAME[0]}. Running losetup --all for debugging before running kpartx."
-   $SUDO_TO_ROOT losetup --all
+   ${SUDO_TO_ROOT} losetup --all
 
    if [ "${kpartx_only:-}" = "true" ]; then
-      true "INFO: kpartx_only=$kpartx_only, skipping unmount $CHROOT_FOLDER"
+      true "INFO: kpartx_only=${kpartx_only}, skipping unmount ${CHROOT_FOLDER}"
    else
-      "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER"
+      "${dist_source_help_steps_folder}/unmount-helper" "${CHROOT_FOLDER}"
    fi
 
    local img
    if [ "${dist_build_mount_raw_file:-}" = "" ]; then
-      img="$binary_image_raw_file"
+      img="${binary_image_raw_file}"
    else
-      img="$dist_build_mount_raw_file"
+      img="${dist_build_mount_raw_file}"
    fi
 
    ## Sleep to work around some obscure bug.
@@ -58,7 +58,7 @@ unmount_raw() {
    wait "$!"
    sync
 
-   $SUDO_TO_ROOT kpartx -d -s -v "$img"
+   ${SUDO_TO_ROOT} kpartx -d -s -v "${img}"
    sync
 
    local loop_devices_output_before loop_devices_list loop_devices_item
@@ -68,13 +68,13 @@ unmount_raw() {
    #/dev/loop2
    #/dev/loop0
    ## NOTE: There should only be one loop device (such as '/dev/loop1'). But in case of bugs, there might be multiple.
-   loop_devices_output_before="$($SUDO_TO_ROOT losetup --associated "$img" --noheadings --output NAME)"
+   loop_devices_output_before="$(${SUDO_TO_ROOT} losetup --associated "${img}" --noheadings --output NAME)"
 
-   mapfile -t loop_devices_list <<< "$loop_devices_output_before"
+   mapfile -t loop_devices_list <<< "${loop_devices_output_before}"
 
    for loop_devices_item in "${loop_devices_list[@]}" ; do
       ## Check if the block device still exists.
-      if ! test -b "$loop_devices_item" ; then
+      if ! test -b "${loop_devices_item}" ; then
          continue
       fi
       true "INFO: kpartx -d -s -v failed to unmount all loop devices, attempting to unmount..."
@@ -87,40 +87,40 @@ unmount_raw() {
       #del devmap : loop0p2
       #loop0p3 is in use. Not removing
       #zsh: exit 1
-      $SUDO_TO_ROOT kpartx -d -s -v "$loop_devices_item" || true "INFO: kpartx non-zero exit code."
+      ${SUDO_TO_ROOT} kpartx -d -s -v "${loop_devices_item}" || true "INFO: kpartx non-zero exit code."
 
       ## Overwrite with '|| true' because: Precaution. Testing. Unknown is strictly required.
-      $SUDO_TO_ROOT losetup -d "$loop_devices_item" || true "INFO: losetup non-zero exit code."
+      ${SUDO_TO_ROOT} losetup -d "${loop_devices_item}" || true "INFO: losetup non-zero exit code."
    done
 
    true "INFO: Middle of ${FUNCNAME[0]}. losetup --associated after kpartx -d (Delete partition mappings.)"
    local loop_devices_output_after
-   loop_devices_output_after="$($SUDO_TO_ROOT losetup --associated "$img" --noheadings --output NAME)"
+   loop_devices_output_after="$(${SUDO_TO_ROOT} losetup --associated "${img}" --noheadings --output NAME)"
 
    if [ ! "${loop_devices_output_after:-}" = "" ]; then
       error "Unmount failed. Variable loop_devices_output_after is non-empty."
    fi
 
    true "INFO: Middle of ${FUNCNAME[0]}. Running losetup --all for debugging after kpartx -d (Delete partition mappings.)"
-   $SUDO_TO_ROOT losetup --all
+   ${SUDO_TO_ROOT} losetup --all
    sync
 
    if [ "${kpartx_only:-}" = "true" ]; then
-      true "INFO: kpartx_only=$kpartx_only, skipping debugging: ls -la $CHROOT_FOLDER"
+      true "INFO: kpartx_only=${kpartx_only}, skipping debugging: ls -la ${CHROOT_FOLDER}"
    else
-      if test -d "$CHROOT_FOLDER" ; then
-         ls -la "$CHROOT_FOLDER"
+      if test -d "${CHROOT_FOLDER}" ; then
+         ls -la "${CHROOT_FOLDER}"
       else
          true "INFO: CHROOT_FOLDER is not a directory. Perhaps already unmounted?"
       fi
    fi
 
    if [ "${kpartx_only:-}" = "true" ]; then
-      true "INFO: kpartx_only=$kpartx_only, skipping rmdir."
+      true "INFO: kpartx_only=${kpartx_only}, skipping rmdir."
    else
       ## Delete temporary folder.
       ## It did not contain anything. It was only a mount point.
-      $SUDO_TO_ROOT rmdir "$CHROOT_FOLDER" || true
+      ${SUDO_TO_ROOT} rmdir "${CHROOT_FOLDER}" || true
       sync
    fi
 }

@@ -28,14 +28,14 @@ fi
 runner_owner="$(id -u):$(id -g)"
 
 cache_dirs=(
-   "$HOME/binary_mnt/aptrepo_local"
-   "$HOME/binary_mnt/packages-build-status"
-   "$HOME/binary_mnt/genmkfile-packages-result"
-   "$HOME/approx_cache_mnt"
+   "${HOME}/binary_mnt/aptrepo_local"
+   "${HOME}/binary_mnt/packages-build-status"
+   "${HOME}/binary_mnt/genmkfile-packages-result"
+   "${HOME}/approx_cache_mnt"
 )
 
 for cache_dir in "${cache_dirs[@]}"; do
-   if [ -e "$cache_dir" ]; then
-      sudo chown --recursive -- "$runner_owner" "$cache_dir" || true
+   if [ -e "${cache_dir}" ]; then
+      sudo chown --recursive -- "${runner_owner}" "${cache_dir}" || true
    fi
 done
