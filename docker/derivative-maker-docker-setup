@@ -16,86 +16,42 @@ shopt -s shift_verbose
 
 ## TODO: root check or use sudo
 
-## The pinned apt configuration is COPY'd in by the Dockerfile as static files, so
-## nothing is generated here. The pin is read back OUT of the shipped sources file
-## rather than passed in: the file is the only thing apt actually obeys, so
-## verifying against anything else would prove the wrong statement.
-##
-## Empty means no pinned source is configured, which the guard below rejects.
-DM_FROZEN_SNAPSHOT="$(grep -E '^[[:space:]]*URIs:' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
-   | grep -oE '[0-9]{8}T[0-9]{6}Z' \
-   | sort --unique \
-   | head -n 1 || true)"
+## Frozen snapshot pin, applied as apt OPTIONS rather than configuration files:
+## - Dir::Etc::sourcelist names the ONLY sources file apt reads
+## - Dir::Etc::sourceparts=- disables sources.list.d entirely
+## so the base image's own sources are simply never consulted; nothing is
+## overwritten or blanked.
+## - Check-Valid-Until=false because a dated snapshot Release ages past it.
+## Matches buildconfig.d/30_apt_opts.conf, which passes the same setting as an
+## option for the build.
+DM_FROZEN_SOURCES='/etc/apt/dm-frozen.sources'
+dm_apt_options=(
+   -o "Dir::Etc::sourcelist=${DM_FROZEN_SOURCES}"
+   -o 'Dir::Etc::sourceparts=-'
+   -o 'Acquire::Check-Valid-Until=false'
+)
 
-## More than one distinct timestamp means the two stanzas disagree, and apt would
-## then resolve the archives to different snapshots -- the security archive quietly
-## frozen on an older one is the worst outcome available here.
-dm_frozen_snapshot_count="$(grep -E '^[[:space:]]*URIs:' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
-   | grep -oE '[0-9]{8}T[0-9]{6}Z' \
-   | sort --unique \
-   | grep --count . || true)"
+## The pin is read back out of the file apt is pointed at, because that file is
+## the only thing apt obeys; verifying anything else would prove the wrong
+## statement. Only 'URIs:' lines count -- comment prose carries example dates.
+DM_FROZEN_SNAPSHOT="$(grep -E '^[[:space:]]*URIs:' "${DM_FROZEN_SOURCES}" \
+   | grep -oE '[0-9]{8}T[0-9]{6}Z' | sort --unique | head -n 1 || true)"
+dm_frozen_snapshot_count="$(grep -E '^[[:space:]]*URIs:' "${DM_FROZEN_SOURCES}" \
+   | grep -oE '[0-9]{8}T[0-9]{6}Z' | sort --unique | grep --count . || true)"
+
+## Exactly one snapshot, or the two archives resolve to different ones and the
+## security archive can sit silently on an older snapshot.
 if [ ! "${dm_frozen_snapshot_count}" = "1" ]; then
    printf '%s\n' \
-      "${BASH_SOURCE[0]}: ERROR: expected exactly one pinned snapshot in /etc/apt/sources.list.d/debian.sources, found ${dm_frozen_snapshot_count}." >&2
+      "${BASH_SOURCE[0]}: ERROR: expected exactly one pinned snapshot in '${DM_FROZEN_SOURCES}', found ${dm_frozen_snapshot_count}." >&2
+   exit 1
+fi
+if [ -z "${DM_FROZEN_SNAPSHOT}" ]; then
+   printf '%s\n' "${BASH_SOURCE[0]}: ERROR: no pinned snapshot in '${DM_FROZEN_SOURCES}'." >&2
    exit 1
 fi
 
-if [ -n "${DM_FROZEN_SNAPSHOT}" ]; then
-   ## Fail loud instead of silently installing from the live archive: every
-   ## configured deb source must carry the pin. Catches a base image that keeps
-   ## its sources under a name the Dockerfile does not overwrite.
-   ##
-   ## Judged per URI, not per line. A deb822 'URIs:' field takes SEVERAL
-   ## whitespace-separated URIs and apt fetches from every one, so a line holding
-   ## the pinned URI next to a live one would satisfy any whole-line match while
-   ## still pulling from the live archive.
-   unpinned_sources=""
-   pinned_seen="false"
-   while read -r config_line; do
-      ## Drop the leading keyword so only URI tokens are judged.
-      case "${config_line}" in
-         *URIs:*) config_line="${config_line#*URIs:}" ;;
-         *) config_line="${config_line#*deb}" ;;
-      esac
-      ## Deliberately unquoted: splitting the field into its URI tokens is the point.
-      for uri_token in ${config_line}; do
-         ## Options ('[trusted=yes]'), suites and components are not URIs.
-         case "${uri_token}" in
-            *://*)
-               ;;
-            *)
-               continue
-               ;;
-         esac
-         case "${uri_token}" in
-            *"${DM_FROZEN_SNAPSHOT}"*)
-               pinned_seen="true"
-               ;;
-            *)
-               unpinned_sources="${unpinned_sources}${uri_token}"$'\n'
-               ;;
-         esac
-      done
-   done <<< "$(grep --recursive --no-filename --extended-regexp \
-      '^[[:space:]]*(URIs:|deb(-src)?[[:space:]])' \
-      /etc/apt/sources.list /etc/apt/sources.list.d/ 2>/dev/null || true)"
-
-   if [ -n "${unpinned_sources}" ]; then
-      printf '%s\n' \
-         "${BASH_SOURCE[0]}: ERROR: apt source not pinned to '${DM_FROZEN_SNAPSHOT}':" \
-         "${unpinned_sources}" >&2
-      exit 1
-   fi
-   ## A tree with no pinned URI at all would satisfy the check above vacuously,
-   ## which reads identically to success while apt has nothing to install from.
-   if [ ! "${pinned_seen}" = "true" ]; then
-      printf '%s\n' \
-         "${BASH_SOURCE[0]}: ERROR: no apt source carries the pin '${DM_FROZEN_SNAPSHOT}'." >&2
-      exit 1
-   fi
-fi
-
-apt-get update
+apt-get "${dm_apt_options[@]}" update
 
 ## TODO: remove
 ## 'build-steps.d/1100_sanity-tests' function 'check_required_packages_installed' already installs
@@ -125,7 +81,7 @@ getent passwd approx >/dev/null \
   || useradd --system --gid 102 --uid 101 --no-create-home --home-dir /var/lib/approx --shell /usr/sbin/nologin approx
 
 DEBIAN_FRONTEND=noninteractive \
-  apt-get install \
+  apt-get "${dm_apt_options[@]}" install \
     --no-install-recommends \
     --yes \
     sq sqv sqop sequoia-git sequoia-chameleon-gnupg gpg-agent \
@@ -142,7 +98,7 @@ if [ "${USER}" = "root" ]; then
    ## Host: install the docker engine + client (see the comment above the
    ## apt-get call). Never needed inside the image.
    DEBIAN_FRONTEND=noninteractive \
-      apt-get install \
+      apt-get "${dm_apt_options[@]}" install \
          --no-install-recommends \
          --yes \
          docker.io docker-cli
