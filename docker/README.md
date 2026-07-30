@@ -52,17 +52,21 @@ specific platform, pass `--platform` to buildx:
 docker buildx build --platform linux/arm64 -t derivative-maker/derivative-maker-docker:latest ./docker
 docker buildx build --platform linux/amd64 -t derivative-maker/derivative-maker-docker:latest ./docker
 ```
-A hand-run `docker build`/`buildx build` installs the build-host tools from the
-base image's live sources. For an image whose apt agrees with a
-`--freshness frozen` build, pass the snapshot pin that
-`build_sources/debian_stable_frozen_clearnet.sources` carries:
-```sh
-docker buildx build \
-  --build-arg DM_FROZEN_SNAPSHOT=20260730T083809Z \
-  -t derivative-maker/derivative-maker-docker:latest ./docker
-```
-`derivative-maker-docker-run` reads that timestamp out of the sources file and
-passes it automatically, so the normal path needs no flag.
+The image's apt is pinned to the same snapshot.debian.org timestamp a
+`--freshness frozen` build uses, so the tools installed in the image and the
+packages the build resolves come from one snapshot. That configuration is static,
+in `docker/apt/`, and is COPY'd in by the `Dockerfile` -- a hand-run
+`docker build`/`buildx build` therefore gets the pin with no extra flag.
+
+`dm-update-frozen-snapshot` rewrites the timestamp in `docker/apt/debian.sources`
+together with `build_sources/debian_stable_frozen_clearnet.sources` and the plain
+`build_sources/frozen-snapshot-timestamp`, and refuses to bump when the three
+disagree. Do not hand-edit one of them.
+
+`derivative-maker-docker-run` stamps the image with the pin
+(`org.kicksecure.derivative-maker.frozen-snapshot`) and rebuilds when the label no
+longer matches, so a bump cannot silently reuse an image built from the previous
+snapshot.
 On Apple Silicon hosts, the default platform already matches
 (`linux/arm64`); no extra flags needed. Cross-arch builds require
 `qemu-user-static` registered with binfmt_misc.
