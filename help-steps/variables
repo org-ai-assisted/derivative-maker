@@ -1420,6 +1420,41 @@ for dist_build_config_dir_item in ${dist_build_config_dirs_list}; do
 done
 unset dist_build_config_dir_item
 
+## A frozen build anchors SOURCE_DATE_EPOCH to the pinned snapshot instead of the
+## changelog timestamp set further up. grml-debootstrap derives the snapshot it
+## bootstraps the BASE SYSTEM from as
+## "${SNAPSHOT_ARCHIVE}/debian/$(date -u -d @${SOURCE_DATE_EPOCH})", so with the
+## changelog date the base comes from a different snapshot than the build resolves
+## packages against, and only a dist-upgrade reconciles them.
+##
+## Still a pure function of the committed tree -- the pin is in build_sources/ --
+## so a rebuild from a given commit reproduces. It does move what the anchor MEANS:
+## file mtimes and grml's SOURCE_DATE_EPOCH-derived disk identifiers and UUIDs now
+## change when the snapshot is bumped rather than when the source is released.
+##
+## Runs here because the freshness selection is only known after buildconfig.d.
+## Set here rather than replacing the earlier assignment: 'current' builds have no
+## pin, and the changelog timestamp remains right for them.
+if [ "${dist_build_apt_freshness_selected:-}" = "frozen" ]; then
+   dist_frozen_snapshot_pin_file="${source_code_folder_dist}/build_sources/frozen-snapshot-timestamp"
+   if [ ! -r "${dist_frozen_snapshot_pin_file}" ]; then
+      error "Frozen build, but the snapshot pin file is missing: ${dist_frozen_snapshot_pin_file}"
+   fi
+   dist_frozen_snapshot_pin="$(< "${dist_frozen_snapshot_pin_file}")"
+   dist_frozen_snapshot_pin="${dist_frozen_snapshot_pin//[[:space:]]/}"
+   case "${dist_frozen_snapshot_pin}" in
+      [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z)
+         ;;
+      *)
+         error "Malformed snapshot pin '${dist_frozen_snapshot_pin}' in ${dist_frozen_snapshot_pin_file}"
+         ;;
+   esac
+   ## 'date -d' reads the compact form once a 'T' separator is spelled out.
+   SOURCE_DATE_EPOCH="$(date --utc --date="${dist_frozen_snapshot_pin:0:8} ${dist_frozen_snapshot_pin:9:2}:${dist_frozen_snapshot_pin:11:2}:${dist_frozen_snapshot_pin:13:2}" +%s)"
+   export SOURCE_DATE_EPOCH
+   true "INFO: frozen build: SOURCE_DATE_EPOCH ${SOURCE_DATE_EPOCH} from snapshot pin ${dist_frozen_snapshot_pin}."
+fi
+
 if [ ! "${dist_build_custom_config_dir:-}" = "" ]; then
    dist_build_source_config_dir "${dist_build_custom_config_dir}"
 fi
