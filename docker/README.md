@@ -58,25 +58,30 @@ On Apple Silicon hosts, the default platform already matches
 
 ### Frozen snapshot pin
 The image's apt is pinned to the same snapshot.debian.org timestamp a
-`--freshness frozen` build uses, so the tools installed in the image and the
-packages the build resolves come from one snapshot. That configuration is static,
-in `docker/apt/`, and is COPY'd in by the `Dockerfile` -- a hand-run
-`docker build`/`buildx build` therefore gets the pin with no extra flag.
-
-`dm-update-frozen-snapshot` rewrites the timestamp in `docker/apt/debian.sources`
-together with `build_sources/debian_stable_frozen_clearnet.sources` and the plain
-`build_sources/frozen-snapshot-timestamp`, and refuses to bump when the three
-disagree. Do not hand-edit one of them.
-
-`derivative-maker-docker-run` stamps the image with the pin
-(`org.kicksecure.derivative-maker.frozen-snapshot`) and rebuilds when the label no
-longer matches, so a bump cannot silently reuse an image built from the previous
+`--freshness frozen` build uses, so image tooling and the build resolve one
 snapshot.
 
-The sources are https, and `debian:trixie-slim` ships no `ca-certificates`, so
-`apt-bootstrap-ca-certificates` installs the trust store first from the base
-image's own sources. That is the only unpinned fetch in the image build; the
-package is installed again from the snapshot afterwards.
+- The pin lives in `build_sources/`, not under `docker/`. The image gets
+  `debian_stable_frozen_direct_clearnet.sources` (direct URLs, since approx is not
+  running at image-build time); the build uses the approx-proxied file beside it.
+- `derivative-maker-docker-setup` passes `-o Dir::Etc::sourcelist` at that file and
+  `-o Dir::Etc::sourceparts=-`, so it is the only source apt reads; the base image's
+  own sources are never consulted and nothing is overwritten.
+- `-o Acquire::Check-Valid-Until=false`, because a dated snapshot Release ages past it.
+- `dm-update-frozen-snapshot` rewrites the timestamp across both `.sources` files and
+  the plain `build_sources/frozen-snapshot-timestamp`, and refuses when they disagree.
+  Do not hand-edit one of them.
+- `derivative-maker-docker-run` stamps the image with the pin
+  (`org.kicksecure.derivative-maker.frozen-snapshot`) and rebuilds when the label no
+  longer matches, so a bump cannot silently reuse the previous snapshot's image.
+- The sources are https and the slim base ships no `ca-certificates`, so
+  `apt-bootstrap-ca-certificates` installs the trust store first from the base image's
+  own sources. That is the only unpinned fetch; the package is reinstalled from the
+  snapshot afterwards.
+
+The build context is the repo root (`docker build --file docker/Dockerfile .`) so the
+Dockerfile can COPY out of `build_sources/`; `.dockerignore` keeps the context to
+`docker/` plus that one file.
 
 ### Volumes
 1. By default three folders are generated in the user's home directory

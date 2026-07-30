@@ -140,9 +140,9 @@ DM_SNAPSHOT_LABEL='org.kicksecure.derivative-maker.frozen-snapshot'
 
 frozen_snapshot_timestamp() {
   ## dm-update-frozen-snapshot writes the pin here as a bare one-line timestamp,
-  ## so this is a 'cat' rather than a deb822 parse. That tool keeps this file,
-  ## build_sources/debian_stable_frozen_clearnet.sources and docker/apt/debian.sources
-  ## in step and refuses to bump when they disagree.
+  ## so this is a 'cat' rather than a deb822 parse. That tool keeps this file and
+  ## both build_sources frozen .sources files in step, and refuses to bump when
+  ## they disagree.
   local pin_file timestamp
   pin_file="${SOURCE_VOLUME}/build_sources/frozen-snapshot-timestamp"
   [ -f "${pin_file}" ] || return 1
@@ -166,7 +166,7 @@ frozen_snapshot_sanity_test() {
   local expected="$1" deb822_file found
   for deb822_file in \
     "${SOURCE_VOLUME}/build_sources/debian_stable_frozen_clearnet.sources" \
-    "${SOURCE_VOLUME}/docker/apt/debian.sources" ; do
+    "${SOURCE_VOLUME}/build_sources/debian_stable_frozen_direct_clearnet.sources" ; do
     [ -f "${deb822_file}" ] || continue
     found="$(grep -E '^[[:space:]]*URIs:' -- "${deb822_file}" \
       | grep -oE '[0-9]{8}T[0-9]{6}Z' | sort --unique | tr '\n' ' ')"
@@ -220,7 +220,9 @@ build_docker_image() {
         "${DM_SNAPSHOT_LABEL}=${frozen_snapshot}" \
         --tag \
         "${image_ref}" \
-        "${DOCKER_DIR}"
+        --file \
+        "${DOCKER_DIR}/Dockerfile" \
+        "${SOURCE_VOLUME}"
   fi
 }
 
