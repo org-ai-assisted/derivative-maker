@@ -32,7 +32,16 @@ name: Boot Test
 
 on:
   workflow_dispatch:
-  ## Dispatch-only: dm-ci-dispatch --workflow local-boot-test.yml --ref <ref>
+  push:
+    branches:
+      ## Coverage follows the branch convention: all work lands on 'ai' or
+      ## 'ai-<topic>', so a boot test runs without anyone remembering an opt-in
+      ## token. Exact prefixes, never a substring glob -- a glob admits
+      ## branches by accident of spelling and leaves the rest reporting every
+      ## check green having booted nothing. Per-ref 'cancel-in-progress' below
+      ## keeps a burst of pushes to one branch from stacking runs.
+      - 'ai'
+      - 'ai-**'
   schedule:
     ## Weekly, Sundays 08:00 UTC (offset from the build lane at 07:00).
     - cron: '0 8 * * 0'
