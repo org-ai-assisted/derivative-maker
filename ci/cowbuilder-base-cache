@@ -73,7 +73,7 @@ case "$mode" in
       ## (default builds keep the base at /var/cache/pbuilder, outside this tree).
       if sudo -- test -d "$pbuilder_dir"; then
          ## style-ok: no-safe-rm -- runs on the hosted CI runner where safe-rm
-         ## (dist-ai-config/helper-scripts) is not present; a throwaway root-owned
+         ## (private-ai-config/helper-scripts) is not present; a throwaway root-owned
          ## chroot removed best-effort before the artifact upload.
          sudo rm --recursive --force -- "$pbuilder_dir"
          printf '%s\n' "${0##*/}: freed cowbuilder base tree '$pbuilder_dir'"
