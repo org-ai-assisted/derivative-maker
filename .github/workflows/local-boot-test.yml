@@ -213,9 +213,9 @@ jobs:
           ## so the non-iso job builds only the qcow2 and skips the raw->vdi->ova
           ## conversion. Restore 'virtualbox qcow2' below to re-enable vbox.
           MULTI_TARGET_LIST: ${{ matrix.image_kind != 'iso' && 'qcow2' || '' }}
-          ## Pass --reuse-cowbuilder-base only when the base cache is enabled (the
-          ## unpack step above restored a frozen base under a recipe-tracking key);
-          ## 1300_cowbuilder-setup then reuses it if present, else builds a fresh one.
+          ## Reusing a base the cache never restored would hand
+          ## 1300_cowbuilder-setup a stale or absent tree, so the flag is tied to
+          ## BASE_CACHE rather than set unconditionally.
           COWBASE_REUSE_FLAG: ${{ env.BASE_CACHE == 'true' && '--reuse-cowbuilder-base' || '' }}
         run: >-
           ./docker/derivative-maker-docker-run --
