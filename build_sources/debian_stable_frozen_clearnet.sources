@@ -36,14 +36,14 @@
 ## producing "held broken packages". trixie-updates lives in the main archive
 ## (debian-frozen), same URI as trixie.
 Types: deb
-URIs: http://127.0.0.1:9977/debian-frozen/20260720T082444Z
+URIs: http://127.0.0.1:9977/debian-frozen/20260730T083809Z
 Suites: trixie trixie-updates
 Components: main contrib non-free non-free-firmware
 Enabled: yes
 Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
 
 Types: deb
-URIs: http://127.0.0.1:9977/debian-security-frozen/20260720T082444Z
+URIs: http://127.0.0.1:9977/debian-security-frozen/20260730T083809Z
 Suites: trixie-security
 Components: main contrib non-free non-free-firmware
 Enabled: yes
