@@ -11,10 +11,6 @@
 # shellcheck disable=SC2086
 ## style-ok: no-has
 ## style-ok: no-safe-rm
-## style-ok: no-tmp-hardcode -- EMPTY_DIR is a path INSIDE the target chroot
-## ('${CHROOT_FOLDER}/${EMPTY_DIR}'), used as apt's empty sourcelist via
-## buildconfig.d/30_apt_opts.conf. TMP/TMPDIR are host state, deliberately stripped
-## before entering a chroot, so it cannot be derived from them and must stay fixed.
 
 #set -x
 set -o errexit
@@ -1101,9 +1097,6 @@ command -v "${git_bin}" >/dev/null
 [ -n "${DEB_INSTALL_FOLDER:-}" ] || DEB_INSTALL_FOLDER="mnt/initialdeb"
 export DEB_INSTALL_FOLDER
 
-[ -n "${EMPTY_DIR:-}" ] || EMPTY_DIR="/tmp/empty"
-export EMPTY_DIR
-
 [ -n "${derivative_maker:-}" ] || derivative_maker=true
 export derivative_maker
 
@@ -1439,6 +1432,10 @@ unset dist_build_config_dir_item
 ## Runs here because the freshness selection is only known after buildconfig.d.
 ## Set here rather than replacing the earlier assignment: 'current' builds have no
 ## pin, and the changelog timestamp remains right for them.
+##
+## The dist-upgrade in 3500_install-packages stays. With one snapshot on both
+## sides it has nothing to do, and a no-op upgrade is a cheap, fast sanity test
+## that they really do agree -- packages to upgrade would mean they do not.
 if [ "${dist_build_apt_freshness_selected:-}" = "frozen" ]; then
    dist_frozen_snapshot_pin_file="${source_code_folder_dist}/build_sources/frozen-snapshot-timestamp"
    if [ ! -r "${dist_frozen_snapshot_pin_file}" ]; then
