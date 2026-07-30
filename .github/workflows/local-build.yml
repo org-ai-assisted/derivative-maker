@@ -38,7 +38,14 @@ on:
           - iso
   push:
     branches:
-      - '**ci**'
+      ## Coverage follows the branch convention: all work lands on 'ai' or
+      ## 'ai-<topic>', so a build runs without anyone remembering an opt-in
+      ## token. Exact prefixes, never a substring glob -- a glob admits
+      ## branches by accident of spelling and leaves the rest reporting every
+      ## check green having built nothing. Per-ref 'cancel-in-progress' below
+      ## keeps a burst of pushes to one branch from stacking builds.
+      - 'ai'
+      - 'ai-**'
     tags:
       ## '**' not '*': '*' does not match a slash, so a slash-delimited tag would
       ## silently skip the gate.
