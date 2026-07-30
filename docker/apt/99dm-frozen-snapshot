@@ -1,2 +1,0 @@
-## A snapshot.debian.org Release is dated, so it ages past its Valid-Until.
-Acquire::Check-Valid-Until "false";
