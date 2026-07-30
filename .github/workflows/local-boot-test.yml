@@ -121,7 +121,7 @@ jobs:
           ## is pinned to the timestamp it carries: without it a snapshot bump
           ## would reuse an image built against the previous snapshot, silently
           ## restoring the mismatch the pin exists to prevent.
-          key: ${{ runner.os }}-boot-dmimg-${{ hashFiles('docker/**', 'build_sources/debian_stable_frozen_clearnet.sources') }}
+          key: ${{ runner.os }}-boot-dmimg-${{ hashFiles('docker/**', 'build_sources/frozen-snapshot-timestamp') }}
 
       - name: Load cached docker image
         if: steps.dmimg-cache.outputs.cache-hit == 'true'
