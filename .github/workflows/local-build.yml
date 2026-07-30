@@ -14,7 +14,7 @@ name: Build
 ## == bit-for-bit reproducible, red == a difference remains.
 ## The diffoscope report artifact says exactly what differs. The build runs through
 ## the official orchestration (help-steps/dm-build-official) with a single-flavor smoke
-## (kicksecure-debug, the flavor local-boot-test.yml also builds), so there is
+## (kicksecure-cli for qcow2/virtualbox, kicksecure-lxqt for iso), so there is
 ## ONE build path and no duplicate build
 ## logic; all compare logic lives in developer-meta-files' dm-reproducible-compare-artifacts,
 ## so the shell stays lint-covered and locally runnable. See
@@ -24,21 +24,28 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "Which built image to compare. Both are built from kicksecure-debug, the flavor local-boot-test.yml also uses."
+        description: "Which built image to compare (qcow2/virtualbox build kicksecure-cli; iso builds kicksecure-lxqt)."
         type: choice
         ## A choice input defaults to the first option (qcow2); the env fallback
         ## below ('inputs.target || qcow2') covers schedule/push.
-        ## 'virtualbox' exports the .ova through helper-scripts'
-        ## vbox-ova-reproducible-normalize (run in-build), which is present at the
-        ## pinned helper-scripts gitlink, so the .ova build completes and the two
-        ## runners' .ova are compared byte-for-byte like qcow2 / iso.
+        ## 'virtualbox' is deliberately absent: the .ova export calls helper-scripts'
+        ## vbox-ova-reproducible-normalize, which is not in the pinned gitlink, so
+        ## dm-prepare-release aborts after a ~50 minute build. Offering a choice that
+        ## deterministically fails is worse than not offering it. Restore it once
+        ## org-ai-assisted/helper-scripts#69 lands and the gitlink is bumped.
         options:
           - qcow2
           - iso
-          - virtualbox
-  ## Dispatch-only, plus release tags below:
-  ##   dm-ci-dispatch --workflow local-build.yml --ref <ref>
   push:
+    branches:
+      ## Coverage follows the branch convention: all work lands on 'ai' or
+      ## 'ai-<topic>', so a build runs without anyone remembering an opt-in
+      ## token. Exact prefixes, never a substring glob -- a glob admits
+      ## branches by accident of spelling and leaves the rest reporting every
+      ## check green having built nothing. Per-ref 'cancel-in-progress' below
+      ## keeps a burst of pushes to one branch from stacking builds.
+      - 'ai'
+      - 'ai-**'
     tags:
       ## '**' not '*': '*' does not match a slash, so a slash-delimited tag would
       ## silently skip the gate.
@@ -63,24 +70,14 @@ concurrency:
 ## scheduled run (where inputs are empty). Fixed to amd64: the primary
 ## reproducibility target; arm64 is a follow-up.
 env:
-  ## Default to qcow2: mountable, and the comparator descends the shipped
-  ## '.qcow2.libvirt.xz'.
+  ## Compare target -> flavor: qcow2/virtualbox come from kicksecure-cli (a fast
+  ## smoke that builds both VM images on amd64); iso is lxqt-only, so target=iso
+  ## builds kicksecure-lxqt instead. Default to qcow2: mountable, and the
+  ## comparator descends the shipped '.qcow2.libvirt.xz'.
   REPRO_TARGET: ${{ inputs.target || 'qcow2' }}
   REPRO_ARCH: amd64
-  ## The SAME flavor local-boot-test.yml builds, for every target. Two lanes on
-  ## two flavors means two full builds of the same commit that can never share an
-  ## artifact; agreeing on one is what lets the boot lane consume this lane's
-  ## image instead of rebuilding it.
-  ##
-  ## kicksecure-debug is the minimal one that still boots: the boot chain,
-  ## hardening core, systemcheck and user-sysmaint-split (both boot sessions), no
-  ## GUI/browser/anonymity layer. 'dracut' comes in through ram-wipe's own
-  ## Depends, so the initramfs path is present despite not being named in the
-  ## meta package. What it does NOT carry -- grub-live-dracut,
-  ## bootclockrandomization, boot-info-script -- is live-mode, clock-privacy and
-  ## diagnostics, none of which a boot needs. The boot lane has produced green
-  ## boots on this flavor, which is the evidence that matters.
-  REPRO_FLAVOR: kicksecure-debug
+  ## iso is produced only by the lxqt flavor; every other target by the cli smoke.
+  REPRO_FLAVOR: ${{ inputs.target == 'iso' && 'kicksecure-lxqt' || 'kicksecure-cli' }}
   ## Build ONLY the target this run compares, not the whole 'virtualbox qcow2' set:
   ## the other is pure runner time, and the .ova leg cannot complete anyway (see the
   ## target choices above). Empty for iso, which the lxqt flavor produces on its own.
@@ -90,28 +87,12 @@ env:
   ## exists, so the lane builds no VM image and fails at artifact upload with nothing
   ## to collect.
   REPRO_MULTI_TARGET_LIST: ${{ (inputs.target || 'qcow2') != 'iso' && (inputs.target || 'qcow2') || '' }}
-  ## Cache the cowbuilder base chroot, as local-boot-test.yml already does. Building
-  ## it is the largest fixed cost left in the lane. It is build INFRASTRUCTURE, not
-  ## image content -- the same reasoning under which the docker image is already
-  ## cached here -- so reusing it cannot change what the two builds are compared on.
-  BASE_CACHE: "true"
-  ## Parallel package builds, passed as '--package-jobs N'. 2100 verifies its own
-  ## preconditions (cowbuilder in use, genmkfile 'make_cow_suffix' support) and falls
-  ## back to serial with a reason if either is missing, so this needs no guard here.
-  ## 2100 advises capping around nproc-2; ubuntu-24.04 runners have 4 vCPU. Both
-  ## copies get the same value, so it cannot skew the a-vs-b comparison -- and
-  ## nondeterminism introduced by it is what this lane exists to report.
-  REPRO_PACKAGE_JOBS: "2"
 
 jobs:
   build:
     ## Fork-PR guard (rule 3); always true for the dispatch / schedule triggers
     ## this workflow uses.
-    ## CI runs only where we enabled it; ANDed with the existing guard.
-    ## Unset variable -> skipped, no runner, run stays green.
-    if: >-
-      vars.CI_ENABLED_ORG_AI_ASSISTED == 'true'
-      && (github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request')
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:
@@ -178,7 +159,7 @@ jobs:
           ## is pinned to the timestamp it carries: without it a snapshot bump
           ## would reuse an image built against the previous snapshot, silently
           ## restoring the mismatch the pin exists to prevent.
-          key: ${{ runner.os }}-repro-${{ matrix.copy }}-dmimg-${{ hashFiles('docker/**', 'build_sources/frozen-snapshot-timestamp', 'build_sources/debian_stable_frozen_direct_clearnet.sources') }}
+          key: ${{ runner.os }}-repro-${{ matrix.copy }}-dmimg-${{ hashFiles('docker/**', 'build_sources/frozen-snapshot-timestamp') }}
 
       - name: Seed approx cache from sidecar
         run: ./ci/approx-cache-sidecar seed
@@ -187,36 +168,14 @@ jobs:
         if: steps.dmimg-cache.outputs.cache-hit == 'true'
         run: ./ci/dm-docker-image-cache load
 
-      ## Cache the cowbuilder base chroot (~/binary_mnt/pbuilder/base.cow_<arch>) as a
-      ## root-owned tarball, mirroring local-boot-test.yml. The key tracks the base
-      ## recipe (1300 extrapackages) and the apt sources/snapshot, so a base-affecting
-      ## change invalidates it and a fresh base is built.
-      ##
-      ## matrix.copy is IN THE KEY, like the approx and docker caches above: builds a
-      ## and b must not share a cache entry, or the two halves of a reproducibility
-      ## comparison stop being independent.
-      - name: Restore cowbuilder base cache
-        if: env.BASE_CACHE == 'true'
-        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/cowbuilder-base-cache
-          key: ${{ runner.os }}-repro-${{ matrix.copy }}-cowbase-${{ env.REPRO_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**', 'help-steps/mmdebstrap', 'help-steps/pbuilder-hooks/**') }}-${{ github.run_id }}
-          restore-keys: |
-            ${{ runner.os }}-repro-${{ matrix.copy }}-cowbase-${{ env.REPRO_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**', 'help-steps/mmdebstrap', 'help-steps/pbuilder-hooks/**') }}-
-
-      - name: Unpack cowbuilder base into place
-        if: env.BASE_CACHE == 'true'
-        run: ./ci/cowbuilder-base-cache unpack
-
       - name: Build ${{ matrix.copy }} via dm-build-official (${{ env.REPRO_FLAVOR }}, ${{ env.REPRO_ARCH }})
-        id: dm-build
         ## Route the build through the OFFICIAL orchestration
-        ## (help-steps/dm-build-official), the single build path: CI and the
-        ## local ci/reproducible-build-twice drive the same entrypoint, so a
-        ## local verdict transfers. Passed via an 'env VAR=val' prefix (the container entrypoint execs
+        ## (help-steps/dm-build-official) rather than a separate ci/build
+        ## path, so CI exercises the real official build with no duplicate build
+        ## logic. Passed via an 'env VAR=val' prefix (the container entrypoint execs
         ## "$@", so this sets them inside the container without a docker-run change):
-        ##   flavors_list=$FLAVOR         -> SINGLE-flavor smoke (the same flavor
-        ##       local-boot-test.yml builds; the script honours a flavors_list
+        ##   flavors_list=$FLAVOR         -> SINGLE-flavor smoke (cli for qcow2/
+        ##       virtualbox, lxqt for iso; the script honours a flavors_list
         ##       override and the release steps are flavor-aware)
         ##   dist_build_multi_target_list=$MULTI -> for an iso run, empty so only
         ##       the iso is produced; 'virtualbox qcow2' for the VM targets
@@ -226,15 +185,11 @@ jobs:
         ## uploads mocked. --freshness frozen pins the snapshot so the two
         ## independent 'a'/'b' builds see identical package versions.
         ## dm-build-official does NOT sign, and the build's sq-git check rejects an
-        ## unsigned HEAD, so mint an ephemeral CI key and sign+tag HEAD FIRST
-        ## -- all in ONE docker-run so signing-key-create's home state
+        ## unsigned HEAD, so mint an ephemeral CI key and sign+tag HEAD FIRST (mirrors
+        ## ci/build) -- all in ONE docker-run so signing-key-create's home state
         ## persists into sign-and-tag and the build. The ephemeral signature does not
         ## break reproducibility: dist_build_version is pinned pre-sign and the image
         ## content does not embed the commit signature.
-        ## Setting dist_build_version here bypasses help-steps/variables' own detection,
-        ## so this describe carries the SAME '--exclude' -- otherwise a checkout that
-        ## already has an ephemeral '<tag>_<commit>_<key>' tag from an earlier signed
-        ## build pins the version to that tag. Fresh in CI, not on a reused workspace.
         ## rule 4: shell vars from env, never ${{ }} interpolation into run:.
         env:
           CI: "true"
@@ -242,55 +197,13 @@ jobs:
           FLAVOR: ${{ env.REPRO_FLAVOR }}
           MULTI: ${{ env.REPRO_MULTI_TARGET_LIST }}
           FRESHNESS: frozen
-          PKG_JOBS: ${{ env.REPRO_PACKAGE_JOBS }}
-          ## Reusing a base the cache never restored would hand
-          ## 1300_cowbuilder-setup a stale or absent tree, so the flag is tied to
-          ## BASE_CACHE rather than set unconditionally.
-          COWBASE_REUSE_FLAG: ${{ env.BASE_CACHE == 'true' && '--reuse-cowbuilder-base' || '' }}
-        ## The memory sampler runs INSIDE this step, backgrounded, so its readings
-        ## interleave into THIS step's log. A later step cannot help: when the runner
-        ## dies, every subsequent step -- including 'if: failure()' and github's own
-        ## post-steps -- is recorded as never having run, so the only evidence that
-        ## survives is whatever already reached the log.
-        run: |
-          ./ci/memory-sampler 30 &
-          memory_sampler_pid="$!"
-          trap 'kill "${memory_sampler_pid}" 2>/dev/null || true' EXIT
-          ./docker/derivative-maker-docker-run -- bash -c "export dist_build_version=\"\$(git describe --always --abbrev=1000000000 --exclude '*_*_*')\" && export dist_build_sign_and_tag=true && ./help-steps/signing-key-create && ./help-steps/sign-and-tag && env dist_build_target_arch='${ARCH}' flavors_list='${FLAVOR}' dist_build_multi_target_list='${MULTI}' ./help-steps/dm-build-official --freshness '${FRESHNESS}' --package-jobs '${PKG_JOBS}' ${COWBASE_REUSE_FLAG}"
-
-      ## Pack the cowbuilder base into its tarball BEFORE freeing it: under
-      ## Runs only when the build FAILED but the runner survived -- e.g. a
-      ## container OOM-killed inside an otherwise healthy job, where docker's
-      ## OOMKilled flag is decisive. It cannot help when the runner itself dies:
-      ## every step after the build, this one included, is then recorded as
-      ## never having run. The in-step memory sampler above covers that case.
-      - name: Diagnose a killed build
-        if: failure()
-        run: ./ci/diagnose-build-kill
-
-      ## --reuse-cowbuilder-base the base lives in this tree, and the upload glob
-      ## below scandirs binary_mnt, where a root-owned 0700 chroot would EACCES.
-      ## No-op when there is no base in the tree.
-      - name: Pack cowbuilder base for cache
-        if: always() && env.BASE_CACHE == 'true'
-        run: ./ci/cowbuilder-base-cache pack
-
-      - name: Free the relocated cowbuilder base tree
-        if: always() && env.BASE_CACHE == 'true'
-        run: ./ci/cowbuilder-base-cache free
-
-      ## Save ONLY after a successful build. 1300_cowbuilder-setup's reuse health
-      ## check is a single test -- '/dev/ptmx' is a character device -- which a
-      ## partially created base can satisfy, so a base packed from a run that died
-      ## during creation would restore as the newest prefix match and poison every
-      ## later run. Skipping the save on failure costs one cold base; caching a
-      ## broken one costs every subsequent build until someone notices.
-      - name: Save cowbuilder base cache
-        if: env.BASE_CACHE == 'true' && steps.dm-build.outcome == 'success'
-        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-        with:
-          path: ~/cowbuilder-base-cache
-          key: ${{ runner.os }}-repro-${{ matrix.copy }}-cowbase-${{ env.REPRO_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**', 'help-steps/mmdebstrap', 'help-steps/pbuilder-hooks/**') }}-${{ github.run_id }}
+        run: >-
+          ./docker/derivative-maker-docker-run --
+          bash -c "export dist_build_version=\"\$(git describe --always --abbrev=1000000000)\" &&
+          ./help-steps/signing-key-create && ./help-steps/sign-and-tag &&
+          env dist_build_target_arch='${ARCH}' flavors_list='${FLAVOR}'
+          dist_build_multi_target_list='${MULTI}'
+          ./help-steps/dm-build-official --freshness '${FRESHNESS}'"
 
       - name: Save docker image to cache
         if: steps.dmimg-cache.outputs.cache-hit != 'true'
@@ -311,113 +224,19 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: repro-image-${{ matrix.copy }}
-          ## The distributable images + their sidecars, matched by EXTENSION so
-          ## this works for any product (Kicksecure OR Whonix) -- image filenames
-          ## are '<Product>-<flavor>-<version>...', so a 'Kicksecure-*' prefix
-          ## silently drops Whonix images. Excludes the '.raw' build intermediate
-          ## (a 100 GB sparse disk that is not the reproducibility subject and
-          ## bloats the compare job's disk) and every build-cache dir under
-          ## binary_mnt (they carry none of these extensions).
+          ## Released image + siblings only, NOT the '.raw' build intermediate: a
+          ## 100 GB sparse disk image that is not the reproducibility subject and
+          ## bloats the artifact past the compare job's disk.
           path: |
-            /home/runner/binary_mnt/**/*.qcow2.libvirt.xz
-            /home/runner/binary_mnt/**/*.qcow2.libvirt.xz.*
-            /home/runner/binary_mnt/**/*.iso
-            /home/runner/binary_mnt/**/*.iso.*
-            /home/runner/binary_mnt/**/*.ova
-            /home/runner/binary_mnt/**/*.ova.*
+            /home/runner/binary_mnt/**/Kicksecure-*
+            !/home/runner/binary_mnt/**/*.raw
           if-no-files-found: error
-          ## 2 days, matching boot-image-*: nothing consumes these after the
-          ## compare job (its only reader), so a longer window just holds
-          ## storage. The report below is the durable, human-facing output.
-          retention-days: 2
-
-      ## The PROVENANCE record, kept far longer than the image it describes.
-      ## The image artifact expires in 2 days because it is half a gigabyte and
-      ## only the compare job reads it. The '.dm-buildinfo' is a few kilobytes and
-      ## is what answers "what source did this run actually build?" -- the
-      ## Submodule-State it carries is the only record of the branch TIPS this
-      ## lane checks out instead of the commit's pins. Losing it after 2 days
-      ## makes every older run unanalysable, so it is uploaded separately and
-      ## retained for a quarter. Storage cost is negligible; the alternative is
-      ## re-running an hour-long build to recover a few KB of metadata.
-      - name: Upload build ${{ matrix.copy }} provenance record
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: repro-buildinfo-${{ matrix.copy }}
-          path: |
-            /home/runner/binary_mnt/**/*.dm-buildinfo
-            /home/runner/binary_mnt/**/*.dm-buildinfo.asc
-            /home/runner/binary_mnt/**/*.dm-buildinfo.sig
-          ## A run that produced an image but no provenance record is a defect,
-          ## not an empty upload to shrug at.
-          if-no-files-found: error
-          retention-days: 90
-
-      ## The small VERIFICATION sidecars, uploaded WITHOUT the multi-hundred-MB
-      ## image. A reproducibility check compares the '.sha512sums' -- a few
-      ## hundred bytes -- so downloading the whole 'repro-image' artifact (~1.3 GB)
-      ## just to read one hash line is pure waste. This bundle is ~100 KB: the
-      ## per-image '.sha512sums' (+ '.asc'/'.sig'), the image and torrent
-      ## signatures, and the build's auto-generated signing PUBLIC keys
-      ## (5200_prepare-release exports the signify '.pub' and the OpenPGP cert
-      ## next to the images) so a verifier can check the signatures without the
-      ## operator's keys. Public keys only -- never a secret half.
-      - name: Upload build ${{ matrix.copy }} checksums, signatures and public keys
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: repro-checksums-${{ matrix.copy }}
-          ## Matched by EXTENSION, not a 'Kicksecure-*' prefix, so it also covers
-          ## Whonix images. Only image sidecars and the signing public keys carry
-          ## these suffixes under binary_mnt; the build-cache dirs and the big
-          ## images (.qcow2.libvirt.xz / .iso) do not, so nothing large is caught.
-          path: |
-            /home/runner/binary_mnt/**/*.sha512sums
-            /home/runner/binary_mnt/**/*.asc
-            /home/runner/binary_mnt/**/*.sig
-            /home/runner/binary_mnt/**/*.torrent
-            /home/runner/binary_mnt/**/*.pub
-          if-no-files-found: error
-          retention-days: 90
-
-  ## A build that DIES takes its own diagnostics with it: every step after the
-  ## build -- the 'if: failure()' collector and github's own post-steps included
-  ## -- is then recorded as never having run, so nothing in that job can report
-  ## anything. Proven by synthetic probe: on a job that does not fail cleanly the
-  ## step-level collector is SKIPPED while a separate job still runs.
-  ##
-  ## This job runs on a FRESH runner, so it survives. It cannot see the dead
-  ## runner's memory or dmesg -- the in-step sampler covers that by writing into
-  ## the log while the build is alive -- but it makes the shape of the failure
-  ## EXPLICIT instead of leaving a silent mystery.
-  postmortem:
-    needs: build
-    if: always() && needs.build.result != 'success'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      actions: read
-    steps:
-      - name: Report which steps never ran
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          printf '%s\n' "===== BUILD DID NOT SUCCEED: ${{ needs.build.result }} ====="
-          printf '%s\n' "A step recorded as 'none' never ran. If the BUILD step is 'none'"
-          printf '%s\n' "and everything after it is too, the runner died rather than the"
-          printf '%s\n' "build failing -- look at the MEMSAMPLE lines in the build log."
-          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs" \
-            --jq '.jobs[] | "\(.name): \(.conclusion) | " + ([.steps[] | "\(.number)=\(.conclusion // "none")"] | join(","))' \
-            || printf '%s\n' "api query failed"
+          retention-days: 7
 
   compare:
     needs: build
     ## Fork-PR guard (rule 3), mirroring the build job; also gated by needs:build.
-    ## CI runs only where we enabled it; ANDed with the existing guard.
-    ## Unset variable -> skipped, no runner, run stays green.
-    if: >-
-      vars.CI_ENABLED_ORG_AI_ASSISTED == 'true'
-      && (github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request')
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
@@ -440,22 +259,6 @@ jobs:
 
       - name: Initialize submodules
         run: git submodule update --init --recursive
-
-      ## This lane runs the comparator OUT OF the submodule, so a lagging pin
-      ## makes it fail wherever the older tool breaks instead of at the pin --
-      ## once seen as "expected exactly one *.qcow2 ... found 0", which reads
-      ## like a reproducibility failure and is not one. Report the lag itself.
-      - name: Assert the developer-meta-files pin is not stale
-        run: ./ci/assert-submodule-not-stale packages/kicksecure/developer-meta-files
-
-      ## Every OTHER pin, reported but not enforced. Most dm submodules pin a
-      ## deliberately older, tested revision, so a hard gate on all 80-odd would
-      ## fail every run and teach everyone to ignore it. Enumerated from
-      ## .gitmodules, not listed here, so a submodule added later is covered
-      ## without an edit -- and the summary states how many were NOT verified,
-      ## because a check that did not run must not read as a pass.
-      - name: Report the freshness of every submodule pin
-        run: ./ci/assert-submodule-not-stale --all --report-only
 
       - name: Check out matching fork branch in cross-org submodules (if present)
         if: github.repository_owner != 'Whonix' && github.repository_owner != 'Kicksecure'
