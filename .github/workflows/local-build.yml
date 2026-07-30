@@ -159,7 +159,7 @@ jobs:
           ## is pinned to the timestamp it carries: without it a snapshot bump
           ## would reuse an image built against the previous snapshot, silently
           ## restoring the mismatch the pin exists to prevent.
-          key: ${{ runner.os }}-repro-${{ matrix.copy }}-dmimg-${{ hashFiles('docker/**', 'build_sources/frozen-snapshot-timestamp') }}
+          key: ${{ runner.os }}-repro-${{ matrix.copy }}-dmimg-${{ hashFiles('docker/**', 'build_sources/frozen-snapshot-timestamp', 'build_sources/debian_stable_frozen_direct_clearnet.sources') }}
 
       - name: Seed approx cache from sidecar
         run: ./ci/approx-cache-sidecar seed
