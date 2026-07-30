@@ -53,6 +53,11 @@ specific platform, pass `--platform` to buildx:
 docker buildx build --platform linux/arm64 --file docker/Dockerfile -t derivative-maker/derivative-maker-docker:latest .
 docker buildx build --platform linux/amd64 --file docker/Dockerfile -t derivative-maker/derivative-maker-docker:latest .
 ```
+On Apple Silicon hosts, the default platform already matches
+(`linux/arm64`); no extra flags needed. Cross-arch builds require
+`qemu-user-static` registered with binfmt_misc.
+
+### Frozen snapshot pin
 The image's apt is pinned to the same snapshot.debian.org timestamp a
 `--freshness frozen` build uses, so the tools installed in the image and the
 packages the build resolves come from one snapshot. That configuration is static,
@@ -68,9 +73,11 @@ disagree. Do not hand-edit one of them.
 (`org.kicksecure.derivative-maker.frozen-snapshot`) and rebuilds when the label no
 longer matches, so a bump cannot silently reuse an image built from the previous
 snapshot.
-On Apple Silicon hosts, the default platform already matches
-(`linux/arm64`); no extra flags needed. Cross-arch builds require
-`qemu-user-static` registered with binfmt_misc.
+
+The sources are https, and `debian:trixie-slim` ships no `ca-certificates`, so
+`apt-bootstrap-ca-certificates` installs the trust store first from the base
+image's own sources. That is the only unpinned fetch in the image build; the
+package is installed again from the snapshot afterwards.
 
 ### Volumes
 1. By default three folders are generated in the user's home directory
