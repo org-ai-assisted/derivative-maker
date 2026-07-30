@@ -15,7 +15,7 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
@@ -23,34 +23,34 @@ source pre
 source variables
 
 create-debian-raw-image() {
-   mkdir --parents "$binary_build_folder_dist/"
+   mkdir --parents "${binary_build_folder_dist}/"
 
    ## The shared-base role (--base-image-role create|consume) is applied in
    ## help-steps/variables: 'create' points binary_image_raw_file at base-image.raw,
    ## 'consume' sets cached_binary_image_raw_file to it (the copy branch below).
 
    if [ ! "${cached_binary_image_raw_file:-}" = "" ]; then
-      true "${cyan}${BASH_SOURCE[0]} INFO: copy and use cached_binary_image_raw_file '$cached_binary_image_raw_file'...${reset}"
-      if ! test -f "$cached_binary_image_raw_file" ; then
-         error "cached_binary_image_raw_file '$cached_binary_image_raw_file' does not exist!"
+      true "${cyan}${BASH_SOURCE[0]} INFO: copy and use cached_binary_image_raw_file '${cached_binary_image_raw_file}'...${reset}"
+      if ! test -f "${cached_binary_image_raw_file}" ; then
+         error "cached_binary_image_raw_file '${cached_binary_image_raw_file}' does not exist!"
       fi
-      $SUDO_TO_ROOT chown "$user_name:$user_name" "$cached_binary_image_raw_file"
-      $SUDO_TO_ROOT safe-rm -f -- "$binary_image_raw_file"
-      cp "$cached_binary_image_raw_file" "$binary_image_raw_file"
+      ${SUDO_TO_ROOT} chown "${user_name}:${user_name}" "${cached_binary_image_raw_file}"
+      ${SUDO_TO_ROOT} safe-rm -f -- "${binary_image_raw_file}"
+      cp "${cached_binary_image_raw_file}" "${binary_image_raw_file}"
       true "${cyan}${BASH_SOURCE[0]} INFO: copying cached_binary_image_raw_file done.${reset}"
       return 0
    fi
 
    ARCH="$(uname --machine)"
-   true "${cyan}${BASH_SOURCE[0]} INFO: Architecture $ARCH detected.${reset}"
-   true "${cyan}INFO: dist_build_target_arch set to: $dist_build_target_arch${reset}"
+   true "${cyan}${BASH_SOURCE[0]} INFO: Architecture ${ARCH} detected.${reset}"
+   true "${cyan}INFO: dist_build_target_arch set to: ${dist_build_target_arch}${reset}"
 
-   $SUDO_TO_ROOT mkdir --parents "/etc/debootstrap/etc/apt/sources.list.d"
-   $SUDO_TO_ROOT cp "$dist_build_sources_list_primary" "/etc/debootstrap/etc/apt/sources.list.d/derivative.sources"
+   ${SUDO_TO_ROOT} mkdir --parents "/etc/debootstrap/etc/apt/sources.list.d"
+   ${SUDO_TO_ROOT} cp "${dist_build_sources_list_primary}" "/etc/debootstrap/etc/apt/sources.list.d/derivative.sources"
 
    ## Info.
    true "${cyan}INFO: Using the following /etc/apt/sources.list.d/derivative.sources for grml-debootstrap: ${reset}"
-   $SUDO_TO_ROOT cat -- "/etc/debootstrap/etc/apt/sources.list.d/derivative.sources"
+   ${SUDO_TO_ROOT} cat -- "/etc/debootstrap/etc/apt/sources.list.d/derivative.sources"
 
    ## TODO
    ## /etc/resolv.conf of host leaks into image.
@@ -116,16 +116,16 @@ create-debian-raw-image() {
    [ -n "${NOINTERFACES:-}" ] || export NOINTERFACES="true"
 
    ### {{{
-   true "OLD_PATH: $PATH"
+   true "OLD_PATH: ${PATH}"
 
    ## Expand PATH environment variable so grml-debootstrap will use help-steps/mmdebstrap wrapper.
    ## Because variables "$DEBOOTSTRAP" and "$DEBOOTSTRAP_OPTS" have been deprecate by grml-debootstrap.
    ## https://github.com/grml/grml-debootstrap/pull/309
-   new_path="$source_code_folder_dist/help-steps:${PATH}"
+   new_path="${source_code_folder_dist}/help-steps:${PATH}"
 
    PATH="${new_path}"
    export PATH
-   true "NEW_PATH: $PATH"
+   true "NEW_PATH: ${PATH}"
    ### }}}
 
    #if [ "${dist_build_flavor:-}" = "whonix-gateway-rpi" ] || [ "${dist_build_target_arch:-}" = "arm64" ]; then
@@ -143,7 +143,7 @@ create-debian-raw-image() {
    ## TODO: test and simplify
    [ -n "${use_vmefi_maybe:-}" ] || use_vmefi_maybe="--vmefi"
 
-   [ -n "${grml_packages_file:-}" ] || grml_packages_file="$source_code_folder_dist/grml_packages"
+   [ -n "${grml_packages_file:-}" ] || grml_packages_file="${source_code_folder_dist}/grml_packages"
 
    ## Why not use 'qemu-debootstrap' by default?
    ## - Would require a lot work, if at all possible.
@@ -188,17 +188,17 @@ create-debian-raw-image() {
    ## SOURCE_DATE_EPOCH
 
    printf '%s\n' "-------------- DEBUGGING BLOCK ---------------------"
-   printf '%s\n' "DEBOOTSTRAP_PREFIX: $DEBOOTSTRAP_PREFIX"
-   printf '%s\n' "new_path: $new_path"
-   printf '%s\n' "dist_build_target_arch: $dist_build_target_arch"
-   printf '%s\n' "dist_build_hostname: $dist_build_hostname"
-   printf '%s\n' "dist_build_apt_stable_release: $dist_build_apt_stable_release"
-   printf '%s\n' "dist_build_file_system: $dist_build_file_system"
-   printf '%s\n' "vmsize: $VMSIZE"
-   printf '%s\n' "packages: $grml_packages_file"
-   printf '%s\n' "mntpoint: $dist_grml_mount_point"
-   printf '%s\n' "target: $binary_image_raw_file"
-   printf '%s\n' "use_vmefi_maybe: $use_vmefi_maybe"
+   printf '%s\n' "DEBOOTSTRAP_PREFIX: ${DEBOOTSTRAP_PREFIX}"
+   printf '%s\n' "new_path: ${new_path}"
+   printf '%s\n' "dist_build_target_arch: ${dist_build_target_arch}"
+   printf '%s\n' "dist_build_hostname: ${dist_build_hostname}"
+   printf '%s\n' "dist_build_apt_stable_release: ${dist_build_apt_stable_release}"
+   printf '%s\n' "dist_build_file_system: ${dist_build_file_system}"
+   printf '%s\n' "vmsize: ${VMSIZE}"
+   printf '%s\n' "packages: ${grml_packages_file}"
+   printf '%s\n' "mntpoint: ${dist_grml_mount_point}"
+   printf '%s\n' "target: ${binary_image_raw_file}"
+   printf '%s\n' "use_vmefi_maybe: ${use_vmefi_maybe}"
    printf '%s\n' "------------ END DEBUGGING BLOCK -------------------"
 
    ## Sanity test.
@@ -211,36 +211,36 @@ create-debian-raw-image() {
    ## intentionally unquoted: each holds zero or more words that must split
    ## into separate argv slots.
    # shellcheck disable=SC2086
-   $SUDO_TO_ROOT \
+   ${SUDO_TO_ROOT} \
       --preserve-env \
          PATH="${new_path}" \
-         $DEBOOTSTRAP_PREFIX \
-         dist_build_multiarch_package_item="$dist_build_target_arch" \
+         ${DEBOOTSTRAP_PREFIX} \
+         dist_build_multiarch_package_item="${dist_build_target_arch}" \
             ${UNSHARE_PID_NS:-} \
             bash -x -e \
-               "$dist_build_grml_bin" \
-                  --arch "$dist_build_target_arch" \
-                  --filesystem "$dist_build_file_system" \
-                  $use_vmefi_maybe \
+               "${dist_build_grml_bin}" \
+                  --arch "${dist_build_target_arch}" \
+                  --filesystem "${dist_build_file_system}" \
+                  ${use_vmefi_maybe} \
                   --force \
-                  --hostname "$dist_build_hostname" \
+                  --hostname "${dist_build_hostname}" \
                   --nopassword \
-                  --release "$dist_build_apt_stable_release" \
+                  --release "${dist_build_apt_stable_release}" \
                   --keep_src_list \
                   --verbose \
                   --vmfile \
-                  --vmsize "$VMSIZE" \
-                  --packages "$grml_packages_file" \
-                  --mntpoint "$dist_grml_mount_point" \
-                  --target "$binary_image_raw_file"
+                  --vmsize "${VMSIZE}" \
+                  --packages "${grml_packages_file}" \
+                  --mntpoint "${dist_grml_mount_point}" \
+                  --target "${binary_image_raw_file}"
 }
 
 create-empty-raw-image() {
-   qemu-img create -f raw "$binary_image_raw_file" "$VMSIZE"
+   qemu-img create -f raw "${binary_image_raw_file}" "${VMSIZE}"
 }
 
 permission-fix-raw-image() {
-   $SUDO_TO_ROOT chown "$user_name:$user_name" "$binary_image_raw_file"
+   ${SUDO_TO_ROOT} chown "${user_name}:${user_name}" "${binary_image_raw_file}"
 }
 
 main() {

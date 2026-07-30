@@ -172,7 +172,12 @@ trap iso_workdir_cleanup EXIT
 ## out the same source commit, so they share it -- and export it, so
 ## help-steps/variables uses it verbatim (its 'if unset' guard) instead of
 ## re-deriving it from the post-sign HEAD.
-dist_build_version="$(git describe --always --abbrev=1000000000)"
+##
+## Honor a version pinned by the caller. ci/reproducible-build-twice runs two builds in
+## the SAME tree: the first build's sign-and-tag amends and tags HEAD, so re-deriving the
+## version for the second build would return the generated tag instead of the original
+## describe output -- two different versions for an identical source tree.
+[ -n "${dist_build_version:-}" ] || dist_build_version="$(git describe --always --abbrev=1000000000)"
 export dist_build_version
 
 ## Create signing material (idempotent; signing-key-create never overwrites an

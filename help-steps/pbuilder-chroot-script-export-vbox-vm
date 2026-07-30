@@ -47,8 +47,8 @@ for required_var in \
    VMNAME vm_names_to_be_exported vm_multiple HOMEVAR_VBOX_TEMP \
    SUDO_TO_VBOX_TEMP binary_image_ova_file binary_image_vdi_dir \
    eulafile_user producturl SOURCE_DATE_EPOCH LC_ALL LANG LANGUAGE ; do
-   if [ ! -v "$required_var" ]; then
-      printf '%s\n' "ERROR: required variable '$required_var' not present in the chroot environment." >&2
+   if [ ! -v "${required_var}" ]; then
+      printf '%s\n' "ERROR: required variable '${required_var}' not present in the chroot environment." >&2
       exit 1
    fi
 done
@@ -93,11 +93,11 @@ export_vbox_vm() {
    ## pass ('vbox-ova-reproducible-normalize') applied to the exported file
    ## further below.
 
-   true "INFO: vm_names_to_be_exported: $vm_names_to_be_exported"
+   true "INFO: vm_names_to_be_exported: ${vm_names_to_be_exported}"
 
    ## --vsys needs to precede --eulafile.
    if [ "${vm_multiple}" = "false" ]; then
-      $SUDO_TO_VBOX_TEMP \
+      ${SUDO_TO_VBOX_TEMP} \
          VBoxManage \
             export "${VMNAME}" \
             --vsys "0" \
@@ -126,7 +126,7 @@ export_vbox_vm() {
       ## Word-splitting of '$vm_names_to_be_exported' is intentional: it holds
       ## multiple space-separated VM names (Whonix-Gateway Whonix-Workstation).
       # shellcheck disable=SC2086
-      $SUDO_TO_VBOX_TEMP \
+      ${SUDO_TO_VBOX_TEMP} \
          VBoxManage \
             export ${vm_names_to_be_exported} \
             --output "${HOMEVAR_VBOX_TEMP}/temp.ova" \
@@ -172,7 +172,7 @@ export_vbox_vm() {
       true "ERROR-DIAG: root (cowdancer) view of '${HOMEVAR_VBOX_TEMP}':"
       ls -la -- "${HOMEVAR_VBOX_TEMP}/" || true
       true "ERROR-DIAG: dm-vbox-temp (no-cowdancer) view of '${HOMEVAR_VBOX_TEMP}':"
-      $SUDO_TO_VBOX_TEMP ls -la -- "${HOMEVAR_VBOX_TEMP}/" || true
+      ${SUDO_TO_VBOX_TEMP} ls -la -- "${HOMEVAR_VBOX_TEMP}/" || true
       true "ERROR-DIAG: chroot-fs search for '*.ova':"
       find / -xdev -name '*.ova' 2>/dev/null || true
       diagnostics_dump
@@ -275,14 +275,14 @@ export_vbox_vm() {
       ## Save disk space.
       ## Delete temporary VM in temporary VM user build folder to save disk space
       ## during the build process.
-      $SUDO_TO_VBOX_TEMP VBoxManage unregistervm "$vm_name_to_be_deleted" --delete || true
-      safe-rm -r -f -- "$HOMEVAR_VBOX_TEMP/VirtualBox VMs/$vm_name_to_be_deleted"
+      ${SUDO_TO_VBOX_TEMP} VBoxManage unregistervm "${vm_name_to_be_deleted}" --delete || true
+      safe-rm -r -f -- "${HOMEVAR_VBOX_TEMP}/VirtualBox VMs/${vm_name_to_be_deleted}"
       ## The VM disk lives on the bind-mounted host build folder (see
       ## 'binary_image_vdi_dir' in 'help-steps/variables'), not the
       ## 'dm-vbox-temp' home. 'unregistervm --delete' removes the '.vdi' file
       ## itself but leaves the now-empty per-VM work folder behind, so remove
       ## that folder explicitly here.
-      safe-rm -r -f -- "$binary_image_vdi_dir/$vm_name_to_be_deleted"
+      safe-rm -r -f -- "${binary_image_vdi_dir}/${vm_name_to_be_deleted}"
    done
 }
 
