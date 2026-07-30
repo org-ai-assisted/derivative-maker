@@ -78,13 +78,15 @@ env:
   REPRO_ARCH: amd64
   ## iso is produced only by the lxqt flavor; every other target by the cli smoke.
   REPRO_FLAVOR: ${{ inputs.target == 'iso' && 'kicksecure-lxqt' || 'kicksecure-cli' }}
-  ## For an iso run, build no multi-target VM images so only the iso is produced
-  ## (an lxqt iso+qcow2+ova build on both runners is far heavier); the VM targets
-  ## build 'virtualbox qcow2' as usual.
-  ## Build ONLY the dispatched VM target rather than the whole 'virtualbox qcow2' set: the
-  ## lane compares one target per run, so building the other is pure runner time, and the
-  ## .ova leg cannot currently complete anyway (see the target choices above).
-  REPRO_MULTI_TARGET_LIST: ${{ inputs.target != 'iso' && inputs.target || '' }}
+  ## Build ONLY the target this run compares, not the whole 'virtualbox qcow2' set:
+  ## the other is pure runner time, and the .ova leg cannot complete anyway (see the
+  ## target choices above). Empty for iso, which the lxqt flavor produces on its own.
+  ##
+  ## Carries the SAME 'inputs.target || qcow2' fallback as REPRO_TARGET above. Reading
+  ## inputs.target raw here leaves this empty on push and schedule, where no input
+  ## exists, so the lane builds no VM image and fails at artifact upload with nothing
+  ## to collect.
+  REPRO_MULTI_TARGET_LIST: ${{ (inputs.target || 'qcow2') != 'iso' && (inputs.target || 'qcow2') || '' }}
 
 jobs:
   build:
