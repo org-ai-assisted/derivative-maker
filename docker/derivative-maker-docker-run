@@ -132,6 +132,12 @@ volume_prepare() {
   done
 }
 
+## Label stamped on the image at build time, recording which frozen snapshot its
+## packages came from. The image tag is arch-qualified but pin-agnostic, so this
+## is the only thing that distinguishes an image built from one snapshot from an
+## otherwise identical one built from another.
+DM_SNAPSHOT_LABEL='org.kicksecure.derivative-maker.frozen-snapshot'
+
 frozen_snapshot_timestamp() {
   ## The reproducibility pin lives in build_sources as a path segment (see
   ## debian_stable_frozen_clearnet.sources). Read it there rather than
@@ -162,19 +168,33 @@ frozen_snapshot_timestamp() {
 build_docker_image() {
   ## Hoist the subshell out of the command arguments so 'set -o errexit'
   ## catches a failing 'id' instead of silently passing an empty --build-arg.
-  local dm_uid existing_image frozen_snapshot
+  local dm_uid existing_image frozen_snapshot image_snapshot
   dm_uid="$(id -u)"
+  ## An unpinned image would install build-host tools from the live archive while
+  ## the build resolves packages from the snapshot, so a missing or malformed pin
+  ## is fatal rather than silently producing an image that disagrees with the
+  ## build. Resolved before the reuse test below, which compares against it.
+  frozen_snapshot="$(frozen_snapshot_timestamp)"
   ## Query the SAME daemon that build/run use (sudo). A non-sudo query can hit a
   ## different or missing daemon, then wrongly rebuild every run, or skip the
   ## build and let 'docker run' fall back to pulling the unpinned name.
   existing_image="$(sudo "${sudo_options_maybe[@]}" -- docker images --quiet -- "${image_ref}" 2> /dev/null)" || true
+  if [ -n "${existing_image}" ]; then
+    ## The tag alone does not say WHICH pin an image was built from, so reuse is
+    ## conditioned on the label stamped at build time. Without this, a snapshot
+    ## bump silently reuses an image whose packages came from the previous
+    ## snapshot -- or, for an image predating the pin, from the live archive --
+    ## which is the exact mismatch the pin exists to remove. An image carrying no
+    ## label reports '<no value>' here and so is rebuilt.
+    image_snapshot="$(sudo "${sudo_options_maybe[@]}" -- docker image inspect \
+      --format "{{index .Config.Labels \"${DM_SNAPSHOT_LABEL}\"}}" \
+      -- "${image_ref}" 2> /dev/null)" || image_snapshot=""
+    if [ ! "${image_snapshot}" = "${frozen_snapshot}" ]; then
+      printf '%s\n' "${0##*/}: rebuilding the docker image: pinned to '${image_snapshot:-none}', sources say '${frozen_snapshot}'" >&2
+      existing_image=""
+    fi
+  fi
   if [ -z "${existing_image}" ]; then
-    ## Resolved only when a build actually happens, so a reused image is not
-    ## gated on it. An unpinned image would install build-host tools from the
-    ## live archive while the build resolves packages from the snapshot, so a
-    ## missing or malformed pin is fatal rather than silently producing an image
-    ## that disagrees with the build.
-    frozen_snapshot="$(frozen_snapshot_timestamp)"
     sudo \
     "${sudo_options_maybe[@]}" \
     -- \
@@ -184,6 +204,8 @@ build_docker_image() {
         DM_UID="${dm_uid}" \
         --build-arg \
         DM_FROZEN_SNAPSHOT="${frozen_snapshot}" \
+        --label \
+        "${DM_SNAPSHOT_LABEL}=${frozen_snapshot}" \
         --tag \
         "${image_ref}" \
         "${DOCKER_DIR}"
