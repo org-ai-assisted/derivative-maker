@@ -516,6 +516,14 @@ create_derivative_distribution_debian_packages() {
          true "${cyan}INFO: --package-jobs=${dist_build_package_jobs} requested, but this genmkfile has no 'make_cow_suffix' support (workers would share one cow snapshot); building serially.${reset}"
       else
          max_jobs="${dist_build_package_jobs}"
+         ## Never allocate more slots than there are packages. Every free-slot scan
+         ## walks the whole slot array, so surplus slots are pure overhead, and a
+         ## mistyped '--package-jobs 100000' would allocate and rescan 100000 dead
+         ## slots before the first package starts building.
+         if [ "${total_to_build}" -gt 0 ] && [ "${max_jobs}" -gt "${total_to_build}" ]; then
+            true "${cyan}INFO: --package-jobs=${max_jobs} exceeds the ${total_to_build} package(s) to build; using ${total_to_build}.${reset}"
+            max_jobs="${total_to_build}"
+         fi
       fi
    fi
    true "${cyan}INFO: building packages with up to ${max_jobs} parallel job(s).${reset}"
