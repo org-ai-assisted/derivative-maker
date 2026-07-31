@@ -13,7 +13,7 @@ shopt -s shift_verbose
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
-MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 
 source "${MYDIR}/pre"
 source "${MYDIR}/variables"
@@ -42,7 +42,7 @@ unmount_raw() {
    if [ "${kpartx_only:-}" = "true" ]; then
       true "INFO: kpartx_only=${kpartx_only}, skipping unmount ${CHROOT_FOLDER}"
    else
-      "${dist_source_help_steps_folder}/unmount-helper" "${CHROOT_FOLDER}"
+      "${dist_source_help_steps_folder}/unmount-helper" -- "${CHROOT_FOLDER}"
    fi
 
    local img
@@ -58,7 +58,7 @@ unmount_raw() {
    wait "$!"
    sync
 
-   ${SUDO_TO_ROOT} kpartx -d -s -v "${img}"
+   ${SUDO_TO_ROOT} kpartx -d -s -v -- "${img}"
    sync
 
    local loop_devices_output_before loop_devices_list loop_devices_item
@@ -87,10 +87,10 @@ unmount_raw() {
       #del devmap : loop0p2
       #loop0p3 is in use. Not removing
       #zsh: exit 1
-      ${SUDO_TO_ROOT} kpartx -d -s -v "${loop_devices_item}" || true "INFO: kpartx non-zero exit code."
+      ${SUDO_TO_ROOT} kpartx -d -s -v -- "${loop_devices_item}" || true "INFO: kpartx non-zero exit code."
 
       ## Overwrite with '|| true' because: Precaution. Testing. Unknown is strictly required.
-      ${SUDO_TO_ROOT} losetup -d "${loop_devices_item}" || true "INFO: losetup non-zero exit code."
+      ${SUDO_TO_ROOT} losetup -d -- "${loop_devices_item}" || true "INFO: losetup non-zero exit code."
    done
 
    true "INFO: Middle of ${FUNCNAME[0]}. losetup --associated after kpartx -d (Delete partition mappings.)"
@@ -109,7 +109,7 @@ unmount_raw() {
       true "INFO: kpartx_only=${kpartx_only}, skipping debugging: ls -la ${CHROOT_FOLDER}"
    else
       if test -d "${CHROOT_FOLDER}" ; then
-         ls -la "${CHROOT_FOLDER}"
+         ls -la -- "${CHROOT_FOLDER}"
       else
          true "INFO: CHROOT_FOLDER is not a directory. Perhaps already unmounted?"
       fi
@@ -120,7 +120,7 @@ unmount_raw() {
    else
       ## Delete temporary folder.
       ## It did not contain anything. It was only a mount point.
-      ${SUDO_TO_ROOT} rmdir "${CHROOT_FOLDER}" || true
+      ${SUDO_TO_ROOT} rmdir -- "${CHROOT_FOLDER}" || true
       sync
    fi
 }
