@@ -19,20 +19,23 @@ source "${MYDIR}/pre"
 source "${MYDIR}/variables"
 
 error_handler_unchroot_raw() {
-   true "
+   : echo "
 ${red}${bold}BASH_COMMAND${reset}: ${BASH_COMMAND}
 ${red}${bold}ERROR ${BASH_SOURCE[0]}: | caller: $(caller)${reset}
 "
    exit 1
 }
 
-## Only unmount things we know are safe to unmount when dealing with an
-## install-to-root build.
+## Bare metal install: '$CHROOT_FOLDER' is EMPTY ('help-steps/variables'), so
+## every path below names the HOST's own file. A tree sweep or a process reaper
+## would therefore act on the running system, and both are skipped in favour of
+## unmounting exactly the paths the build bind-mounted itself: chroot-raw binds
+## etc/{resolv.conf,hosts,hostname}, create-local-temp-apt-repo binds the
+## per-derivative apt repository.
 unmount_install_to_root_binds() {
    local derivative_name_item
 
    for derivative_name_item in ${derivative_name_list} ; do
-      "${dist_source_help_steps_folder}/mount-cleanup" -- "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}/${derivative_name_item}"
       "${dist_source_help_steps_folder}/unmount-helper" -- "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}/${derivative_name_item}"
    done
 
@@ -50,8 +53,21 @@ main() {
    if [ "${dist_build_install_to_root:-}" = "true" ]; then
       unmount_install_to_root_binds
    else
-      ## Clean up orphaned processes and submounts.
-      ${SUDO_TO_ROOT} "${MYDIR}/mount-cleanup" -- "${CHROOT_FOLDER}"
+      ## Reap first: a lingering chroot process holds the tree busy (dbus-launch
+      ## when building Non-Qubes-Whonix inside a Qubes Debian template).
+      ${SUDO_TO_ROOT} "${MYDIR}/umount_kill.sh" -- "${CHROOT_FOLDER}"
+
+      ## Then sweep, deepest first, everything mounted UNDER the tree: /dev,
+      ## /dev/pts, /proc and /sys from chroot-raw, the
+      ## etc/{resolv.conf,hosts,hostname} binds, and the per-derivative apt
+      ## repository binds from create-local-temp-apt-repo. One sweep replaces
+      ## the former hardcoded path list, which could only unmount what someone
+      ## remembered to add to it.
+      ##
+      ## Fails CLOSED, deliberately: a mount left under the tree is what lets a
+      ## later recursive delete follow a bind mount out into the host's real
+      ## /dev, so aborting here beats proceeding with stray leftovers.
+      ${SUDO_TO_ROOT} "${MYDIR}/unmount-tree" -- "${CHROOT_FOLDER}"
 
       ## TODO: image should not contain folders /run /sys /proc /dev?
       ## https://github.com/grml/grml-debootstrap/issues/276

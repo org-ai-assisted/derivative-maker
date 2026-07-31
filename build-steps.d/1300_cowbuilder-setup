@@ -34,7 +34,7 @@ cd "${MYDIR}"
 cd ..
 
 if [ "${dist_build_skip_cowbuilder_setup:-}" = "true" ]; then
-   true "${bold}${cyan}INFO: run with '--skip-cowbuilder-setup' switch, skipping ${BASH_SOURCE[0]}.${reset}"
+   true "${bold}${cyan}INFO: run with '--skip-cowbuilder-setup' switch, skipping ${BASH_SOURCE[0]}. ${reset}"
    exit 0
 fi
 
@@ -77,6 +77,10 @@ cowbuilder_setup_do() {
          if ${SUDO_TO_ROOT} mount | grep -- "${cowbuilder_cache_dir}" | grep -- tmpfs ; then
             true "INFO: '${cowbuilder_cache_dir}' already tmpfs."
          else
+            ## RAM-proportional cap ('size=50%') rather than a hardcoded 2G: base.cow (~1G) plus a
+            ## cow snapshot for a larger flavor (e.g. kicksecure-lxqt) can exceed 2G and fail with
+            ## ENOSPC on the tmpfs. tmpfs consumes only the RAM actually written, so 50% adds
+            ## headroom without reserving memory and scales across build hosts.
             ${SUDO_TO_ROOT} mount -t tmpfs -o size=50% none "${cowbuilder_cache_dir}"
          fi
       fi
@@ -148,49 +152,67 @@ cowbuilder_setup_do() {
       ## base_folder
       set_cowbuilder_folders
 
-      ## The cowbuilder base needs a 'dev'- and 'suid'-capable filesystem, like a normal
+      ## The cowbuilder base needs a 'dev'- AND 'suid'-capable filesystem, like a normal
       ## (e.g. CI) build host. Qubes mounts '/home' 'nosuid,nodev', and under Docker the
-      ## base lives on the bind-mounted build volume there.
-      ##
-      ## ${cowbuilder_cache_dir} is relocated to
-      ## ${binary_build_folder_dist}/pbuilder when --reuse-cowbuilder-base is
-      ## passed, and therefore it may not exist yet. Create it if needed.
+      ## base lives on the bind-mounted build volume there. Two failures follow:
+      ##  - 'nodev' makes mmdebstrap SKIP device-node creation, so the base lacks
+      ##    '/dev/ptmx' and cowbuilder's pbuilder mountproc aborts binding
+      ##    '/dev/pts/ptmx' onto it ("mount: .../dev/ptmx: mount point does not exist").
+      ##  - 'nosuid' strips setuid, so in-chroot 'su'/'sudo' (used e.g. by the vbox
+      ##    guest-additions installer's get_su_cmd) cannot escalate and the build aborts.
+      ## Both mount flags only restrict USE, not creation; clear them on the base's own
+      ## mount (bind + remount 'dev,suid') so the chroot behaves like a normal build fs.
+      ## No-op where the base fs already permits both, so CI is unaffected. The bind mount
+      ## is torn down with the ephemeral build container.
       ${SUDO_TO_ROOT} mkdir --parents -- "${cowbuilder_cache_dir}"
       local cowbuilder_base_mount_options
       cowbuilder_base_mount_options="$(${SUDO_TO_ROOT} findmnt --noheadings --output OPTIONS --target "${cowbuilder_cache_dir}")"
       case ",${cowbuilder_base_mount_options}," in
          *,nodev,*|*,nosuid,*)
-            true "${cyan}INFO: cowbuilder base filesystem '${cowbuilder_cache_dir}' is mounted 'nodev' and/or 'nosuid'; clearing so the chroot has working device nodes and setuid.${reset}"
+            true "${cyan}INFO: cowbuilder base filesystem '${cowbuilder_cache_dir}' is mounted 'nodev'/'nosuid'; clearing so the chroot has working device nodes and setuid.${reset}"
             ${SUDO_TO_ROOT} mount --bind -- "${cowbuilder_cache_dir}" "${cowbuilder_cache_dir}"
             ${SUDO_TO_ROOT} mount -o remount,bind,dev,suid "${cowbuilder_cache_dir}"
             ;;
       esac
 
-      ## If --reuse-cowbuilder-base was passed, reuse an existing cowbuilder
-      ## chroot if it exists and is usable.
+      ## --reuse-cowbuilder-base fast path: a base already exists and reuse was
+      ## requested, so skip the rm + 'cowbuilder --create'. The reuse-vs-build
+      ## decision lives HERE, not in the caller: a caller (e.g. CI restoring a
+      ## base from cache) always passes the flag, and this step reuses the base
+      ## if present (and healthy) or builds a fresh one below if not. Gate: only
+      ## pass the flag with a deterministic (frozen) base under a key that tracks
+      ## the base recipe; the repro lane and releases leave it off and always rebuild.
+      ##
+      ## Health check before trusting the base: a base left broken by an interrupted
+      ## or no-mknod create (device nodes absent -- e.g. '/dev/ptmx' missing, or
+      ## created as a regular file) would make the later 'cowbuilder --execute' fail
+      ## ("mount: .../dev/ptmx: mount point does not exist") once reused, silently
+      ## propagating the breakage across every build that reuses it. Require
+      ## '/dev/ptmx' to be a real character device; otherwise rebuild.
       local cowbuilder_base_reusable
       cowbuilder_base_reusable=false
       if [ "${dist_build_reuse_cowbuilder_base:-}" = "true" ] && [ -d "${base_folder}" ]; then
          if ${SUDO_TO_ROOT} test -c "${base_folder}/dev/ptmx"; then
-            true "${cyan}INFO: --reuse-cowbuilder-base: reusing existing cowbuilder base '${base_folder}'.${reset}"
             cowbuilder_base_reusable=true
          else
             true "${cyan}INFO: --reuse-cowbuilder-base: existing base '${base_folder}' is broken (no '/dev/ptmx' character device); rebuilding.${reset}"
          fi
       fi
 
-      if [ "${cowbuilder_base_reusable}" = "false" ]; then
+      if [ "${cowbuilder_base_reusable}" = "true" ]; then
+         true "${cyan}INFO: --reuse-cowbuilder-base: reusing existing cowbuilder base '${base_folder}'.${reset}"
+      else
          if [ "${dist_build_reuse_cowbuilder_base:-}" = "true" ] && [ ! -d "${base_folder}" ]; then
             true "${cyan}INFO: --reuse-cowbuilder-base requested but no base at '${base_folder}'; building a fresh one.${reset}"
          fi
+         ## '$cowbuilder_cache_dir' (the parent of '$base_folder') already exists here:
+         ## created above before the nodev remount. Under '--reuse-cowbuilder-base' it is
+         ## relocated to '$binary_build_folder_dist/pbuilder' (see help-steps/variables),
+         ## which -- unlike the pbuilder package's pre-created '/var/cache/pbuilder' -- does
+         ## not exist until then; cowbuilder fails ("Could not create basepath") without it.
          if [ -d "${base_folder}" ]; then
-            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/mount-cleanup" -- "${base_folder}"
-            ## unmount-tree exits non-zero while anything is still mounted
-            ## under the tree, so the delete cannot follow a leftover bind
-            ## mount out of it. --one-file-system is not enough to protect us
-            ## from a bind mount linking to important files.
-            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/unmount-tree" -- "${base_folder}"
-            ${SUDO_TO_ROOT} safe-rm --one-file-system --recursive --force -- "${base_folder}"
+            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" -- "${base_folder}"
+            ${SUDO_TO_ROOT} safe-rm --recursive --force -- "${base_folder}"
          fi
 
          local cowbuilder_exit_code
@@ -199,10 +221,12 @@ cowbuilder_setup_do() {
          ## '--mirror "$dist_build_apt_sources_mirror"' should be only cosmetic,
          ## because of mmdebstrap wrapper and hooks.
          ##
-         ## When '--unsafe-io true' is enabled, help-steps/variables sets a
-         ## global LD_PRELOAD=.../libeatmydata.so. That library is only
-         ## installed into the chroot late in the bootstrap process, so we
-         ## need to disable the preload during the bootstrap.
+         ## 'env --unset=LD_PRELOAD': under '--unsafe-io true', help-steps/variables sets a global
+         ## LD_PRELOAD=.../libeatmydata.so. That library does NOT exist in the fresh chroot this
+         ## '--create' bootstraps, so ld.so fails to preload it and the bootstrap's apt aborts. Unset
+         ## it just for the bootstrap; eatmydata itself is installed INTO the base chroot via
+         ## '--extrapackages' below, so the later per-package 'cowbuilder --build' (which keeps
+         ## LD_PRELOAD) finds libeatmydata inside the chroot. No-op when LD_PRELOAD is unset.
          ##
          ## Duplicate --extrapackages to prevent removal by pbuilder.
          ${SUDO_TO_ROOT} \
@@ -223,7 +247,7 @@ cowbuilder_setup_do() {
                   || { cowbuilder_exit_code="$?" ; true; };
 
          if [ -d "${base_folder}" ]; then
-            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/mount-cleanup" -- "${base_folder}"
+            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" -- "${base_folder}"
          fi
 
          if [ ! "${cowbuilder_exit_code:-}" = "0" ]; then
@@ -302,7 +326,7 @@ cowbuilder_setup_do() {
                   || { cowbuilder_exit_code="$?" ; true; };
 
          if [ -d "${base_folder}" ]; then
-            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/mount-cleanup" -- "${base_folder}"
+            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" -- "${base_folder}"
          fi
 
          if [ ! "${cowbuilder_exit_code:-}" = "0" ]; then

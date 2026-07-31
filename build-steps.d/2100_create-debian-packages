@@ -26,7 +26,6 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
-export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -40,6 +39,11 @@ dist_build_source_run="true"
 
 source pre
 source variables
+## Per-package rebuild detection (dm_package_needs_rebuild); shared with
+## dm-packaging-helper-script's changelog-vs-published-version mechanism. Only the
+## opt-in --skip-published-packages path calls into it, but source it
+## unconditionally (no conditional imports): it just defines functions, and the
+## helper always ships with the developer-meta-files submodule.
 source "${dist_developer_meta_files_folder}/usr/libexec/developer-meta-files/reprepro-freshness.bsh"
 
 cd "${MYDIR}"
@@ -219,7 +223,7 @@ get_newer_packages_from_third_party_repositories() {
       exit 1
    fi
 
-   ${SUDO_TO_ROOT} safe-rm --one-file-system --recursive --force -- "${temp_newer_packages}"
+   ${SUDO_TO_ROOT} safe-rm --recursive --force -- "${temp_newer_packages}"
    mkdir --parents -- "${temp_newer_packages}"
 
    for dist_build_multiarch_package_item in ${make_cross_build_platform_list} ; do
@@ -255,7 +259,7 @@ is not included in available_architectures_for_download_only_list: ${available_a
          set_cowbuilder_folders
 
          ${SUDO_TO_ROOT} test -d "${base_folder}"
-         ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/mount-cleanup" -- "${base_folder}"
+         ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" -- "${base_folder}"
          if_no_pbuilder_base_folder=""
       else
          base_folder="${binary_build_folder_dist}/no-pbuilder/base"
@@ -288,6 +292,9 @@ is not included in available_architectures_for_download_only_list: ${available_a
          ## $COWBUILDER_PREFIX is intentionally unquoted: it is set to
          ## something like 'env http_proxy=... foo=bar' that must split
          ## into multiple argv slots.
+         ##
+         ## '${UNSHARE_PID_NS:-}': private PID namespace, see 'help-steps/pre'
+         ## (also for its placement after the 'VAR=val' words).
          # shellcheck disable=SC2086
          ${SUDO_TO_ROOT} \
             --preserve-env \
@@ -305,9 +312,9 @@ is not included in available_architectures_for_download_only_list: ${available_a
                      --bindmounts "${temp_newer_packages}" \
                      || { dist_build_download_script_exit_code="$?" ; true; };
 
-         if [ -d "${base_folder}" ]; then
-            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/mount-cleanup" -- "${base_folder}"
-         fi
+            if [ -d "${base_folder}" ]; then
+               ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" -- "${base_folder}"
+            fi
       else
          export newer_package_list
          export temp_newer_packages
@@ -365,6 +372,11 @@ reprepro_add_newer_packages_from_third_party_repositories() {
       "${dist_developer_meta_files_folder}/usr/bin/dm-reprepro-wrapper" removesrc "${dist_build_apt_codename}" "${package}" || true
    done
 
+   ## nullglob is OFF in this path: reprepro_add_newer... runs from the download_*
+   ## functions BEFORE create_derivative_distribution_debian_packages sets nullglob,
+   ## so an unmatched glob stays literal. Skip it (a set may have only .deb or only
+   ## .dsc) -- the includedeb/includedsc below have no '|| true', unlike the remove
+   ## loops, so a literal-glob path would fail the build under errexit.
    for file_name in "${temp_newer_packages}/"*".deb" ; do
       [ -e "${file_name}" ] || continue
       package_absolute_path="$(readlink -f "${file_name}")"
@@ -394,6 +406,28 @@ create_derivative_distribution_debian_packages() {
 
    local genmkfile_bin="${source_code_folder_dist}/packages/kicksecure/genmkfile/usr/bin/genmkfile"
 
+   ## --rebuild-packages: force-rebuild the named SOURCE packages (space-separated)
+   ## without a debian/changelog bump. The two cases below are self-documenting.
+   if [ -n "${dist_build_rebuild_packages:-}" ]; then
+      if [ "${dist_build_skip_published_packages:-}" = "true" ]; then
+         ## With --skip-published-packages an already-published package is skipped, so a
+         ## package edited without a changelog bump keeps its published version and its
+         ## stale .deb lingers. Delete the named packages from the local reprepro repo so
+         ## they read as unpublished and rebuild.
+         true "${cyan}INFO: --rebuild-packages + --skip-published-packages: force-rebuilding by deleting from the local repo.${reset}"
+         local rebuild_pkg_item
+         for rebuild_pkg_item in ${dist_build_rebuild_packages} ; do
+            true "${cyan}INFO: force-rebuild: deleting stale '${rebuild_pkg_item}' from the local repo.${reset}"
+            "${dist_developer_meta_files_folder}/usr/bin/dm-reprepro-wrapper" remove "${dist_build_apt_codename}" "${rebuild_pkg_item}" || true
+            "${dist_developer_meta_files_folder}/usr/bin/dm-reprepro-wrapper" removesrc "${dist_build_apt_codename}" "${rebuild_pkg_item}" || true
+         done
+      else
+         ## Without --skip-published-packages a normal build rebuilds every package anyway,
+         ## so there is nothing to force (deleting would be a pointless repo mutation).
+         true "${cyan}INFO: --rebuild-packages without --skip-published-packages: nothing to do; a normal build rebuilds every package.${reset}"
+      fi
+   fi
+
    ## Phase 1: collect the packages that actually build on this target architecture. Reading
    ## debian/control directly (no 'pushd') so the list can then be driven in parallel.
    local derivative_name_item item base_name control_file
@@ -412,36 +446,32 @@ create_derivative_distribution_debian_packages() {
          fi
          base_name="${item##*/}"
          ## 'Architecture:' currently in ./packages/$derivative_name_item/ folder: all / any /
-         ## amd64 / linux-amd64. Capture the non-comment 'Architecture:' line(s) once, then
-         ## match by substring (same order and semantics as the previous grep chain). '*amd64*'
-         ## also matches 'linux-amd64', so both amd64 spellings share the one amd64-only path.
-         architecture_field="$(grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" || true)"
-         case "${architecture_field}" in
-            *all*)
-               true "DEBUG: ${base_name} Architecture: all"
-               ;;
-            *any*)
-               true "DEBUG: ${base_name} Architecture: any"
-               ;;
-            *amd64*)
-               ## Covers both 'amd64' and 'linux-amd64' (the latter contains 'amd64').
-               if [ ! "${dist_build_target_arch:-}" = "amd64" ]; then
-                  true "${cyan}INFO: Skipping platform 'amd64' specific package ${base_name} as expected.${reset}"
-                  continue
-               fi
-               ;;
-            *)
-               grep -- "Architecture:" "${control_file}" || true
-               error "unknown Architecture: in ${control_file}"
-               ;;
-         esac
+         ## amd64 / linux-amd64.
+         if grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "all" ; then
+            true "DEBUG: ${base_name} Architecture: all"
+         elif grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "any" ; then
+            true "DEBUG: ${base_name} Architecture: any"
+         elif grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "amd64" ; then
+            if [ ! "${dist_build_target_arch:-}" = "amd64" ]; then
+               true "${cyan}INFO: Skipping platform 'amd64' specific package ${base_name} as expected.${reset}"
+               continue
+            fi
+         elif grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "linux-amd64" ; then
+            if [ ! "${dist_build_target_arch:-}" = "amd64" ]; then
+               true "${cyan}INFO: Skipping platform 'linux-amd64' specific package ${base_name} as expected.${reset}"
+               continue
+            fi
+         else
+            grep -- "Architecture:" "${control_file}" || true
+            error "unknown Architecture: in ${control_file}"
+         fi
          ## Fast local iteration (opt-in): skip a package already published in the
          ## local reprepro repo at its current changelog version. Off by default,
          ## so editing a package without bumping debian/changelog is not silently
          ## skipped. Bump the changelog (or unset the flag) to force a rebuild.
          if [ "${dist_build_skip_published_packages:-}" = "true" ] \
             && ! dm_package_needs_rebuild "${item}" "${dist_build_apt_codename}" "${derivative_name_item}"; then
-            true "${cyan}INFO: Skipping up-to-date package ${base_name} (already published and not modified).${reset}"
+            true "${cyan}INFO: Skipping up-to-date package ${base_name} (already published).${reset}"
             continue
          fi
          package_build_list+=("${item}")
@@ -451,42 +481,37 @@ create_derivative_distribution_debian_packages() {
    local total_to_build="${#package_build_list[@]}"
    true "${cyan}INFO: ${total_to_build} derivative package(s) to build (of ${number_folders_total} folders).${reset}"
    if [ "${total_to_build}" -lt 1 ]; then
-      true "${cyan}${BASH_SOURCE[0]} INFO: No derivative debian packages need built.${reset}"
+      true "${cyan}${BASH_SOURCE[0]} INFO: Created Derivative Debian Packages. ${reset}"
       return 0
    fi
 
-   ## Build ${dist_build_package_jobs} packages in parallel. No package
-   ## build-depends on another one, so no dependency ordering is needed.
+   ## Concurrency: parallel package builds are OPT-IN via 'dist_build_package_jobs=N' (serial by
+   ## default). Parallelism REQUIRES the genmkfile 'make_cow_suffix' support (each worker its own
+   ## 'cow.cow_<arch>.<slot>' snapshot; the read-only 'base.cow_<arch>' is shared safely). Until the
+   ## genmkfile submodule pointer is bumped to a commit carrying that support, leaving the default
+   ## serial keeps builds correct (a bumped-but-unsupported genmkfile would make N workers share one
+   ## 'cow.cow_<arch>' and collide). Only meaningful with cowbuilder (isolated per-build chroot);
+   ## without it, builds share the host apt/dpkg lock, so stay serial. Package builds are independent
+   ## (no derivative package build-depends on a sibling) so no ordering is needed; 'reprepro' (shared,
+   ## locked DB) is deferred to Phase 3. To enable, e.g. 'dist_build_package_jobs=4'; cap ~nproc-2.
    local max_jobs=1
-   if [ -n "${dist_build_package_jobs:-}" ]; then
+   if [ "${make_use_cowbuilder:-}" = "true" ] && [ -n "${dist_build_package_jobs:-}" ]; then
+      ## Reject a non-positive-integer job count: 0 / negative / non-numeric creates no slots, and
+      ## the free-slot loop below would then spin forever on 'wait -n' with no children to reap.
       case "${dist_build_package_jobs}" in
          '' | *[!0-9]* | 0* )
             error "dist_build_package_jobs must be a positive integer (got: '${dist_build_package_jobs}')."
             ;;
       esac
-      if [ ! "${make_use_cowbuilder:-}" = "true" ]; then
-         true "${cyan}INFO: --package-jobs=${dist_build_package_jobs} requested, but cowbuilder is not in use; building serially.${reset}"
-      elif ! grep --fixed-strings -- 'make_cow_suffix' \
-         "${source_code_folder_dist}/packages/kicksecure/genmkfile/usr/share/genmkfile/make-helper-one.bsh" \
-         >/dev/null 2>&1; then
-         ## FIXME: Remove this check once the genmkfile submodule's gitlink
-         ## includes this feature.
-         true "${cyan}INFO: --package-jobs=${dist_build_package_jobs} requested, but this genmkfile has no 'make_cow_suffix' support (workers would share one cow snapshot); building serially.${reset}"
-      else
-         max_jobs="${dist_build_package_jobs}"
-         if [ "${max_jobs}" -gt "${total_to_build}" ]; then
-            true "${cyan}INFO: --package-jobs=${max_jobs} exceeds the ${total_to_build} package(s) to build; using ${total_to_build}.${reset}"
-            max_jobs="${total_to_build}"
-         fi
-      fi
+      max_jobs="${dist_build_package_jobs}"
    fi
    true "${cyan}INFO: building packages with up to ${max_jobs} parallel job(s).${reset}"
 
    ## Phase 2: build (deb-cleanup + deb-pkg) via a free-slot job pool. A worker records its package
    ## name to the fail flag on failure; the pool never lets two workers share a cow slot.
-   local pkg_fail_list_file
-   pkg_fail_list_file="$(mktemp)"
-   safe-rm --force -- "${pkg_fail_list_file}"
+   local pkg_fail_flag
+   pkg_fail_flag="$(mktemp)"
+   safe-rm --force -- "${pkg_fail_flag}"
 
    build_one_derivative_package() {
       local pkgdir="$1" slot="$2" name
@@ -500,7 +525,7 @@ create_derivative_distribution_debian_packages() {
          fi
          "${genmkfile_bin}" deb-pkg
       ); then
-         printf '%s\n' "${name}" >> "${pkg_fail_list_file}"
+         printf '%s\n' "${name}" >> "${pkg_fail_flag}"
       fi
    }
 
@@ -509,8 +534,6 @@ create_derivative_distribution_debian_packages() {
    for (( i=0; i<max_jobs; i++ )); do
       slot_pid[i]=0
    done
-   ## TODO: Add an option for failing the build immediately after the first
-   ## package build failure?
    for item in "${package_build_list[@]}"; do
       slot=-1
       while [ "${slot}" -lt 0 ]; do
@@ -539,27 +562,27 @@ create_derivative_distribution_debian_packages() {
          wait "${slot_pid[i]}" 2>/dev/null || true
       fi
    done
-   if [ -f "${pkg_fail_list_file}" ]; then
+   if [ -f "${pkg_fail_flag}" ]; then
       local failed_packages
-      failed_packages="$(tr '\n' ' ' < "${pkg_fail_list_file}")"
-      safe-rm --force -- "${pkg_fail_list_file}"
+      failed_packages="$(tr '\n' ' ' < "${pkg_fail_flag}")"
+      safe-rm --force -- "${pkg_fail_flag}"
       error "Derivative package build(s) failed: ${failed_packages}"
    fi
-   safe-rm --force -- "${pkg_fail_list_file}"
+   safe-rm --force -- "${pkg_fail_flag}"
 
-   ## Phase 3: load packages into reprepro serially.
+   ## Phase 3: publish serially into the shared, locked reprepro database: remove any stale copy,
+   ## then add the freshly built package. Order does not matter (independent packages; runtime
+   ## dependencies are resolved at install time in 3500).
    local reprepro_current=0
    for item in "${package_build_list[@]}"; do
       reprepro_current="$(( reprepro_current + 1 ))"
       pushd "${item}" >/dev/null
-      true "${cyan}INFO: reprepro (${reprepro_current}/${total_to_build}): ${item##*/}${reset}"
+      true "${cyan}INFO: reprepro (${reprepro_current}/${total_to_build}): ${item##*/} ${reset}"
       "${genmkfile_bin}" reprepro-remove
       "${genmkfile_bin}" reprepro-add
       ## Record the source content hash so the next --skip-published-packages build
-      ## skips this package unless its source changes again.
-      ##
-      ## TODO: Can we only calculate dm_source_hash_manifest_path once, rather
-      ## than every time through the loop?
+      ## skips this package unless its source changes again (auto-detected, no
+      ## package name or changelog bump needed). See reprepro-freshness.bsh.
       dm_source_hash_record \
          "$(dm_source_hash_manifest_path "${dist_build_apt_codename}")" \
          "$(dpkg-parsechangelog --show-field Source --file "${item}/debian/changelog")" \
@@ -600,12 +623,9 @@ main() {
       return 0
    fi
 
-   ## TODO: Can this be moved to near the top of the file, like we do in
-   ## 1300_cowbuilder-setup? Alternatively, can we move this kind of code into
-   ## main() for all applicable steps?
    ## '--skip-packages': reuse the whole local package repo from the prior build (debug speed-up).
    if [ "${dist_build_skip_packages:-}" = "true" ]; then
-      true "${bold}${cyan}INFO: --skip-packages, reusing the existing local package repo, skipping ${BASH_SOURCE[0]}.${reset}"
+      true "${bold}${cyan}INFO: --skip-packages, reusing the existing local package repo, skipping ${BASH_SOURCE[0]}. ${reset}"
       return 0
    fi
 
