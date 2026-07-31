@@ -8,6 +8,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
 true "$0 INFO: start"
 
@@ -15,6 +17,19 @@ if [ "${EUID}" != "0" ]; then
    printf '%s\n' "$0: ERROR: This MUST be run as root (sudo)!" >&2
    exit 1
 fi
+
+while :
+do
+    case "${1:-}" in
+        --)
+            shift
+            break
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
 
 file_system_object="${1:-}"
 
@@ -57,7 +72,7 @@ else
    fi
 fi
 
-skip_name_list="pts dev proc sys hostname resolv.conf hosts hostname"
+skip_name_list="pts dev proc sys hostname resolv.conf hosts"
 
 base_name="${file_system_object##*/}"
 
@@ -77,15 +92,14 @@ true "INFO: Checking if there are any processes still running in file_system_obj
 ## it, cwd inside it, executing a binary from it, holding any open file
 ## descriptor under it, or mmap-ing a file under it.
 ##
-## Detection is /proc-based and dependency-free. The previous implementation
-## ran a single 'lsof -- <dir>', which matches a directory ARGUMENT by that
-## one inode only: a process whose open files merely live UNDER the
-## directory (a lingering chroot daemon's log file, socket, cwd in a
-## subdirectory, ...) was missed, and a missing 'lsof' binary degraded into
-## a silent "no pids" verdict ('2>/dev/null' plus '|| true' swallowed the
-## command-not-found). Scanning '/proc/<pid>/{root,cwd,exe,fd/*}' via
-## 'readlink' catches everything 'lsof' caught for this use case plus the
-## under-the-tree cases; the '/proc/<pid>/maps' grep covers mmap-only users.
+## Detection is /proc-based and dependency-free, deliberately not 'lsof':
+## 'lsof -- <dir>' matches a directory ARGUMENT by that one inode only, so a
+## process whose open files merely live UNDER the tree (a lingering chroot
+## daemon's log file, socket, cwd in a subdirectory, ...) goes unnoticed, and
+## an absent 'lsof' binary degrades into a silent "no pids" verdict. Scanning
+## '/proc/<pid>/{root,cwd,exe,fd/*}' via 'readlink' covers both the direct and
+## the under-the-tree cases; the '/proc/<pid>/maps' grep covers mmap-only
+## users.
 ## The kernel keeps these link targets current across a rename of the tree
 ## (pbuilder's move of the cowbuilder work directory onto 'base.cow'), so a
 ## prefix comparison against the canonical path stays correct even after

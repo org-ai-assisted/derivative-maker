@@ -11,6 +11,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -45,7 +47,7 @@ main() {
    sync
 
    ## kill gpg-agent
-   ${SUDO_TO_ROOT} "${MYDIR}/umount_kill.sh" "${unmount_folder}"
+   ${SUDO_TO_ROOT} "${MYDIR}/umount_kill.sh" -- "${unmount_folder}"
 
    if ! ${SUDO_TO_ROOT} mountpoint --quiet -- "${unmount_folder}" ; then
       true "INFO: Not mounted, no need to unmount, ok."
