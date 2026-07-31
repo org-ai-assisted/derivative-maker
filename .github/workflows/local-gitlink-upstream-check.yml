@@ -1,17 +1,6 @@
 ---
-## Enforce two independent gitlink invariants on master:
-##
-##   1. RESOLVABLE   -- every parent submodule gitlink points to a commit
-##                      reachable on that submodule's canonical upstream
-##                      (Kicksecure / Whonix) master.
-##   2. NO-DEVIATION -- master moves no gitlink at all relative to its merge
-##                      base with Kicksecure/derivative-maker master.
-##
-## Invariant 2 is the stronger one, and 1 does not imply it: a pointer merely
-## BEHIND the submodule's upstream tip is resolvable, yet an upstream merge of
-## master conflicts on the submodule for anyone who has not checked it out,
-## because git needs the submodule's own objects to decide which pointer wins.
-## A maintainer's clone is exactly that state.
+## Verify every parent submodule gitlink on master points to a commit that is
+## reachable on the submodule's canonical upstream (Kicksecure / Whonix) master.
 ##
 ## Why a push-to-master check and not a git hook: a fork-only gitlink bump
 ## reaches master through a GitHub PR MERGE, a server-side merge that runs NO
@@ -19,8 +8,7 @@
 ## This is the only enforcement point in that path. It runs AFTER the merge
 ## lands (post-merge detection), which is why the trigger is push:master, not
 ## pull_request: a PR from an 'ai' branch legitimately carries an as-yet-
-## unmerged submodule pin for CI testing, and must not be flagged there. The
-## tool applies invariant 2 on a master checkout only, for the same reason.
+## unmerged submodule pin for CI testing, and must not be flagged there.
 ##
 ## A tag push (refs/tags/*) does not match branches:[master], so a tagged commit
 ## landing on master fires this once (the branch event), not twice.
@@ -63,10 +51,8 @@ jobs:
     steps:
       - name: Install runtime dependencies (Debian apt)
         ## Inline because checkout has not run yet - nothing is on disk.
-        ## curl backs dist-ai's git-api and python3 classifies its replies;
-        ## ca-certificates covers TLS to the API. git is not only for
-        ## actions/checkout: invariant 2 fetches Kicksecure/derivative-maker
-        ## and computes a merge base locally.
+        ## curl + python3 are what dm-gitlink-upstream-check needs; git +
+        ## ca-certificates are for actions/checkout and TLS to the API.
         run: |
           set -e
           apt-get update
@@ -77,14 +63,8 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
         with:
           persist-credentials: false
-          ## Only the gitlink SHAs are needed, not submodule contents -- and
-          ## deliberately so: invariant 2 exists precisely because a merge
-          ## WITHOUT the submodule checked out is the case that conflicts, so
-          ## the check must reach its verdict without those objects too.
+          ## Only the gitlink SHAs are needed, not submodule contents.
           submodules: false
-          ## Left at the default depth 1 on purpose. The tool deepens from
-          ## origin itself when it needs history for the merge base, so the
-          ## fast checkout stays fast on every run that does not.
 
       - name: Checkout dist-ai (the check tool)
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -94,17 +74,13 @@ jobs:
           path: dist-ai
           persist-credentials: false
 
-      - name: Self-test the evaluators (offline regression)
-        ## Covers both invariants, plus the enumerator, against stubbed
-        ## resolvers and real local git fixtures. No network.
+      - name: Self-test the evaluator (offline regression)
         run: ./dist-ai/usr/bin/dm-gitlink-upstream-check --self-test
 
-      - name: Check gitlinks are resolvable and deviate from nothing upstream
+      - name: Check gitlinks resolve on upstream master
         env:
-          ## REQUIRED, not merely a rate-limit nicety: the 60/hr unauthenticated
-          ## budget does not cover a sweep of every submodule, and a run where
-          ## NOTHING could be verified exits 2 rather than reporting a green
-          ## PASS for pins it never checked.
+          ## Raises the API rate limit above the unauthenticated 60/hr; the
+          ## compare calls hit public Kicksecure / Whonix repos.
           GITHUB_TOKEN: ${{ github.token }}
         run: ./dist-ai/usr/bin/dm-gitlink-upstream-check --repo-root .
 
