@@ -191,6 +191,7 @@ Advanced Options:
   --skip-packages                 : Debug speed-up: skip package building entirely and reuse the whole local package repo from the prior build. Only safe if NO package source changed.
   --skip-published-packages       : Debug speed-up: rebuild only packages that changed since the last build -- a new/changed debian/changelog version OR edited source content (auto-detected by a content hash); skip up-to-date ones. No changelog bump needed to pick up a source edit.
   --rebuild-packages '<p1 p2>'    : With --skip-published-packages, force-rebuild these SOURCE packages (space-separated) without a debian/changelog bump, by deleting them from the local repo first.
+  --package-jobs N                : Speed-up: build up to N derivative packages concurrently (serial when unset). Safe to pass unconditionally: the build verifies its preconditions and falls back to serial, saying so, when they are not met. Around nproc-2 is a reasonable cap.
   --skip-prepare-build-machine    : Shared-work speed-up: skip build-steps.d/*_prepare-build-machine. Only safe when the build machine was already prepared by an earlier run in the same session.
   --skip-cowbuilder-setup         : Shared-work speed-up: skip build-steps.d/*_cowbuilder-setup. Only safe when the cowbuilder chroot was already created by an earlier run in the same session.
   --reuse-cowbuilder-base         : Speed-up: in build-steps.d/*_cowbuilder-setup, reuse an already-present cowbuilder base chroot instead of rebuilding it; if none exists yet, build one as usual. Unlike --skip-cowbuilder-setup this is safe when the base may or may not be present (e.g. a base restored from a CI cache).
@@ -617,6 +618,16 @@ dist_build_one_parse_cmd() {
                ## by deleting them from the local repo first so they read as unpublished.
                export dist_build_rebuild_packages="$2"
                true "${cyan}INFO: --rebuild-packages: force-rebuilding '${2}'.${reset}"
+               shift 2
+               ;;
+           --package-jobs)
+               ## Speed-up: build up to N derivative packages concurrently in
+               ## 2100_create-debian-packages (serial when unset). Safe to pass
+               ## unconditionally -- 2100 verifies its preconditions (cowbuilder in use,
+               ## genmkfile 'make_cow_suffix' support) and falls back to serial, saying so,
+               ## when they are not met.
+               export dist_build_package_jobs="$2"
+               true "${cyan}INFO: --package-jobs: up to '${2}' concurrent package build(s).${reset}"
                shift 2
                ;;
            --skip-prepare-build-machine)
