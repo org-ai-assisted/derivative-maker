@@ -87,6 +87,20 @@ env:
   ## exists, so the lane builds no VM image and fails at artifact upload with nothing
   ## to collect.
   REPRO_MULTI_TARGET_LIST: ${{ (inputs.target || 'qcow2') != 'iso' && (inputs.target || 'qcow2') || '' }}
+  ## Cache the cowbuilder base chroot, as local-boot-test.yml already does. Building
+  ## it is the largest fixed cost left in the lane. It is build INFRASTRUCTURE, not
+  ## image content -- the same reasoning under which the docker image is already
+  ## cached here -- so reusing it cannot change what the two builds are compared on.
+  BASE_CACHE: "true"
+  ## Parallel package builds (2100_create-debian-packages), opt-in via this variable
+  ## and serial when unset. Safe here: each worker gets its OWN cow snapshot through
+  ## genmkfile's 'make_cow_suffix' (verified present in both the gitlink and the
+  ## fork-branch tip this lane checks out), the read-only base.cow is shared, derivative
+  ## packages never build-depend on a sibling, and the locked reprepro DB is deferred to
+  ## Phase 3. The guidance in 2100 is to cap around nproc-2; ubuntu-24.04 runners have
+  ## 4 vCPU. Both copies use the same value, so it cannot skew the a-vs-b comparison --
+  ## and were it ever to introduce nondeterminism, this lane is exactly what catches it.
+  REPRO_PACKAGE_JOBS: "2"
 
 jobs:
   build:
@@ -172,6 +186,27 @@ jobs:
         if: steps.dmimg-cache.outputs.cache-hit == 'true'
         run: ./ci/dm-docker-image-cache load
 
+      ## Cache the cowbuilder base chroot (~/binary_mnt/pbuilder/base.cow_<arch>) as a
+      ## root-owned tarball, mirroring local-boot-test.yml. The key tracks the base
+      ## recipe (1300 extrapackages) and the apt sources/snapshot, so a base-affecting
+      ## change invalidates it and a fresh base is built.
+      ##
+      ## matrix.copy is IN THE KEY, like the approx and docker caches above: builds a
+      ## and b must not share a cache entry, or the two halves of a reproducibility
+      ## comparison stop being independent.
+      - name: Restore cowbuilder base cache
+        if: env.BASE_CACHE == 'true'
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/cowbuilder-base-cache
+          key: ${{ runner.os }}-repro-${{ matrix.copy }}-cowbase-${{ env.REPRO_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**') }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-repro-${{ matrix.copy }}-cowbase-${{ env.REPRO_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**') }}-
+
+      - name: Unpack cowbuilder base into place
+        if: env.BASE_CACHE == 'true'
+        run: ./ci/cowbuilder-base-cache unpack
+
       - name: Build ${{ matrix.copy }} via dm-build-official (${{ env.REPRO_FLAVOR }}, ${{ env.REPRO_ARCH }})
         ## Route the build through the OFFICIAL orchestration
         ## (help-steps/dm-build-official), the single build path: CI and the
@@ -201,13 +236,38 @@ jobs:
           FLAVOR: ${{ env.REPRO_FLAVOR }}
           MULTI: ${{ env.REPRO_MULTI_TARGET_LIST }}
           FRESHNESS: frozen
+          PKG_JOBS: ${{ env.REPRO_PACKAGE_JOBS }}
+          ## Reusing a base the cache never restored would hand
+          ## 1300_cowbuilder-setup a stale or absent tree, so the flag is tied to
+          ## BASE_CACHE rather than set unconditionally.
+          COWBASE_REUSE_FLAG: ${{ env.BASE_CACHE == 'true' && '--reuse-cowbuilder-base' || '' }}
         run: >-
           ./docker/derivative-maker-docker-run --
           bash -c "export dist_build_version=\"\$(git describe --always --abbrev=1000000000)\" &&
           ./help-steps/signing-key-create && ./help-steps/sign-and-tag &&
           env dist_build_target_arch='${ARCH}' flavors_list='${FLAVOR}'
           dist_build_multi_target_list='${MULTI}'
-          ./help-steps/dm-build-official --freshness '${FRESHNESS}'"
+          dist_build_package_jobs='${PKG_JOBS}'
+          ./help-steps/dm-build-official --freshness '${FRESHNESS}' ${COWBASE_REUSE_FLAG}"
+
+      ## Pack the cowbuilder base into its tarball BEFORE freeing it: under
+      ## --reuse-cowbuilder-base the base lives in this tree, and the upload glob
+      ## below scandirs binary_mnt, where a root-owned 0700 chroot would EACCES.
+      ## No-op when there is no base in the tree.
+      - name: Pack cowbuilder base for cache
+        if: always() && env.BASE_CACHE == 'true'
+        run: ./ci/cowbuilder-base-cache pack
+
+      - name: Free the relocated cowbuilder base tree
+        if: always() && env.BASE_CACHE == 'true'
+        run: ./ci/cowbuilder-base-cache free
+
+      - name: Save cowbuilder base cache
+        if: always() && env.BASE_CACHE == 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: ~/cowbuilder-base-cache
+          key: ${{ runner.os }}-repro-${{ matrix.copy }}-cowbase-${{ env.REPRO_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**') }}-${{ github.run_id }}
 
       - name: Save docker image to cache
         if: steps.dmimg-cache.outputs.cache-hit != 'true'
