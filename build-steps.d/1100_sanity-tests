@@ -124,10 +124,14 @@ check-git-symlinks() {
 
    ## The parent plus every submodule. 'displaypath' under 'foreach --recursive'
    ## is relative to the top level, so it composes with the source folder.
+   ## NUL-separated, like the 'ls-files' loop below: a newline in a submodule path
+   ## would otherwise split one path into fragments, and each fragment would fail
+   ## the 'test -d' below and be skipped -- silently leaving that submodule
+   ## unchecked, which is the one outcome this test must not produce.
    repo_list=(".")
    # shellcheck disable=SC2016
-   mapfile -t -O "${#repo_list[@]}" repo_list < <(
-      git -C "${source_code_folder_dist}" submodule --quiet foreach --recursive 'printf "%s\n" "${displaypath}"'
+   mapfile -t -d '' -O "${#repo_list[@]}" repo_list < <(
+      git -C "${source_code_folder_dist}" submodule --quiet foreach --recursive 'printf "%s\0" "${displaypath}"'
    )
 
    for repo_rel in ${repo_list[@]+"${repo_list[@]}"} ; do
