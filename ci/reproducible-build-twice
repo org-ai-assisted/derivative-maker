@@ -23,9 +23,7 @@
 ## --freshness   passed through to the build (default 'frozen': pins the Debian
 ##               snapshot, without which two builds diverge on package versions).
 ## --output-dir  where the two images + report are collected (default a fresh
-##               directory beside the repo). The collected images are ~0.5 GB each,
-##               but the BUILD needs far more transient room on the same
-##               filesystem.
+##               directory beside the repo). Needs a few GB free.
 ##
 ## The two builds run SEQUENTIALLY, never concurrently: two full image builds at
 ## once exhaust RAM/disk on a modest host. The verdict is NOT re-implemented here:
@@ -45,7 +43,6 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
-export LC_ALL=C
 
 ## style-ok: no-has
 
@@ -144,58 +141,31 @@ report="${output_dir}/report.txt"
 ## later build would derive the generated tag as its version and differ for a
 ## non-defect reason.
 pushd -- "${source_code_folder_dist}" >/dev/null
-## Mirrors help-steps/variables' derivation, because the paths built from it below
-## must name the directory the BUILD writes:
-##   --exclude  skips sign-tag-head's ephemeral '<tag>_<commit>_<key>' signing tags,
-##              so re-running on this checkout does not derive the version from the
-##              previous run's tag.
-##   the strip  removes the release-channel suffix, exactly as variables does before
-##              deriving 'dist_binary_build_folder'. Without it this searches
-##              '<binary>/18.2.2.0-developers-only-161-g<sha>' while the build wrote
-##              '<binary>/18.2.2.0-161-g<sha>', and reports 'produced no <glob>'
-##              only AFTER a full build has already run.
-dist_build_version="$( git describe --always --abbrev=1000000000 --exclude '*_*_*' )"
-dist_build_version="${dist_build_version//-developers-only/}"
-dist_build_version="${dist_build_version//-testers-only/}"
-dist_build_version="${dist_build_version//-stable/}"
-
+dist_build_version="$( git describe --always --abbrev=1000000000 )"
 ## dm-build-official does NOT sign, and the build's sq-git check rejects an unsigned
-## HEAD, so mint an ephemeral key and sign+tag HEAD here -- BEFORE either build and
-## after the version is pinned.
-##
-## Once for BOTH builds, deliberately. The signing key never reaches the image, so
-## varying it between the two builds tests nothing this lane is for. The CI lane
-## already covers key-independence for free: its two build jobs run on separate
-## runners, each minting its own ephemeral key, and still produce bit-identical
-## images.
-##
-## 'sign-and-tag' amends HEAD, which rewrites the COMMIT but not the TREE, so signing
-## per build would NOT hand build b a different tree. It would, however, need a
-## per-build keystore ('signing-key-create' reuses an existing key for DEBEMAIL,
-## which the docker-run --key-mount persists) and a reset to the pre-sign commit
-## between builds (build b's 'sign-tag-head' would otherwise abort on build a's tag
-## being signed by a key its new policy does not authorize). Not worth that for a
-## variable the image does not carry.
-## Opt in to signing: sign-and-tag defaults off, but this harness reproduces the
-## redistributable build (dm-build-official-one sets dist_build_redistributable=true,
-## which git_sanity_test requires be signed), so the tree must be signed here.
-export dist_build_sign_and_tag=true
+## HEAD, so mint an ephemeral key and sign+tag HEAD once, here -- BEFORE either build
+## and after the version is pinned. Once, not per build: sign-and-tag rewrites HEAD,
+## so doing it inside build_one would hand build b a different tree than build a and
+## manufacture a difference that is not a reproducibility defect. The ephemeral
+## signature is not embedded in the image content.
 ./help-steps/signing-key-create
 ./help-steps/sign-and-tag
 popd >/dev/null
 export dist_build_version
 
+## Remove this build's emitted-image directory so 'find' below sees only the current
+## build's output. Scoped to the per-version directory: its siblings under
+## '$binary_build_folder_dist' are the cowbuilder base, the local apt repo and the
+## package caches, which a build legitimately reuses and must not lose.
+clean_binary() {
+   safe-rm --recursive --force -- "${binary_build_folder_dist}/${dist_build_version}" 2>/dev/null || true
+}
+
 ## Run one build and collect its artifact into $output_dir/<tag>/.
 build_one() {
-   local tag="${1}" dest="${output_dir}/${2}" build_rc found
+   local tag="$1" dest="${output_dir}/$2" build_rc found
    printf '%s\n' "=== build ${tag}: ${flavor} ${target} ${arch} (freshness=${freshness}) ==="
-
-   ## Remove this build's emitted-image directory so 'find' below sees only the current
-   ## build's output. Scoped to the per-version directory: its siblings under
-   ## '$binary_build_folder_dist' are the cowbuilder base, the local apt repo and the
-   ## package caches, which a build legitimately reuses and must not lose.
-   safe-rm --recursive --force -- "${binary_build_folder_dist}/${dist_build_version}" 2>/dev/null || true
-
+   clean_binary
    build_rc=0
    ## pushd/popd rather than a '( cd && ... )' subshell: scopes the cd without a
    ## subshell (and dodges the errexit-in-conditional-subshell footgun).
@@ -206,12 +176,12 @@ build_one() {
    ## CI=true is what mocks the upload -- without it dm-prepare-release's rsync is
    ## LIVE, and a local reproducibility check must never publish. It also skips the
    ## ~/.ssh requirement. It does NOT force a dry run: parse-cmd only injects
-   ## build_dry_run for a CI CROSS-build, and dist_build_target_arch is set here.
+   ## build_dry_run for a CROSS-build, and dist_build_target_arch is set here.
    CI=true \
-     dist_build_target_arch="${arch}" \
-     flavors_list="${flavor}" \
-     dist_build_multi_target_list="${target}" \
-     ./help-steps/dm-build-official --freshness "${freshness}" || build_rc="$?"
+   dist_build_target_arch="${arch}" \
+   flavors_list="${flavor}" \
+   dist_build_multi_target_list="${target}" \
+   ./help-steps/dm-build-official --freshness "${freshness}" || build_rc="$?"
    popd >/dev/null
    if [ "${build_rc}" -ne 0 ]; then
       printf '%s\n' "${0##*/}: build ${tag} failed (exit ${build_rc})" >&2
@@ -221,15 +191,8 @@ build_one() {
    ## pipe after one line, which would SIGPIPE find/sort (exit 141 under pipefail +
    ## inherit_errexit) once their output exceeds the pipe buffer, breaking the exit
    ## contract with no diagnostic.
-   ## A build that wrote nothing leaves no version directory at all, and 'find' on a
-   ## missing path fails -- under errexit that exits 1, which this script's own
-   ## contract documents as "images differ", and the message below never prints. An
-   ## absent directory and an empty one mean the same thing here: no artifact.
-   found=""
-   if [ -d "${binary_build_folder_dist}/${dist_build_version}" ]; then
-      found="$( find "${binary_build_folder_dist}/${dist_build_version}" -type f -name "${artifact_glob}" | LC_ALL=C sort )"
-      found="${found%%$'\n'*}"
-   fi
+   found="$( find "${binary_build_folder_dist}/${dist_build_version}" -type f -name "${artifact_glob}" | LC_ALL=C sort )"
+   found="${found%%$'\n'*}"
    if [ -z "${found}" ]; then
       printf '%s\n' "${0##*/}: build ${tag} produced no ${artifact_glob}" >&2
       exit 3
