@@ -163,23 +163,21 @@ dist_build_version="${dist_build_version//-stable/}"
 ## HEAD, so mint an ephemeral key and sign+tag HEAD here -- BEFORE either build and
 ## after the version is pinned.
 ##
-## Signing once for both builds is a LIMITATION of this lane, not a requirement.
-## 'sign-and-tag' amends HEAD, which rewrites the COMMIT but not the TREE, and the
-## commit id does not reach the image: CI's two build jobs run on separate runners,
-## each minting its OWN ephemeral key, and their amended HEADs differ
+## Once for BOTH builds, deliberately. The signing key never reaches the image, so
+## varying it between the two builds would test nothing this lane is for. Measured,
+## not assumed: CI's two build jobs run on separate runners, each minting its OWN
+## ephemeral key, and their amended HEADs differ
 ## (c48eec926df2c60633d5ca44aa2639eec5ea0e5d vs ec01e16f32a04eb26b0a2ac93e7f98818c353c67
-## in repro-lane run 30618137118) while the two images come out bit-identical.
+## in repro-lane run 30618137118) while the two images come out bit-identical -- so
+## key-independence is already demonstrated there, for free, by the two-runner split.
 ##
-## TODO: sign each build with its OWN ephemeral key, as CI does. Somebody
-## reproducing an official image has no access to the signing key either, so
-## key-independence is part of what a reproducibility test should demonstrate, and
-## sharing one key here leaves that untested locally. Two things block simply moving
-## these calls into build_one: 'signing-key-create' REUSES an existing key for
-## DEBEMAIL (the sq keystore is persisted via the docker-run --key-mount), so build b
-## would get the same key; and build b's 'sign-tag-head' would find build a's tag at
-## HEAD signed by a key its new policy does not authorize and abort with
-## "unsigned/unverifiable tag ... remove it". Doing it properly means a per-build
-## keystore plus resetting to the pre-sign commit between builds.
+## 'sign-and-tag' amends HEAD, which rewrites the COMMIT but not the TREE, so signing
+## per build would NOT hand build b a different tree. It would, however, need a
+## per-build keystore ('signing-key-create' reuses an existing key for DEBEMAIL,
+## which the docker-run --key-mount persists) and a reset to the pre-sign commit
+## between builds (build b's 'sign-tag-head' would otherwise abort on build a's tag
+## being signed by a key its new policy does not authorize). Not worth that for a
+## variable the image does not carry.
 ./help-steps/signing-key-create
 ./help-steps/sign-and-tag
 popd >/dev/null
