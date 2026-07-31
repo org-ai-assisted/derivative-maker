@@ -477,45 +477,91 @@ exception_handler_general() {
    ${output_cmd} "${cyan}INFO: End of function ${FUNCNAME[0]} of $0.${reset}"
 }
 
+## The cleanup steps for one variant. Single definition, run by BOTH the ERR
+## handlers and exception_handler_signal, so the two paths cannot drift.
+##
+## $1 = cleanup kind: general | unchroot_unmount | unmount | unmount_lb
+## $2 = 'true' to continue past a failing step. The signal path is already on
+##      its way out, so a failing cleanup step there must not mask the signal;
+##      the ERR path lets the failure propagate.
+exception_handler_cleanup_run() {
+   local cleanup_kind tolerate_failure cleanup_step cleanup_step_list
+
+   cleanup_kind="$1"
+   tolerate_failure="$2"
+   cleanup_step_list=()
+
+   case "${cleanup_kind}" in
+      unchroot_unmount)
+         cleanup_step_list=(
+            remove-local-temp-apt-repo
+            unchroot-raw
+            unprevent-daemons-from-starting
+            unmount-raw
+         )
+         ;;
+      unmount)
+         cleanup_step_list=( unmount-raw )
+         ;;
+      unmount_lb)
+         ## Unmount the host /dev, /sys, /proc bind-mounts a mid-step abort
+         ## leaves behind under the live-build tree; see 'help-steps/unmount-lb'.
+         cleanup_step_list=( unmount-lb )
+         ;;
+      general | *)
+         ## No cleanup for the general variant.
+         return 0
+         ;;
+   esac
+
+   for cleanup_step in "${cleanup_step_list[@]}"; do
+      if [ "${tolerate_failure}" = "true" ]; then
+         "${dist_source_help_steps_folder}/${cleanup_step}" "${args[@]}" || true
+      else
+         ## Explicit rather than leaning on errexit: a trap handler can be
+         ## reached from a context where errexit is disarmed (any '||'-guarded
+         ## caller), and there the loop would run on past a failed step.
+         "${dist_source_help_steps_folder}/${cleanup_step}" "${args[@]}" || return "$?"
+      fi
+   done
+}
+
+## Shared ERR-handler body. The per-kind wrappers below exist because
+## '$?' and '$BASH_COMMAND' must be captured before anything else runs, and
+## because exception_handler_setup derives the signal cleanup kind from the
+## handler's NAME.
+##
+## $1 = cleanup kind, $2 = trap signal type
+exception_handler_variant() {
+   local cleanup_kind signal_type
+
+   cleanup_kind="$1"
+   signal_type="$2"
+
+   output_cmd_set
+   exception_handler_process_shared "${signal_type}"
+   if [ "${ignore_error:-}" = "false" ]; then
+      exception_handler_cleanup_run "${cleanup_kind}" "false"
+   fi
+   exception_handler_maybe_exit "${signal_type}"
+}
+
 exception_handler_unchroot_unmount() {
    last_failed_exit_code="$?"
    last_failed_bash_command="${BASH_COMMAND}"
-   output_cmd_set
-   ## $1 contains trap signal type.
-   exception_handler_process_shared "$1"
-   if [ "${ignore_error:-}" = "false" ]; then
-      "${dist_source_help_steps_folder}"/remove-local-temp-apt-repo "${args[@]}"
-      "${dist_source_help_steps_folder}"/unchroot-raw "${args[@]}"
-      "${dist_source_help_steps_folder}"/unprevent-daemons-from-starting "${args[@]}"
-      "${dist_source_help_steps_folder}"/unmount-raw "${args[@]}"
-   fi
-   exception_handler_maybe_exit "$1"
+   exception_handler_variant unchroot_unmount "$1"
 }
 
 exception_handler_unmount() {
    last_failed_exit_code="$?"
    last_failed_bash_command="${BASH_COMMAND}"
-   output_cmd_set
-   ## $1 contains trap signal type.
-   exception_handler_process_shared "$1"
-   if [ "${ignore_error:-}" = "false" ]; then
-      "${dist_source_help_steps_folder}"/unmount-raw "${args[@]}"
-   fi
-   exception_handler_maybe_exit "$1"
+   exception_handler_variant unmount "$1"
 }
 
 exception_handler_unmount_lb() {
    last_failed_exit_code="$?"
    last_failed_bash_command="${BASH_COMMAND}"
-   output_cmd_set
-   ## $1 contains trap signal type.
-   exception_handler_process_shared "$1"
-   if [ "${ignore_error:-}" = "false" ]; then
-      ## Unmount the host /dev, /sys, /proc bind-mounts a mid-step abort
-      ## leaves behind under the live-build tree; see 'help-steps/unmount-lb'.
-      "${dist_source_help_steps_folder}"/unmount-lb "${args[@]}"
-   fi
-   exception_handler_maybe_exit "$1"
+   exception_handler_variant unmount_lb "$1"
 }
 
 ## Simple signal (INT/TERM) handler. Unlike the ERR path this does not
@@ -525,12 +571,9 @@ exception_handler_unmount_lb() {
 ## interactive-menu machinery.
 ##
 ## $1 = signal name (INT or TERM)
-## $2 = cleanup kind, derived from the ERR handler name by exception_handler_setup:
-##        general          -> no cleanup
-##        unchroot_unmount -> remove-local-temp-apt-repo, unchroot-raw,
-##                            unprevent-daemons-from-starting, unmount-raw
-##        unmount          -> unmount-raw
-##        unmount_lb       -> unmount-lb
+## $2 = cleanup kind, derived from the ERR handler name by
+##      exception_handler_setup; the steps per kind are in
+##      exception_handler_cleanup_run.
 exception_handler_signal() {
    local signal kind signum exit_code
    signal="$1"
@@ -550,23 +593,9 @@ exception_handler_signal() {
    output_cmd_set
    ${output_cmd} "${cyan}${bold}############################################################${reset}"
    ${output_cmd} "${red}${bold}INFO: Signal ${signal} received in ${under}$0${eunder}. Running cleanup (kind: ${kind})...${reset}"
-   case "${kind}" in
-      unchroot_unmount)
-         "${dist_source_help_steps_folder}"/remove-local-temp-apt-repo "${args[@]}" || true
-         "${dist_source_help_steps_folder}"/unchroot-raw "${args[@]}" || true
-         "${dist_source_help_steps_folder}"/unprevent-daemons-from-starting "${args[@]}" || true
-         "${dist_source_help_steps_folder}"/unmount-raw "${args[@]}" || true
-         ;;
-      unmount)
-         "${dist_source_help_steps_folder}"/unmount-raw "${args[@]}" || true
-         ;;
-      unmount_lb)
-         "${dist_source_help_steps_folder}"/unmount-lb "${args[@]}" || true
-         ;;
-      general|*)
-         ## No cleanup for the general variant.
-         ;;
-   esac
+   ## 'true': already exiting, so a failing cleanup step must not mask the
+   ## signal.
+   exception_handler_cleanup_run "${kind}" "true"
    ${output_cmd} "${red}${bold}INFO: Exiting $0 due to signal ${signal} with exit code ${exit_code}.${reset}"
    ${output_cmd} "${cyan}${bold}############################################################${reset}"
    ## Remove the EXIT trap so exithandler's generic "non-zero exit code"
