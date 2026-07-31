@@ -23,7 +23,11 @@
 ## --freshness   passed through to the build (default 'frozen': pins the Debian
 ##               snapshot, without which two builds diverge on package versions).
 ## --output-dir  where the two images + report are collected (default a fresh
-##               directory beside the repo). Needs a few GB free.
+##               directory beside the repo). The collected images are ~0.5 GB each,
+##               but the BUILD needs far more transient room on the same
+##               filesystem: 4350_reimage-raw-reproducible zero-fills the image's
+##               free space, which allocates the sparse raw, so a qcow2 run peaks
+##               around 32 GB before dropping back. Budget ~40 GB free, not "a few".
 ##
 ## The two builds run SEQUENTIALLY, never concurrently: two full image builds at
 ## once exhaust RAM/disk on a modest host. The verdict is NOT re-implemented here:
@@ -141,7 +145,20 @@ report="${output_dir}/report.txt"
 ## later build would derive the generated tag as its version and differ for a
 ## non-defect reason.
 pushd -- "${source_code_folder_dist}" >/dev/null
-dist_build_version="$( git describe --always --abbrev=1000000000 )"
+## Mirrors help-steps/variables' derivation, because the paths built from it below
+## must name the directory the BUILD writes:
+##   --exclude  skips sign-tag-head's ephemeral '<tag>_<commit>_<key>' signing tags,
+##              so re-running on this checkout does not derive the version from the
+##              previous run's tag.
+##   the strip  removes the release-channel suffix, exactly as variables does before
+##              deriving 'dist_binary_build_folder'. Without it this searches
+##              '<binary>/18.2.2.0-developers-only-161-g<sha>' while the build wrote
+##              '<binary>/18.2.2.0-161-g<sha>', and reports 'produced no <glob>'
+##              only AFTER a full build has already run.
+dist_build_version="$( git describe --always --abbrev=1000000000 --exclude '*_*_*' )"
+dist_build_version="${dist_build_version//-developers-only/}"
+dist_build_version="${dist_build_version//-testers-only/}"
+dist_build_version="${dist_build_version//-stable/}"
 ## dm-build-official does NOT sign, and the build's sq-git check rejects an unsigned
 ## HEAD, so mint an ephemeral key and sign+tag HEAD once, here -- BEFORE either build
 ## and after the version is pinned. Once, not per build: sign-and-tag rewrites HEAD,
