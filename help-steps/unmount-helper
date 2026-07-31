@@ -69,7 +69,7 @@ main() {
    #$SUDO_TO_ROOT dmsetup ls
    #$SUDO_TO_ROOT losetup --all
 
-   ${SUDO_TO_ROOT} umount --verbose --lazy "${unmount_folder}" || true "INFO: 'umount --verbose --lazy unmount_folder' non-zero exit code."
+   ${SUDO_TO_ROOT} umount --verbose --lazy -- "${unmount_folder}" || true "INFO: 'umount --verbose --lazy unmount_folder' non-zero exit code."
    sync
    #sleep 6
 
@@ -78,7 +78,7 @@ main() {
       return 0
    fi
 
-   ${SUDO_TO_ROOT} umount --verbose "${unmount_folder}" || true "INFO: 'umount --verbose ${unmount_folder}' non-zero exit code."
+   ${SUDO_TO_ROOT} umount --verbose -- "${unmount_folder}" || true "INFO: 'umount --verbose ${unmount_folder}' non-zero exit code."
    sync
    #sleep 6
 
