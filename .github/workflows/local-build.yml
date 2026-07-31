@@ -271,6 +271,13 @@ jobs:
       - name: Initialize submodules
         run: git submodule update --init --recursive
 
+      ## This lane runs the comparator OUT OF the submodule, so a lagging pin
+      ## makes it fail wherever the older tool breaks instead of at the pin --
+      ## once seen as "expected exactly one *.qcow2 ... found 0", which reads
+      ## like a reproducibility failure and is not one. Report the lag itself.
+      - name: Assert the developer-meta-files pin is not stale
+        run: ./ci/assert-submodule-not-stale packages/kicksecure/developer-meta-files
+
       - name: Check out matching fork branch in cross-org submodules (if present)
         if: github.repository_owner != 'Whonix' && github.repository_owner != 'Kicksecure'
         env:
