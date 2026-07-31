@@ -160,11 +160,26 @@ dist_build_version="${dist_build_version//-developers-only/}"
 dist_build_version="${dist_build_version//-testers-only/}"
 dist_build_version="${dist_build_version//-stable/}"
 ## dm-build-official does NOT sign, and the build's sq-git check rejects an unsigned
-## HEAD, so mint an ephemeral key and sign+tag HEAD once, here -- BEFORE either build
-## and after the version is pinned. Once, not per build: sign-and-tag rewrites HEAD,
-## so doing it inside build_one would hand build b a different tree than build a and
-## manufacture a difference that is not a reproducibility defect. The ephemeral
-## signature is not embedded in the image content.
+## HEAD, so mint an ephemeral key and sign+tag HEAD here -- BEFORE either build and
+## after the version is pinned.
+##
+## Signing once for both builds is a LIMITATION of this lane, not a requirement.
+## 'sign-and-tag' amends HEAD, which rewrites the COMMIT but not the TREE, and the
+## commit id does not reach the image: CI's two build jobs run on separate runners,
+## each minting its OWN ephemeral key, and their amended HEADs differ
+## (c48eec926df2c60633d5ca44aa2639eec5ea0e5d vs ec01e16f32a04eb26b0a2ac93e7f98818c353c67
+## in repro-lane run 30618137118) while the two images come out bit-identical.
+##
+## TODO: sign each build with its OWN ephemeral key, as CI does. Somebody
+## reproducing an official image has no access to the signing key either, so
+## key-independence is part of what a reproducibility test should demonstrate, and
+## sharing one key here leaves that untested locally. Two things block simply moving
+## these calls into build_one: 'signing-key-create' REUSES an existing key for
+## DEBEMAIL (the sq keystore is persisted via the docker-run --key-mount), so build b
+## would get the same key; and build b's 'sign-tag-head' would find build a's tag at
+## HEAD signed by a key its new policy does not authorize and abort with
+## "unsigned/unverifiable tag ... remove it". Doing it properly means a per-build
+## keystore plus resetting to the pre-sign commit between builds.
 ./help-steps/signing-key-create
 ./help-steps/sign-and-tag
 popd >/dev/null
