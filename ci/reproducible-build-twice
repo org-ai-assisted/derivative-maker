@@ -137,11 +137,19 @@ mkdir --parents -- "${output_dir}"
 report="${output_dir}/report.txt"
 
 ## Pin the image version for BOTH builds, from the pre-sign HEAD of this one tree.
-## ci/build's own capture is per-build, which is correct on a fresh CI runner but not
-## here: build a's sign-and-tag amends and tags HEAD, so build b would derive the
-## generated tag as its version and differ for a non-defect reason.
+## A per-build capture would be wrong here: sign-and-tag amends and tags HEAD, so a
+## later build would derive the generated tag as its version and differ for a
+## non-defect reason.
 pushd -- "${source_code_folder_dist}" >/dev/null
 dist_build_version="$( git describe --always --abbrev=1000000000 )"
+## dm-build-official does NOT sign, and the build's sq-git check rejects an unsigned
+## HEAD, so mint an ephemeral key and sign+tag HEAD once, here -- BEFORE either build
+## and after the version is pinned. Once, not per build: sign-and-tag rewrites HEAD,
+## so doing it inside build_one would hand build b a different tree than build a and
+## manufacture a difference that is not a reproducibility defect. The ephemeral
+## signature is not embedded in the image content.
+./help-steps/signing-key-create
+./help-steps/sign-and-tag
 popd >/dev/null
 export dist_build_version
 
@@ -162,7 +170,18 @@ build_one() {
    ## pushd/popd rather than a '( cd && ... )' subshell: scopes the cd without a
    ## subshell (and dodges the errexit-in-conditional-subshell footgun).
    pushd -- "${source_code_folder_dist}" >/dev/null
-   ./ci/build --arch "${arch}" --target "${target}" --flavor "${flavor}" --freshness "${freshness}" || build_rc="$?"
+   ## The SAME entrypoint CI drives, with the same env shape, so a local verdict
+   ## transfers: a separate build path diverges (different flags, no shared-base
+   ## role) and turns build-path drift into phantom non-reproducibility.
+   ## CI=true is what mocks the upload -- without it dm-prepare-release's rsync is
+   ## LIVE, and a local reproducibility check must never publish. It also skips the
+   ## ~/.ssh requirement. It does NOT force a dry run: parse-cmd only injects
+   ## build_dry_run for a CROSS-build, and dist_build_target_arch is set here.
+   CI=true \
+   dist_build_target_arch="${arch}" \
+   flavors_list="${flavor}" \
+   dist_build_multi_target_list="${target}" \
+   ./help-steps/dm-build-official --freshness "${freshness}" || build_rc="$?"
    popd >/dev/null
    if [ "${build_rc}" -ne 0 ]; then
       printf '%s\n' "${0##*/}: build ${tag} failed (exit ${build_rc})" >&2

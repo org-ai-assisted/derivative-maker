@@ -200,7 +200,7 @@ jobs:
         ## Build through the official orchestration -- the SAME single build path as
         ## local-build.yml, no duplication. dm-build-official does NOT sign, and the
         ## build's sq-git check rejects an unsigned HEAD, so mint an ephemeral CI key
-        ## and sign+tag HEAD FIRST (mirrors ci/build). All three run in ONE
+        ## and sign+tag HEAD FIRST. All three run in ONE
         ## docker-run so the home-directory state signing-key-create creates persists
         ## into sign-and-tag and the build. rule 4: shell vars from env, no ${{ }}
         ## interpolation into run:.

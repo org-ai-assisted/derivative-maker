@@ -174,9 +174,9 @@ jobs:
 
       - name: Build ${{ matrix.copy }} via dm-build-official (${{ env.REPRO_FLAVOR }}, ${{ env.REPRO_ARCH }})
         ## Route the build through the OFFICIAL orchestration
-        ## (help-steps/dm-build-official) rather than a separate ci/build
-        ## path, so CI exercises the real official build with no duplicate build
-        ## logic. Passed via an 'env VAR=val' prefix (the container entrypoint execs
+        ## (help-steps/dm-build-official), the single build path: CI and the
+        ## local ci/reproducible-build-twice drive the same entrypoint, so a
+        ## local verdict transfers. Passed via an 'env VAR=val' prefix (the container entrypoint execs
         ## "$@", so this sets them inside the container without a docker-run change):
         ##   flavors_list=$FLAVOR         -> SINGLE-flavor smoke (cli for qcow2/
         ##       virtualbox, lxqt for iso; the script honours a flavors_list
@@ -189,8 +189,8 @@ jobs:
         ## uploads mocked. --freshness frozen pins the snapshot so the two
         ## independent 'a'/'b' builds see identical package versions.
         ## dm-build-official does NOT sign, and the build's sq-git check rejects an
-        ## unsigned HEAD, so mint an ephemeral CI key and sign+tag HEAD FIRST (mirrors
-        ## ci/build) -- all in ONE docker-run so signing-key-create's home state
+        ## unsigned HEAD, so mint an ephemeral CI key and sign+tag HEAD FIRST
+        ## -- all in ONE docker-run so signing-key-create's home state
         ## persists into sign-and-tag and the build. The ephemeral signature does not
         ## break reproducibility: dist_build_version is pinned pre-sign and the image
         ## content does not embed the commit signature.
