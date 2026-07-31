@@ -161,10 +161,17 @@ reimage_raw() {
    ## error is fatal, because a silent no-op here would leak stale data AND break reproducibility with
    ## no separate free-space-zeroing backstop (this reimage does it). LC_ALL=C so the ENOSPC message is locale-stable.
    if ! ${SUDO_TO_ROOT} blkdiscard --zeroout "${dev_mapper_device}"; then
+      ## dd prints its own "dd: error writing ...: No space left on device" to the
+      ## log before we ever see it, and that line is the SUCCESS signal here, not a
+      ## failure -- the partition is full because we just filled it. Say so
+      ## explicitly on the next line, so a reader (or a log grep for "error" /
+      ## "No space left") is not led to diagnose a disk-capacity problem that does
+      ## not exist. This has already cost one wrong diagnosis.
+      printf '%s\n' "INFO: ${BASH_SOURCE[0]}: zeroing ${dev_mapper_device} with dd; the ENOSPC that dd is about to report is EXPECTED -- it marks end-of-device, i.e. the zero-fill completed." >&2
       dd_err="$(LC_ALL=C ${SUDO_TO_ROOT} dd if=/dev/zero of="${dev_mapper_device}" bs=1M 2>&1 1>/dev/null)" || true
       case "${dd_err}" in
          *"No space left on device"*)
-            true
+            printf '%s\n' "INFO: ${BASH_SOURCE[0]}: zero-fill of ${dev_mapper_device} COMPLETED (reached end of device; the ENOSPC above is the expected terminating condition, NOT a host disk-space failure)." >&2
             ;;
          *)
             printf '%s\n' "ERROR: ${BASH_SOURCE[0]}: failed to zero ${dev_mapper_device}: ${dd_err}" >&2
