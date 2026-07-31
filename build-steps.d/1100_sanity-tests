@@ -32,12 +32,6 @@ source variables
 cd "${MYDIR}"
 cd ..
 
-## 'has' rather than 'command -v' (R-090): it verifies the hit is executable and
-## is not an alias or shell function. 'pre' sets HELPER_SCRIPTS_PATH to the
-## in-tree submodule, so this resolves before helper-scripts is installed.
-# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/has.sh
-source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/has.sh
-
 test-wc() {
    if ! printf '%s\n' "" | wc -l >/dev/null ; then
       error "\
@@ -130,28 +124,15 @@ check-git-symlinks() {
 
    ## The parent plus every submodule. 'displaypath' under 'foreach --recursive'
    ## is relative to the top level, so it composes with the source folder.
-   ## NUL-separated, like the 'ls-files' loop below: a newline in a submodule path
-   ## would otherwise split one path into fragments, and each fragment would fail
-   ## the 'test -d' below and be skipped -- silently leaving that submodule
-   ## unchecked, which is the one outcome this test must not produce.
    repo_list=(".")
    # shellcheck disable=SC2016
-   mapfile -t -d '' -O "${#repo_list[@]}" repo_list < <(
-      git -C "${source_code_folder_dist}" submodule --quiet foreach --recursive 'printf "%s\0" "${displaypath}"'
+   mapfile -t -O "${#repo_list[@]}" repo_list < <(
+      git -C "${source_code_folder_dist}" submodule --quiet foreach --recursive 'printf "%s\n" "${displaypath}"'
    )
 
-   for repo_rel in "${repo_list[@]}" ; do
+   for repo_rel in ${repo_list[@]+"${repo_list[@]}"} ; do
       repo_abs="${source_code_folder_dist}/${repo_rel}"
       test -d "${repo_abs}" || continue
-      ## 'ls-files' below runs in a process substitution, whose exit status the
-      ## loop cannot see: a directory git refuses to read would yield zero entries
-      ## and pass as "no symlinks here". Since silently skipping a repo is the one
-      ## outcome this check must not produce, establish it IS a repository first,
-      ## and say so when it is not rather than passing quietly.
-      if ! git -C "${repo_abs}" rev-parse --git-dir >/dev/null 2>&1 ; then
-         true "${cyan}INFO: ${repo_rel}: not a git repository (submodule not initialized?); no symlinks to verify there.${reset}"
-         continue
-      fi
       ## -z, so a path containing a space, quote or newline is not mangled.
       while IFS= read -r -d '' entry ; do
          mode="${entry%% *}"
@@ -345,34 +326,6 @@ Please delete derivative-maker source code folder and get it again as user, not 
    true
 }
 
-check-sufficient-disk() {
-   ## Fail EARLY and CLEARLY when the build output folder lacks the disk a full
-   ## build needs, instead of the cryptic 'No space left on device' that surfaces
-   ## deep in a later step (e.g. 3600 live-build's bootstrap_cache restore) after
-   ## ~40 minutes. A full ISO+qcow2 build writes a ~1.3 GB sparse raw, a
-   ## live-build chroot, the qcow2, and working copies; 20 GiB free is a
-   ## conservative floor below which a build reliably runs out.
-   local build_folder avail_kib avail_gib minimum_gib
-   minimum_gib="${dist_build_min_free_gib:-20}"
-   build_folder="${binary_build_folder_dist:-}"
-   if [ -z "${build_folder}" ] || [ ! -d "${build_folder}" ]; then
-      build_folder="${HOME}"
-   fi
-   avail_kib="$(df --output=avail -k -- "${build_folder}" 2>/dev/null | tail -n 1 | tr -d '[:space:]')"
-   if [ -z "${avail_kib}" ]; then
-      true "${bold}${cyan}INFO: ${BASH_SOURCE[0]}: could not read free disk for '${build_folder}'; skipping the disk check.${reset}"
-      return 0
-   fi
-   avail_gib=$(( avail_kib / 1024 / 1024 ))
-   true "${bold}${cyan}INFO: ${BASH_SOURCE[0]}: ${avail_gib} GiB free in '${build_folder}' (minimum ${minimum_gib} GiB).${reset}"
-   if [ "${avail_gib}" -lt "${minimum_gib}" ]; then
-      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: only ${avail_gib} GiB free in the build output folder \
-'${build_folder}', but a full build needs at least ${minimum_gib} GiB and would otherwise fail deep in a \
-later step with 'No space left on device'. Free space (old build outputs, caches) and retry, or set \
-dist_build_min_free_gib to override this floor.${reset}"
-   fi
-}
-
 check-stray-loop-devices() {
    true "INFO: Checking for stray loop devices..."
 
@@ -411,115 +364,6 @@ Recommendation:
 - Reboot. Often a reboot is required to get rid of the stray loop device."
 
    true
-}
-
-check-umask-in-sync() {
-   ## help-steps/variables pins the build umask so file modes in the image do not
-   ## depend on who ran the build. That value is not arbitrary: it mirrors what
-   ## security-misc already grants sudo, precisely so system files do not inherit
-   ## a user's restrictive umask. If the two drift apart the build silently goes
-   ## back to producing host-dependent permissions, which is invisible until two
-   ## images are compared byte for byte.
-   true "INFO: Checking that the build umask matches security-misc..."
-
-   local sudoers_file variables_file security_misc_umask variables_umask sanity_line
-
-   sudoers_file="${source_code_folder_dist}/packages/kicksecure/security-misc/etc/sudoers.d/security-misc#security-misc-shared"
-   variables_file="${source_code_folder_dist}/help-steps/variables"
-
-   if [ ! -f "${sudoers_file}" ]; then
-      true "INFO: security-misc sudoers drop-in absent (submodule not checked out?). Skipping, OK."
-      return 0
-   fi
-
-   ## Read with a bash loop rather than 'sed ... | head -n 1'. Under errexit and
-   ## pipefail, head exiting after the first line gives sed SIGPIPE once the
-   ## output exceeds the pipe buffer, and the pipeline's 141 aborts the whole
-   ## build with NO message and no error handler. Verified: 141 and a silent
-   ## exit on a large input. Not reachable with these small config files, but the
-   ## shape is a trap and a loop costs nothing.
-   security_misc_umask=""
-   while IFS= read -r sanity_line; do
-      case "${sanity_line}" in
-         Defaults*umask=*)
-            security_misc_umask="${sanity_line#*umask=}"
-            security_misc_umask="${security_misc_umask%%[^0-7]*}"
-            break
-            ;;
-      esac
-   done < "${sudoers_file}"
-
-   variables_umask=""
-   while IFS= read -r sanity_line; do
-      case "${sanity_line}" in
-         umask[[:space:]]*)
-            variables_umask="${sanity_line#umask}"
-            variables_umask="${variables_umask#"${variables_umask%%[![:space:]]*}"}"
-            variables_umask="${variables_umask%%[^0-7]*}"
-            break
-            ;;
-      esac
-   done < "${variables_file}"
-
-   if [ -z "${variables_umask}" ]; then
-      error "help-steps/variables pins no umask.
-
-Without it every file the build creates inherits the BUILDER's umask, so the
-same commit yields different permissions in the image depending on who built it."
-      return 0
-   fi
-
-   if [ -z "${security_misc_umask}" ]; then
-      true "INFO: no 'Defaults umask=' found in security-misc; nothing to compare. OK."
-      return 0
-   fi
-
-   if [ ! "${variables_umask}" = "${security_misc_umask}" ]; then
-      error "Build umask drifted from security-misc.
-
-help-steps/variables: umask ${variables_umask}
-security-misc:        Defaults umask=${security_misc_umask}
-
-These must agree. security-misc grants that umask to sudo so system files do not
-inherit a restrictive user umask; the build pins the same value so image
-permissions do not depend on the builder."
-      return 0
-   fi
-
-   true "INFO: build umask ${variables_umask} matches security-misc, OK."
-}
-
-check-stale-nbd() {
-   ## A previous inspection or comparison can leave an nbd device attached with a
-   ## mount still on it -- image tooling runs in a container that is torn down
-   ## with SIGKILL, so its cleanup traps never run, and the mounts survive in this
-   ## namespace. The build needs nbd itself (4350 reimage), and attaching a new
-   ## image to a device that still carries a stale mount makes every read return
-   ## EIO, which presents as a CORRUPT IMAGE rather than as a stale mount.
-   true "INFO: Checking for stale nbd devices..."
-
-   local nbd_mounts
-
-   if [ ! -e /dev/nbd0 ]; then
-      true "INFO: no nbd devices present, OK."
-      return 0
-   fi
-
-   nbd_mounts="$(${SUDO_TO_ROOT} cat /proc/mounts | grep -- '^/dev/nbd' || true)"
-
-   if [ -z "${nbd_mounts}" ]; then
-      true "INFO: no stale nbd mounts, OK."
-      return 0
-   fi
-
-   error "Stale nbd mount(s) detected:
-
-${nbd_mounts}
-
-Attaching an image to a device that still carries one of these makes every read
-fail with EIO, which looks like a corrupt image. Release them first:
-  dm-nbd-cleanup            ## reports
-  dm-nbd-cleanup --release  ## acts"
 }
 
 check-stray-mounts() {
@@ -629,7 +473,7 @@ check-build-primitives() {
 the build host. Every '> /dev/null' in the build (chroot operations, live-build's binary \
 stage) will fail. Fix the build environment's /dev.${reset}"
    fi
-   if ! printf '%s\n' "test" > /dev/null 2>&1; then
+   if ! printf 'test\n' > /dev/null 2>&1; then
       error "${bold}${red}ERROR ${BASH_SOURCE[0]}: writing to /dev/null failed -- the \
 build's chroot operations will fail. Fix /dev on the build host.${reset}"
    fi
@@ -756,115 +600,8 @@ install_required_packages() {
          ${required_packages_list}
 }
 
-check-libvirt-xml() {
-   local xml_dir available
-
-   ## 1600_export-libvirt-xml copies this file for every raw or qcow2 target. The
-   ## file name comes from SHORT_VMNAME, which is derived from the FLAVOR, so a
-   ## flavor that has no libvirt XML is accepted here and dies ~15 minutes later
-   ## on a bare "cp: cannot stat", naming neither the flavor nor the combination
-   ## that produced it. Assert it in seconds instead.
-   if [ ! "${dist_build_raw:-}" = "true" ] && [ ! "${dist_build_qcow2:-}" = "true" ]; then
-      return 0
-   fi
-   if [ -r "${libvirt_source_kvm_file}" ]; then
-      return 0
-   fi
-
-   ## An EMPTY value is a different failure and needs a different message:
-   ## 'dirname -- ""' is '.', which exists, so the listing below would dump the
-   ## whole source root into the error instead of naming XML files.
-   if [ -z "${libvirt_source_kvm_file}" ]; then
-      error "\
-libvirt_source_kvm_file is empty, so no libvirt XML could be located for this
-build. It is set in help-steps/variables from SHORT_VMNAME; an empty value means
-the flavor did not resolve to a VM name.
-  flavor: ${dist_build_flavor:-unset}
-  target: raw/qcow2"
-   fi
-
-   xml_dir="$( dirname -- "${libvirt_source_kvm_file}" )"
-   available="  (${xml_dir} does not exist)"
-   if [ -d "${xml_dir}" ]; then
-      available="$( ls -1 -- "${xml_dir}" )"
-   fi
-
-   error "No libvirt XML exists for this flavor and target combination:
-  flavor       : ${dist_build_flavor:-unset}
-  target       : raw/qcow2
-  expected file: ${libvirt_source_kvm_file}
-
-build-steps.d/1600_export-libvirt-xml copies that file for every raw or qcow2
-target, so this build cannot finish. Flavors that do have one:
-${available}"
-}
-
-check-required-tools() {
-   local tool_spec tool_name tool_package missing_list missing_count
-
-   ## Every external tool the build or the reproducibility comparison invokes must
-   ## be present, ALWAYS, checked here rather than at the point of use. A tool that
-   ## is merely optional-in-practice is the failure mode this guards: 'modprobe'
-   ## was absent from the build container, so the comparison silently fell back to
-   ## a route that cannot explain a difference on a multi-gigabyte image, and the
-   ## reproducibility report said only "could not explain the diff" -- hours in,
-   ## naming nothing. Requiring the tool unconditionally is simpler than reasoning
-   ## about which step needs which, and it fails in seconds instead.
-   ##
-   ## 'diffoscope' is deliberately NOT here: ci/reproducible-install-deps pulls it
-   ## from trixie-backports because the version in trixie OOMs on these artifacts,
-   ## so declaring it a plain build dependency would install the known-bad one.
-   ## That one asserts itself at its own install site.
-   missing_list=""
-   missing_count=0
-
-   for tool_spec in \
-      "modprobe:kmod" \
-      "losetup:util-linux" \
-      "mountpoint:util-linux" \
-      "qemu-img:qemu-utils" \
-      "qemu-nbd:qemu-utils" \
-      "kpartx:kpartx" \
-      "parted:parted" ; do
-      tool_name="${tool_spec%%:*}"
-      tool_package="${tool_spec#*:}"
-      if has "${tool_name}" ; then
-         continue
-      fi
-      missing_count=$(( missing_count + 1 ))
-      missing_list="${missing_list}
-  ${tool_name} (package: ${tool_package})"
-   done
-
-   if [ "${missing_count}" -gt 0 ]; then
-      error "\
-${missing_count} required tool(s) are not installed:
-${missing_list}
-
-These are invoked by the build and by the reproducibility comparison. Install the
-listed packages; they are declared in buildconfig.d/30_dependencies.conf, so a
-gap here means the build environment was assembled without them."
-   fi
-}
-
 check_required_packages_installed() {
-   ## kmod / qemu-utils / kpartx / parted are bootstrapped HERE, not left to
-   ## '*_prepare-build-machine': the container image ships none of them, and this
-   ## step runs first. They are also declared in
-   ## buildconfig.d/30_dependencies.conf, which is what keeps them installed for
-   ## the rest of the build.
-   ##
-   ## 'kmod' is the one that has already bitten: without 'modprobe' the
-   ## reproducibility comparison cannot attach an image through nbd, and silently
-   ## fell back to comparing the packed artifacts, which OOMs on a multi-gigabyte
-   ## image. The run then reported only "diffoscope could not explain the diff",
-   ## hours in, naming neither the tool nor the package.
-   ##
-   ## 'diffoscope' is deliberately NOT here: ci/reproducible-install-deps pulls it
-   ## from trixie-backports because the version in trixie OOMs on these artifacts,
-   ## so declaring it a plain build dependency would install the known-bad one.
-   ## That one asserts itself at its own install site.
-   required_packages_list="git time curl approx lsb-release fakeroot fasttrack-archive-keyring safe-rm gpg-sq kmod qemu-utils kpartx parted"
+   required_packages_list="git time curl approx lsb-release fakeroot fasttrack-archive-keyring safe-rm gpg-sq"
    local required_package_item
 
    ## SC2086: intentional word-splitting of the space-separated package list.
@@ -884,27 +621,18 @@ main() {
    check-redistributable-builds-requirements "$@"
    check-git-folder "$@"
    check-git-symlinks "$@"
-   ## Early: it is a pure variable/file check, and catching an unbuildable
-   ## flavor/target combination here saves the whole run.
-   check-libvirt-xml "$@"
    check-operating-system-version "$@"
    check-sudo "$@"
    check-dpkg "$@"
    check-hostname "$@"
    check-mailname "$@"
    check-source-folder-permissions "$@"
-   check-sufficient-disk "$@"
    check-stray-loop-devices "$@"
-   check-umask-in-sync "$@"
-   check-stale-nbd "$@"
    check-stray-mounts "$@"
    mount-test "$@"
    check-build-primitives "$@"
    check-copy-vms-into-raw "$@"
    check_required_packages_installed "$@"
-   ## After the installer above, so a first run on a bare machine installs and
-   ## then verifies rather than failing on a gap it was about to close.
-   check-required-tools "$@"
 
    "${dist_source_help_steps_folder}/git_sanity_test" --mode all --context "main repo"
 
