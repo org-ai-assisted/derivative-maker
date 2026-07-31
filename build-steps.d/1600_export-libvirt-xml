@@ -23,30 +23,7 @@ source pre
 source variables
 
 export-libvirt-xml() {
-   local xml_dir available
-
    mkdir --parents "${binary_build_folder_dist}"
-
-   if [ -z "${libvirt_source_kvm_file}" ]; then
-      error "libvirt_source_kvm_file is empty, so the flavor did not resolve to a
-VM name. It is set in help-steps/variables from SHORT_VMNAME.
-  flavor: ${dist_build_flavor:-unset}"
-   fi
-
-   if [ ! -r "${libvirt_source_kvm_file}" ]; then
-      xml_dir="$( dirname -- "${libvirt_source_kvm_file}" )"
-      if [ -d "${xml_dir}" ]; then
-         available="$( ls -1 -- "${xml_dir}" )"
-      else
-         available="  (${xml_dir} does not exist)"
-      fi
-      error "No libvirt XML exists for this flavor and target combination:
-  flavor       : ${dist_build_flavor:-unset}
-  expected file: ${libvirt_source_kvm_file}
-
-Available libvirt XML files:
-${available}"
-   fi
 
    cp -- "${libvirt_source_kvm_file}" "${libvirt_target_kvm_file}"
 
@@ -70,11 +47,6 @@ main() {
 #       true "${green}INFO: Skipping ${BASH_SOURCE[0]}, because dist_build_host_operating_system is '$dist_build_host_operating_system', ok.${reset}"
 #       return 0
 #    fi
-
-   if [ "${dist_build_source_run:-}" = "true" ]; then
-      true "${green}INFO: Skipping ${BASH_SOURCE[0]}, because this is a source build.${reset}"
-      return 0
-   fi
 
    if [ "${dist_build_raw:-}" = "true" ]; then
       ## Required for Linux libvirt KVM raw image builds.
