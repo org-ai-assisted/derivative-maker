@@ -35,8 +35,8 @@ export_utm_packages() {
    ## advantage:
    ## - makes this step idempotent, easier to test and debug
    ## - can CI test dm-prepare-release
-   cp "${binary_image_raw_file}" "${binary_image_utm_folder}/Data/${VMNAME}.raw"
-   cp "${source_utm_file}" "${binary_image_utm_folder}/config.plist"
+   cp -- "${binary_image_raw_file}" "${binary_image_utm_folder}/Data/${VMNAME}.raw"
+   cp -- "${source_utm_file}" "${binary_image_utm_folder}/config.plist"
 
    ## Fill in correct architecture and target in UTM template files.
    local utm_arch

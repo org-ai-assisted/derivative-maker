@@ -36,7 +36,7 @@ create-debian-raw-image() {
       fi
       ${SUDO_TO_ROOT} chown "${user_name}:${user_name}" "${cached_binary_image_raw_file}"
       ${SUDO_TO_ROOT} safe-rm -f -- "${binary_image_raw_file}"
-      cp "${cached_binary_image_raw_file}" "${binary_image_raw_file}"
+      cp -- "${cached_binary_image_raw_file}" "${binary_image_raw_file}"
       true "${cyan}${BASH_SOURCE[0]} INFO: copying cached_binary_image_raw_file done.${reset}"
       return 0
    fi
@@ -46,7 +46,7 @@ create-debian-raw-image() {
    true "${cyan}INFO: dist_build_target_arch set to: ${dist_build_target_arch}${reset}"
 
    ${SUDO_TO_ROOT} mkdir --parents "/etc/debootstrap/etc/apt/sources.list.d"
-   ${SUDO_TO_ROOT} cp "${dist_build_sources_list_primary}" "/etc/debootstrap/etc/apt/sources.list.d/derivative.sources"
+   ${SUDO_TO_ROOT} cp -- "${dist_build_sources_list_primary}" "/etc/debootstrap/etc/apt/sources.list.d/derivative.sources"
 
    ## Info.
    true "${cyan}INFO: Using the following /etc/apt/sources.list.d/derivative.sources for grml-debootstrap: ${reset}"
