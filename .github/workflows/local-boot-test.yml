@@ -193,6 +193,7 @@ jobs:
         run: ./ci/cowbuilder-base-cache unpack
 
       - name: Build ${{ matrix.flavor }} via dm-build-official (${{ env.BOOT_ARCH }})
+        id: dm-build
         ## Build through the official orchestration -- the SAME single build path as
         ## local-build.yml, no duplication. dm-build-official does NOT sign, and the
         ## build's sq-git check rejects an unsigned HEAD, so mint an ephemeral CI key
@@ -271,8 +272,14 @@ jobs:
           path: ~/approx_cache_mnt
           key: ${{ runner.os }}-boot-aptdl-${{ matrix.flavor }}-${{ env.BOOT_ARCH }}-${{ github.run_id }}
 
+      ## Save ONLY after a successful build. 1300_cowbuilder-setup's reuse health
+      ## check is a single test -- '/dev/ptmx' is a character device -- which a
+      ## partially created base can satisfy, so a base packed from a run that died
+      ## during creation would restore as the newest prefix match and poison every
+      ## later run. Skipping the save on failure costs one cold base; caching a
+      ## broken one costs every subsequent build until someone notices.
       - name: Save cowbuilder base cache (temporary speed-up)
-        if: always() && env.BASE_CACHE == 'true'
+        if: env.BASE_CACHE == 'true' && steps.dm-build.outcome == 'success'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/cowbuilder-base-cache
