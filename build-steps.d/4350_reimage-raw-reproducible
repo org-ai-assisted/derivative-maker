@@ -13,7 +13,7 @@ shopt -s shift_verbose
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
-MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+MYDIR="$( cd "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 
 cd "${MYDIR}"
 cd ..
@@ -112,9 +112,9 @@ reimage_raw() {
    ## Stage the copied tree next to the SAME image mount_raw mapped (disk-backed, has room for a full
    ## rootfs copy). mount_raw uses dist_build_mount_raw_file when set, else binary_image_raw_file.
    if [ -n "${dist_build_mount_raw_file:-}" ]; then
-      reimage_parent="$(dirname "${dist_build_mount_raw_file}")"
+      reimage_parent="$(dirname -- "${dist_build_mount_raw_file}")"
    else
-      reimage_parent="$(dirname "${binary_image_raw_file}")"
+      reimage_parent="$(dirname -- "${binary_image_raw_file}")"
    fi
    reimage_tree="$(${SUDO_TO_ROOT} mktemp -d -p "${reimage_parent}")"
 
