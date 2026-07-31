@@ -8,6 +8,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -16,7 +18,7 @@ MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source "${MYDIR}/pre"
 source "${MYDIR}/variables"
 
-error_handler_chroot-raw() {
+error_handler_chroot_raw() {
    : echo "
 ${red}${bold}BASH_COMMAND${reset}: ${BASH_COMMAND}
 ${red}${bold}ERROR ${BASH_SOURCE[0]}: | caller: $(caller)${reset}
@@ -25,7 +27,7 @@ ${red}${bold}ERROR ${BASH_SOURCE[0]}: | caller: $(caller)${reset}
 }
 
 main() {
-   trap "error_handler_chroot-raw" ERR INT TERM
+   trap error_handler_chroot_raw ERR INT TERM
 
    sync
 
@@ -97,7 +99,7 @@ devices_mount() {
 chroot_files_cleanup() {
    ## Cleanup leftover files from the build process using 'mmdebstrap'.
    if test -f "${CHROOT_FOLDER}/etc/apt/apt.conf.d/99mmdebstrap" ; then
-      ${SUDO_TO_ROOT} rm --verbose "${CHROOT_FOLDER}/etc/apt/apt.conf.d/99mmdebstrap"
+      ${SUDO_TO_ROOT} safe-rm --verbose -- "${CHROOT_FOLDER}/etc/apt/apt.conf.d/99mmdebstrap"
    fi
 
    ##########################
@@ -121,7 +123,7 @@ chroot_files_cleanup() {
       ${SUDO_TO_ROOT} chmod o+r -- "${CHROOT_FOLDER}/etc/apt/sources.list"
       if diff "${dist_build_sources_list_primary}" "${CHROOT_FOLDER}/etc/apt/sources.list" ; then
          true "INFO: Host ${dist_build_sources_list_primary} matches chroot ${CHROOT_FOLDER}/etc/apt/sources.list, deleting it, ok."
-         ${SUDO_TO_ROOT} rm --verbose "${CHROOT_FOLDER}/etc/apt/sources.list"
+         ${SUDO_TO_ROOT} safe-rm --verbose -- "${CHROOT_FOLDER}/etc/apt/sources.list"
       else
          error "ERROR: Host ${dist_build_sources_list_primary} does not match chroot ${CHROOT_FOLDER}/etc/apt/sources.list"
       fi
@@ -134,7 +136,7 @@ chroot_files_cleanup() {
       ${SUDO_TO_ROOT} chmod o+r -- "${CHROOT_FOLDER}/${dist_mmdebstrap_build_sources_list_primary}"
       if diff "${dist_build_sources_list_primary}" "${CHROOT_FOLDER}/${dist_mmdebstrap_build_sources_list_primary}" ; then
          true "INFO: Host ${dist_build_sources_list_primary} matches chroot ${CHROOT_FOLDER}/${dist_mmdebstrap_build_sources_list_primary}, deleting it, ok."
-         ${SUDO_TO_ROOT} rm --verbose "${CHROOT_FOLDER}/${dist_mmdebstrap_build_sources_list_primary}"
+         ${SUDO_TO_ROOT} safe-rm --verbose -- "${CHROOT_FOLDER}/${dist_mmdebstrap_build_sources_list_primary}"
       else
          error "ERROR: Host ${dist_build_sources_list_primary} does not match chroot ${CHROOT_FOLDER}/${dist_mmdebstrap_build_sources_list_primary}"
       fi
@@ -204,7 +206,7 @@ chroot_mount_files() {
          true "INFO: File '${host_system_file_full_path}' does not exist, skipping copy."
          if [ -f "${system_file_copy_full_path}" ]; then
             true "INFO: Deleting potentially stale version from a previous run..."
-            ${SUDO_TO_ROOT} rm --verbose "${system_file_copy_full_path}"
+            ${SUDO_TO_ROOT} safe-rm --verbose -- "${system_file_copy_full_path}"
          fi
          ## Create an empty file to ensure its existence.
          ${SUDO_TO_ROOT} touch "${system_file_copy_full_path}"

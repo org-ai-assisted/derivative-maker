@@ -211,7 +211,7 @@ cowbuilder_setup_do() {
          ## which -- unlike the pbuilder package's pre-created '/var/cache/pbuilder' -- does
          ## not exist until then; cowbuilder fails ("Could not create basepath") without it.
          if [ -d "${base_folder}" ]; then
-            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" "${base_folder}"
+            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" -- "${base_folder}"
             ${SUDO_TO_ROOT} safe-rm --recursive --force -- "${base_folder}"
          fi
 
@@ -247,7 +247,7 @@ cowbuilder_setup_do() {
                   || { cowbuilder_exit_code="$?" ; true; };
 
          if [ -d "${base_folder}" ]; then
-            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" "${base_folder}"
+            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" -- "${base_folder}"
          fi
 
          if [ ! "${cowbuilder_exit_code:-}" = "0" ]; then
@@ -326,7 +326,7 @@ cowbuilder_setup_do() {
                   || { cowbuilder_exit_code="$?" ; true; };
 
          if [ -d "${base_folder}" ]; then
-            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" "${base_folder}"
+            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" -- "${base_folder}"
          fi
 
          if [ ! "${cowbuilder_exit_code:-}" = "0" ]; then
