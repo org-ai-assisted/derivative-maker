@@ -18,14 +18,21 @@ MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 source "${MYDIR}/pre"
 source "${MYDIR}/variables"
 
-exception_handler_unmount_raw() {
+exception_handler_unmount-raw() {
    true "${red}${bold}BASH_COMMAND${reset}: ${BASH_COMMAND}
 ${red}${bold}ERROR ${BASH_SOURCE[0]}: | caller: $(caller)${reset}"
    exit 1
 }
 
 unmount_raw() {
-   trap exception_handler_unmount_raw ERR INT TERM
+   trap exception_handler_unmount-raw ERR INT TERM
+
+   if [ "${mount_folder:-}" = "" ]; then
+      true
+   else
+      ## hack for help-steps/analyze-image
+      CHROOT_FOLDER="${mount_folder}"
+   fi
 
    sync
 
@@ -35,7 +42,6 @@ unmount_raw() {
    if [ "${kpartx_only:-}" = "true" ]; then
       true "INFO: kpartx_only=${kpartx_only}, skipping unmount ${CHROOT_FOLDER}"
    else
-      "${dist_source_help_steps_folder}/mount-cleanup" -- "${CHROOT_FOLDER}"
       "${dist_source_help_steps_folder}/unmount-helper" -- "${CHROOT_FOLDER}"
    fi
 
