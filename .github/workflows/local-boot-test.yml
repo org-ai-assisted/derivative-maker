@@ -59,7 +59,11 @@ env:
 jobs:
   build:
     ## Fork-PR guard (rule 3).
-    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
+    ## CI runs only where we enabled it; ANDed with the existing guard.
+    ## Unset variable -> skipped, no runner, run stays green.
+    if: >-
+      vars.CI_ENABLED_ORG_AI_ASSISTED == 'true'
+      && (github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request')
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     strategy:
@@ -299,7 +303,11 @@ jobs:
 
   boot-test:
     needs: build
-    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
+    ## CI runs only where we enabled it; ANDed with the existing guard.
+    ## Unset variable -> skipped, no runner, run stays green.
+    if: >-
+      vars.CI_ENABLED_ORG_AI_ASSISTED == 'true'
+      && (github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request')
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
