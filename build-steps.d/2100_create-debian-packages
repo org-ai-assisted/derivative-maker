@@ -485,17 +485,23 @@ create_derivative_distribution_debian_packages() {
       return 0
    fi
 
-   ## Concurrency: parallel package builds are OPT-IN via 'dist_build_package_jobs=N' (serial by
-   ## default). Parallelism REQUIRES the genmkfile 'make_cow_suffix' support (each worker its own
-   ## 'cow.cow_<arch>.<slot>' snapshot; the read-only 'base.cow_<arch>' is shared safely). Until the
-   ## genmkfile submodule pointer is bumped to a commit carrying that support, leaving the default
-   ## serial keeps builds correct (a bumped-but-unsupported genmkfile would make N workers share one
-   ## 'cow.cow_<arch>' and collide). Only meaningful with cowbuilder (isolated per-build chroot);
-   ## without it, builds share the host apt/dpkg lock, so stay serial. Package builds are independent
-   ## (no derivative package build-depends on a sibling) so no ordering is needed; 'reprepro' (shared,
-   ## locked DB) is deferred to Phase 3. To enable, e.g. 'dist_build_package_jobs=4'; cap ~nproc-2.
+   ## Concurrency: parallel package builds are opt-in via '--package-jobs N' /
+   ## 'dist_build_package_jobs=N' (serial by default). Package builds are independent (no
+   ## derivative package build-depends on a sibling) so no ordering is needed; 'reprepro'
+   ## (shared, locked DB) is deferred to Phase 3.
+   ##
+   ## The request is SAFE to pass unconditionally: every precondition is verified here and
+   ## an unmet one falls back to serial with a reason, rather than being a caveat the
+   ## caller has to know. Falling back is announced, never silent -- a request that was
+   ## quietly reduced is indistinguishable from one that was honoured.
+   ##   - cowbuilder gives each build its own chroot; without it builds share the host
+   ##     apt/dpkg lock and must stay serial.
+   ##   - genmkfile's 'make_cow_suffix' gives each worker its own
+   ##     'cow.cow_<arch>.<slot>' snapshot (the read-only 'base.cow_<arch>' is shared
+   ##     safely). Without it N workers would share ONE 'cow.cow_<arch>' and corrupt each
+   ##     other, so a genmkfile predating that support must run serial.
    local max_jobs=1
-   if [ "${make_use_cowbuilder:-}" = "true" ] && [ -n "${dist_build_package_jobs:-}" ]; then
+   if [ -n "${dist_build_package_jobs:-}" ]; then
       ## Reject a non-positive-integer job count: 0 / negative / non-numeric creates no slots, and
       ## the free-slot loop below would then spin forever on 'wait -n' with no children to reap.
       case "${dist_build_package_jobs}" in
@@ -503,7 +509,14 @@ create_derivative_distribution_debian_packages() {
             error "dist_build_package_jobs must be a positive integer (got: '${dist_build_package_jobs}')."
             ;;
       esac
-      max_jobs="${dist_build_package_jobs}"
+      if [ ! "${make_use_cowbuilder:-}" = "true" ]; then
+         true "${cyan}INFO: --package-jobs=${dist_build_package_jobs} requested, but cowbuilder is not in use; building serially.${reset}"
+      elif ! grep --quiet --fixed-strings -- 'make_cow_suffix' \
+         "${source_code_folder_dist}/packages/kicksecure/genmkfile/usr/share/genmkfile/make-helper-one.bsh"; then
+         true "${cyan}INFO: --package-jobs=${dist_build_package_jobs} requested, but this genmkfile has no 'make_cow_suffix' support (workers would share one cow snapshot); building serially.${reset}"
+      else
+         max_jobs="${dist_build_package_jobs}"
+      fi
    fi
    true "${cyan}INFO: building packages with up to ${max_jobs} parallel job(s).${reset}"
 
