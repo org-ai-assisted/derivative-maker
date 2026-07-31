@@ -91,7 +91,8 @@ main() {
    ## by the sourced 'pre'), firing exception_handler_general before any
    ## caller could react. The actual fail-closed guarantee -- that a
    ## downstream recursive deletion cannot cross a leftover bind mount into
-   ## the real /dev -- lives in 'ci/build's 'rm --one-file-system',
+   ## the real /dev -- lives in the 'rm --one-file-system' of
+   ## 'build-steps.d/3600_convert-raw-to-iso',
    ## which is structural (the kernel refuses the crossing) regardless of
    ## this warning.
    local remaining
