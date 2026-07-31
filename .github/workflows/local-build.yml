@@ -235,7 +235,10 @@ jobs:
             /home/runner/binary_mnt/**/Kicksecure-*
             !/home/runner/binary_mnt/**/*.raw
           if-no-files-found: error
-          retention-days: 7
+          ## 2 days, matching boot-image-*: nothing consumes these after the
+          ## compare job (its only reader), so a longer window just holds
+          ## storage. The report below is the durable, human-facing output.
+          retention-days: 2
 
   compare:
     needs: build
