@@ -197,15 +197,16 @@ jobs:
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/cowbuilder-base-cache
-          key: ${{ runner.os }}-repro-${{ matrix.copy }}-cowbase-${{ env.REPRO_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-repro-${{ matrix.copy }}-cowbase-${{ env.REPRO_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**', 'help-steps/mmdebstrap', 'help-steps/pbuilder-hooks/**') }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-repro-${{ matrix.copy }}-cowbase-${{ env.REPRO_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**') }}-
+            ${{ runner.os }}-repro-${{ matrix.copy }}-cowbase-${{ env.REPRO_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**', 'help-steps/mmdebstrap', 'help-steps/pbuilder-hooks/**') }}-
 
       - name: Unpack cowbuilder base into place
         if: env.BASE_CACHE == 'true'
         run: ./ci/cowbuilder-base-cache unpack
 
       - name: Build ${{ matrix.copy }} via dm-build-official (${{ env.REPRO_FLAVOR }}, ${{ env.REPRO_ARCH }})
+        id: dm-build
         ## Route the build through the OFFICIAL orchestration
         ## (help-steps/dm-build-official), the single build path: CI and the
         ## local ci/reproducible-build-twice drive the same entrypoint, so a
@@ -263,12 +264,18 @@ jobs:
         if: always() && env.BASE_CACHE == 'true'
         run: ./ci/cowbuilder-base-cache free
 
+      ## Save ONLY after a successful build. 1300_cowbuilder-setup's reuse health
+      ## check is a single test -- '/dev/ptmx' is a character device -- which a
+      ## partially created base can satisfy, so a base packed from a run that died
+      ## during creation would restore as the newest prefix match and poison every
+      ## later run. Skipping the save on failure costs one cold base; caching a
+      ## broken one costs every subsequent build until someone notices.
       - name: Save cowbuilder base cache
-        if: always() && env.BASE_CACHE == 'true'
+        if: env.BASE_CACHE == 'true' && steps.dm-build.outcome == 'success'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/cowbuilder-base-cache
-          key: ${{ runner.os }}-repro-${{ matrix.copy }}-cowbase-${{ env.REPRO_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-repro-${{ matrix.copy }}-cowbase-${{ env.REPRO_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**', 'help-steps/mmdebstrap', 'help-steps/pbuilder-hooks/**') }}-${{ github.run_id }}
 
       - name: Save docker image to cache
         if: steps.dmimg-cache.outputs.cache-hit != 'true'
