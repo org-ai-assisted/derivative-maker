@@ -1144,7 +1144,14 @@ if [ "${dist_build_version:-}" = "" ]; then
    ## Examples dist_build_version:
    ## 10-13-g20e1b49ff27053784e3e9e163dfd4c98dced73f5
    ## 10.0.0.0.3-13-g20e1b49ff27053784e3e9e163dfd4c98dced73f5-developers-only
-   dist_build_version="$(${git_bin} describe --always --abbrev=1000000000)"
+   ##
+   ## --exclude skips help-steps/sign-tag-head's EPHEMERAL signing tags, which it
+   ## names '<nearest-tag>_<commit>_<key-fingerprint>' (or 'tag_<commit>_<key>').
+   ## One is created at HEAD on every local signed build, so a SECOND build on the
+   ## same checkout would otherwise derive its version from the previous build's
+   ## tag and silently emit a differently versioned image. Release tags carry no
+   ## underscore, so the two-underscore glob matches only the ephemeral form.
+   dist_build_version="$(${git_bin} describe --always --abbrev=1000000000 --exclude '*_*_*')"
    true "${cyan}INFO: Variable dist_build_version was unset. Auto detected. Set to: dist_build_version=${dist_build_version}${reset}"
 else
    true "${cyan}INFO: Variable dist_build_version was already set to: dist_build_version=${dist_build_version}${reset}"
