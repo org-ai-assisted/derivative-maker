@@ -1,0 +1,95 @@
+---
+## Verify every parent submodule gitlink on master points to a commit that is
+## reachable on the submodule's canonical upstream (Kicksecure / Whonix) master.
+##
+## Why a push-to-master check and not a git hook: a fork-only gitlink bump
+## reaches master through a GitHub PR MERGE, a server-side merge that runs NO
+## local git hook -- so the branch / no-gitlink-on-master guards never see it.
+## This is the only enforcement point in that path. It runs AFTER the merge
+## lands (post-merge detection), which is why the trigger is push:master, not
+## pull_request: a PR from an 'ai' branch legitimately carries an as-yet-
+## unmerged submodule pin for CI testing, and must not be flagged there.
+##
+## A tag push (refs/tags/*) does not match branches:[master], so a tagged commit
+## landing on master fires this once (the branch event), not twice.
+##
+## The check logic lives in dist-ai (usr/bin/dm-gitlink-upstream-check); this
+## workflow only checks dist-ai out beside the workspace and invokes it, the
+## same pattern as local-boot-test.yml. See agents/github-actions-security.md
+## for permissions / persist-credentials / SHA-pinning conventions.
+
+name: Gitlink Upstream Check
+
+on:
+  push:
+    branches: [master]
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    ## CI runs only where we enabled it; a fork or upstream that never opted in
+    ## sees no runner and a green run.
+    if: vars.CI_ENABLED_ORG_AI_ASSISTED == 'true'
+
+    timeout-minutes: 10
+
+    container:
+      ## debian:trixie - Debian 13, current stable. Re-pin procedure:
+      ## agents/github-actions-security.md. Matches the other local-*.yml.
+      image: debian:trixie@sha256:35b8ff74ead4880f22090b617372daff0ccae742eb5674455d542bef71ef1999  # debian:trixie as of 2026-04-27
+
+    steps:
+      - name: Install runtime dependencies (Debian apt)
+        ## Inline because checkout has not run yet - nothing is on disk.
+        ## curl + python3 are what dm-gitlink-upstream-check needs; git +
+        ## ca-certificates are for actions/checkout and TLS to the API.
+        run: |
+          set -e
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            git ca-certificates curl python3
+
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          persist-credentials: false
+          ## Only the gitlink SHAs are needed, not submodule contents.
+          submodules: false
+
+      - name: Checkout dist-ai (the check tool)
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          repository: org-ai-assisted/dist-ai
+          ref: master
+          path: dist-ai
+          persist-credentials: false
+
+      - name: Self-test the evaluator (offline regression)
+        run: ./dist-ai/usr/bin/dm-gitlink-upstream-check --self-test
+
+      - name: Check gitlinks resolve on upstream master
+        env:
+          ## Raises the API rate limit above the unauthenticated 60/hr; the
+          ## compare calls hit public Kicksecure / Whonix repos.
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./dist-ai/usr/bin/dm-gitlink-upstream-check --repo-root .
+
+      - name: Emit step summary
+        if: always()
+        env:
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          ./dist-ai/usr/bin/step-summary-emit \
+            --tool 'Gitlink Upstream Check' \
+            --column-header field \
+            --row "outcome=${JOB_STATUS}"
