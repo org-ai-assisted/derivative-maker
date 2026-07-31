@@ -73,7 +73,11 @@ main() {
    sync
    #sleep 6
 
-   if ! ${SUDO_TO_ROOT} cat -- /proc/mounts | grep --fixed-strings -- "${unmount_folder}" ; then
+   ## 'mountpoint', not a substring grep of /proc/mounts: a SIBLING sharing the
+   ## string prefix ('<dir>' vs '<dir>_vbox-workdir') matches the grep, so an
+   ## already-unmounted folder reads as still mounted and the escalation runs
+   ## every remaining attempt against it. Matches the checks below.
+   if ! ${SUDO_TO_ROOT} mountpoint --quiet -- "${unmount_folder}" ; then
       true "INFO: Already unmounted after first attempt using --lazy, ok."
       return 0
    fi
