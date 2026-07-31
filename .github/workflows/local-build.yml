@@ -93,13 +93,15 @@ env:
   ## cached here -- so reusing it cannot change what the two builds are compared on.
   BASE_CACHE: "true"
   ## Parallel package builds (2100_create-debian-packages), opt-in via this variable
-  ## and serial when unset. Safe here: each worker gets its OWN cow snapshot through
-  ## genmkfile's 'make_cow_suffix' (verified present in both the gitlink and the
-  ## fork-branch tip this lane checks out), the read-only base.cow is shared, derivative
-  ## packages never build-depend on a sibling, and the locked reprepro DB is deferred to
-  ## Phase 3. The guidance in 2100 is to cap around nproc-2; ubuntu-24.04 runners have
-  ## 4 vCPU. Both copies use the same value, so it cannot skew the a-vs-b comparison --
-  ## and were it ever to introduce nondeterminism, this lane is exactly what catches it.
+  ## and serial when unset. Its precondition is genmkfile 'make_cow_suffix' support,
+  ## which gives each worker its own cow snapshot instead of N workers colliding on
+  ## one; both checkout paths this lane can take -- the gitlink and the fork branch
+  ## ci/checkout-fork-submodule-branches switches to -- carry it. The read-only
+  ## base.cow is shared safely, derivative packages never build-depend on a sibling,
+  ## and the locked reprepro DB stays in Phase 3. 2100 advises capping around nproc-2;
+  ## ubuntu-24.04 runners have 4 vCPU. Both copies use the same value, so it cannot
+  ## skew the a-vs-b comparison -- and nondeterminism from it is what this lane
+  ## reports.
   REPRO_PACKAGE_JOBS: "2"
 
 jobs:
