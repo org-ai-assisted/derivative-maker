@@ -92,16 +92,12 @@ env:
   ## image content -- the same reasoning under which the docker image is already
   ## cached here -- so reusing it cannot change what the two builds are compared on.
   BASE_CACHE: "true"
-  ## Parallel package builds (2100_create-debian-packages), opt-in via this variable
-  ## and serial when unset. Its precondition is genmkfile 'make_cow_suffix' support,
-  ## which gives each worker its own cow snapshot instead of N workers colliding on
-  ## one; both checkout paths this lane can take -- the gitlink and the fork branch
-  ## ci/checkout-fork-submodule-branches switches to -- carry it. The read-only
-  ## base.cow is shared safely, derivative packages never build-depend on a sibling,
-  ## and the locked reprepro DB stays in Phase 3. 2100 advises capping around nproc-2;
-  ## ubuntu-24.04 runners have 4 vCPU. Both copies use the same value, so it cannot
-  ## skew the a-vs-b comparison -- and nondeterminism from it is what this lane
-  ## reports.
+  ## Parallel package builds, passed as '--package-jobs N'. 2100 verifies its own
+  ## preconditions (cowbuilder in use, genmkfile 'make_cow_suffix' support) and falls
+  ## back to serial with a reason if either is missing, so this needs no guard here.
+  ## 2100 advises capping around nproc-2; ubuntu-24.04 runners have 4 vCPU. Both
+  ## copies get the same value, so it cannot skew the a-vs-b comparison -- and
+  ## nondeterminism introduced by it is what this lane exists to report.
   REPRO_PACKAGE_JOBS: "2"
 
 jobs:
@@ -227,6 +223,10 @@ jobs:
         ## persists into sign-and-tag and the build. The ephemeral signature does not
         ## break reproducibility: dist_build_version is pinned pre-sign and the image
         ## content does not embed the commit signature.
+        ## Setting dist_build_version here bypasses help-steps/variables' own detection,
+        ## so this describe carries the SAME '--exclude' -- otherwise a checkout that
+        ## already has an ephemeral '<tag>_<commit>_<key>' tag from an earlier signed
+        ## build pins the version to that tag. Fresh in CI, not on a reused workspace.
         ## rule 4: shell vars from env, never ${{ }} interpolation into run:.
         env:
           CI: "true"
@@ -241,12 +241,11 @@ jobs:
           COWBASE_REUSE_FLAG: ${{ env.BASE_CACHE == 'true' && '--reuse-cowbuilder-base' || '' }}
         run: >-
           ./docker/derivative-maker-docker-run --
-          bash -c "export dist_build_version=\"\$(git describe --always --abbrev=1000000000)\" &&
+          bash -c "export dist_build_version=\"\$(git describe --always --abbrev=1000000000 --exclude '*_*_*')\" &&
           ./help-steps/signing-key-create && ./help-steps/sign-and-tag &&
           env dist_build_target_arch='${ARCH}' flavors_list='${FLAVOR}'
           dist_build_multi_target_list='${MULTI}'
-          dist_build_package_jobs='${PKG_JOBS}'
-          ./help-steps/dm-build-official --freshness '${FRESHNESS}' ${COWBASE_REUSE_FLAG}"
+          ./help-steps/dm-build-official --freshness '${FRESHNESS}' --package-jobs '${PKG_JOBS}' ${COWBASE_REUSE_FLAG}"
 
       ## Pack the cowbuilder base into its tarball BEFORE freeing it: under
       ## --reuse-cowbuilder-base the base lives in this tree, and the upload glob
