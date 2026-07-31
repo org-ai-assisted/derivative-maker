@@ -212,7 +212,14 @@ cowbuilder_setup_do() {
          ## not exist until then; cowbuilder fails ("Could not create basepath") without it.
          if [ -d "${base_folder}" ]; then
             ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" -- "${base_folder}"
-            ${SUDO_TO_ROOT} safe-rm --recursive --force -- "${base_folder}"
+            ## Fail CLOSED before the recursive delete: unmount-tree exits
+            ## non-zero while anything is still mounted under the tree, so the
+            ## delete cannot follow a leftover bind mount out of it.
+            ## '--one-file-system' is the structural backstop the kernel
+            ## enforces regardless (it does NOT cover a bind mount from the
+            ## same filesystem, hence both).
+            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/unmount-tree" -- "${base_folder}"
+            ${SUDO_TO_ROOT} safe-rm --one-file-system --recursive --force -- "${base_folder}"
          fi
 
          local cowbuilder_exit_code
