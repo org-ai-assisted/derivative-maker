@@ -46,18 +46,13 @@ mounts_under_tree=()
 
 ## Collect the mount points strictly under '$1', deepest first.
 ##
-## Reads '/proc/self/mountinfo' rather than asking 'findmnt'. findmnt
-## hex-escapes unsafe characters in a mount point -- '--raw' and '--pairs'
-## render a space as '\x20' and a tab as '\x09', a scheme findmnt(8) does
-## document -- but util-linux exports no unescape helper, so each consumer has
-## to reimplement '\xHH' decoding. The implementations replaced here simply
-## did not decode, handing the escaped string to 'umount', which then matches
-## no mount while the sweep still looks clean. '--list' is worse: its escaping
-## is undocumented and leaves spaces literal. '--json' needs no decoding but
-## emits invalid JSON for a path that is not valid UTF-8, and Linux paths are
-## arbitrary bytes. mountinfo's field 5 needs no extra tool at all: the kernel
-## escapes ' ', '\t', '\n' and '\' as '\040', '\011', '\012', '\134'
-## (proc_pid_mountinfo(5)), which 'printf %b' decodes in one builtin call.
+## Reads '/proc/self/mountinfo' rather than asking 'findmnt': findmnt ESCAPES
+## a mount point containing whitespace and offers no way to decode it again
+## ('--raw' renders a space as '\x20', '--list' renders a tab as '\x09'), so
+## the escaped form reaches 'umount' verbatim and the unmount fails while
+## looking like a clean sweep. mountinfo's field 5 carries the kernel's own
+## octal escaping -- ' ', '\t', '\n' and '\' become '\040', '\011', '\012',
+## '\134' (proc_pid_mountinfo(5)) -- which 'printf %b' decodes exactly.
 ##
 ## Sorting is done on the ENCODED form: it is newline-free, so a line-based
 ## sort cannot split one entry into two, and a child path is always its
@@ -141,12 +136,9 @@ main() {
       unmount_tree_die "file_system_object '${file_system_object}' canonicalized to '${real_path}', refusing."
    fi
 
-   ## Repeat until the mount table stops changing. Sorting alone is not
-   ## sufficient: a child mounted BEFORE something was mounted OVER its parent
-   ## keeps the now-hidden lower parent as its parent mount, so detaching the
-   ## topmost one leaves the child attached. Re-reading is what clears that
-   ## (systemd's umount_recursive_full() re-reads mountinfo for the same
-   ## reason). It also picks up anything mounted while the previous pass ran.
+   ## Repeat the sweep: '--lazy' detaches immediately, but a mount that was
+   ## created under the tree while the previous pass ran is only visible to
+   ## the next one.
    for attempt_number in 1 2 3; do
       collect_mounts_under_tree "${real_path}" \
          || unmount_tree_die "could not read the mount table, refusing to report '${real_path}' as unmounted."
