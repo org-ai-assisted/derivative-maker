@@ -195,8 +195,8 @@ virtualbox_windows_installer_download() {
    ## dm-virtualbox-installer-exe-verify-windows requires being in the folder.
    pushd "${binary_build_folder_dist}/virtualbox-windows-installer-binary" >/dev/null
 
-   cp --verbose "${source_code_folder_dist}/windows/virtualbox/download.txt" "${binary_build_folder_dist}/virtualbox-windows-installer-binary/"
-   cp --verbose "${source_code_folder_dist}/windows/virtualbox/SHA256SUMS" "${binary_build_folder_dist}/virtualbox-windows-installer-binary/"
+   cp --verbose -- "${source_code_folder_dist}/windows/virtualbox/download.txt" "${binary_build_folder_dist}/virtualbox-windows-installer-binary/"
+   cp --verbose -- "${source_code_folder_dist}/windows/virtualbox/SHA256SUMS" "${binary_build_folder_dist}/virtualbox-windows-installer-binary/"
 
    curl_download_target_url=$(cat -- "${source_code_folder_dist}/windows/virtualbox/download.txt")
    ## Exact filename is required for SHA256SUMS verification.

@@ -122,7 +122,7 @@ reimage_raw() {
    ## filesystems mounted over it. cp -a preserves ownership, permissions, timestamps, symlinks,
    ## hardlinks, device nodes and xattrs (security.capability etc.) -- mke2fs -d needs all intact.
    ${SUDO_TO_ROOT} mount -o ro "${dev_mapper_device}" "${reimage_mnt}"
-   ${SUDO_TO_ROOT} cp -a "${reimage_mnt}/." "${reimage_tree}/"
+   ${SUDO_TO_ROOT} cp -a -- "${reimage_mnt}/." "${reimage_tree}/"
    ${SUDO_TO_ROOT} umount "${reimage_mnt}"
    rmdir -- "${reimage_mnt}"
    reimage_mnt=""
@@ -151,7 +151,7 @@ reimage_raw() {
    ## assignment lines in a non-deterministic order. Sort the file so it is identical every build;
    ## the header comment sorts before the KEY=value lines, whose order is irrelevant to consumers.
    if ${SUDO_TO_ROOT} test -f "${reimage_tree}/etc/locale.conf"; then
-      ${SUDO_TO_ROOT} sort -o "${reimage_tree}/etc/locale.conf" "${reimage_tree}/etc/locale.conf"
+      ${SUDO_TO_ROOT} sort -o "${reimage_tree}/etc/locale.conf" -- "${reimage_tree}/etc/locale.conf"
    fi
 
    ## Zero the partition so free-block slack is deterministic and carries no stale bytes from the
@@ -197,7 +197,7 @@ reimage_raw() {
                   "set_super_value lastcheck ${sde_hex}" \
                   "set_super_value mkfs_time ${sde_hex}" \
                   "set_super_value kbytes_written 0" ; do
-      debugfs_err="$(${SUDO_TO_ROOT} debugfs -w -R "${sde_cmd}" "${dev_mapper_device}" 2>&1 1>/dev/null)"
+      debugfs_err="$(${SUDO_TO_ROOT} debugfs -w -R "${sde_cmd}" -- "${dev_mapper_device}" 2>&1 1>/dev/null)"
       case "${debugfs_err}" in
          *"set_super_value:"*)
             printf '%s\n' "ERROR: ${BASH_SOURCE[0]}: debugfs rejected '${sde_cmd}': ${debugfs_err}" >&2
