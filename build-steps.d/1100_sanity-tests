@@ -108,6 +108,69 @@ check-git-folder() {
    fi
 }
 
+check-git-symlinks() {
+   local repo_list repo_rel repo_abs entry mode file_path broken_list broken_count
+
+   ## Every path the index records as a symlink (mode 120000) must BE a symlink in
+   ## the working tree. When 'core.symlinks' is false git writes a regular file
+   ## holding the link target instead -- and considers that correct, so
+   ## 'git status' reports the tree CLEAN and nothing else in the build notices.
+   ## Kicksecure and Whonix (the project's own operating systems, so a very
+   ## likely build host) ship /etc/gitconfig with 'core.symlinks = false' via
+   ## security-misc-shared, which makes this the DEFAULT there. The image then
+   ## ships text files where it should ship symlinks.
+   broken_list=""
+   broken_count=0
+
+   ## The parent plus every submodule. 'displaypath' under 'foreach --recursive'
+   ## is relative to the top level, so it composes with the source folder.
+   repo_list=(".")
+   # shellcheck disable=SC2016
+   mapfile -t -O "${#repo_list[@]}" repo_list < <(
+      git -C "${source_code_folder_dist}" submodule --quiet foreach --recursive 'printf "%s\n" "${displaypath}"'
+   )
+
+   for repo_rel in ${repo_list[@]+"${repo_list[@]}"} ; do
+      repo_abs="${source_code_folder_dist}/${repo_rel}"
+      test -d "${repo_abs}" || continue
+      ## -z, so a path containing a space, quote or newline is not mangled.
+      while IFS= read -r -d '' entry ; do
+         mode="${entry%% *}"
+         if [ ! "${mode}" = "120000" ]; then
+            continue
+         fi
+         file_path="${entry#*$'\t'}"
+         if test -L "${repo_abs}/${file_path}" ; then
+            continue
+         fi
+         broken_count=$(( broken_count + 1 ))
+         broken_list="${broken_list}
+  ${repo_rel}/${file_path}"
+      done < <(git -C "${repo_abs}" ls-files --stage -z)
+   done
+
+   if [ "${broken_count}" -gt 0 ]; then
+      error "\
+git materialized ${broken_count} symlink(s) as regular files.
+
+These paths are recorded in the index as symlinks but exist in the working
+tree as regular files holding the link target:
+${broken_list}
+
+CAUSE: core.symlinks is false for this checkout. Kicksecure and Whonix ship
+/etc/gitconfig with 'core.symlinks = false' (package security-misc-shared), so
+on such a build host EVERY checkout is affected and git reports the tree as
+clean -- the build would otherwise emit an image whose symlinks are wrong,
+with nothing naming the reason.
+
+FIX, per repository (leave the packaged system-wide file alone):
+  git config core.symlinks true
+  git submodule foreach --recursive 'git config core.symlinks true'
+then re-materialize each path above:
+  rm --force -- PATH ; git checkout --force -- PATH"
+   fi
+}
+
 check-operating-system-version() {
    local codename
 
@@ -557,6 +620,7 @@ main() {
    test-wc "$@"
    check-redistributable-builds-requirements "$@"
    check-git-folder "$@"
+   check-git-symlinks "$@"
    check-operating-system-version "$@"
    check-sudo "$@"
    check-dpkg "$@"
