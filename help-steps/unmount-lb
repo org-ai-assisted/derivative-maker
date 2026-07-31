@@ -42,28 +42,8 @@ MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source "${MYDIR}/pre"
 source "${MYDIR}/variables"
 
-## Print the mount points still attached under '$1', deepest first
-## ('sort --reverse' orders '/a/b/c' before '/a/b'). Path-boundary prefix
-## match via the case pattern, not a substring grep, so a sibling folder
-## sharing the name prefix cannot be matched.
-lb_mounts_under() {
-   local tree mount_list mount_target
-
-   tree="$1"
-   ## Fail closed: if the mount table cannot be read there is no safe way to
-   ## conclude the tree is clean, so propagate the failure to the caller.
-   mount_list="$(findmnt --list --noheadings --output TARGET | sort --reverse)" || return 1
-   while IFS="" read -r mount_target; do
-      case "${mount_target}" in
-         "${tree}"/*)
-            printf '%s\n' "${mount_target}"
-            ;;
-      esac
-   done <<< "${mount_list}"
-}
-
 main() {
-   local live_build_folder mount_target
+   local live_build_folder
 
    live_build_folder="${dist_binary_build_folder}/live-build"
 
@@ -72,39 +52,21 @@ main() {
       return 0
    fi
 
-   ## Attempt every mount below the tree ('|| true' so one stubborn target
-   ## does not skip the rest); 'umount --lazy' detaches immediately even
-   ## when busy.
-   while IFS="" read -r mount_target; do
-      [ -n "${mount_target}" ] || continue
-      ${SUDO_TO_ROOT} umount --lazy -- "${mount_target}" || true
-   done < <(lb_mounts_under "${live_build_folder}")
+   ## Warn on, but do not propagate, a failed sweep. No caller consumes the
+   ## exit code (2800's success sweep uses '|| true', the failure-path
+   ## exception handler ignores it), and a non-zero 'return' here would trip
+   ## THIS script's own ERR trap (installed by the sourced 'pre'), firing
+   ## exception_handler_general before any caller could react. The actual
+   ## fail-closed guarantee -- that a downstream recursive deletion cannot
+   ## cross a leftover bind mount into the real /dev -- lives in the
+   ## 'rm --one-file-system' of 'build-steps.d/3600_convert-raw-to-iso',
+   ## which is structural (the kernel refuses the crossing) regardless of
+   ## this warning. 'unmount-tree' has already printed what remains.
+   if ! ${SUDO_TO_ROOT} "${MYDIR}/unmount-tree" -- "${live_build_folder}" ; then
+      printf '%s\n' "WARNING: ${BASH_SOURCE[0]}: do NOT 'rm -rf' '${live_build_folder}' until the mounts listed above are unmounted -- a recursive delete would cross them. Unmount them manually, or the next build's 'lb clean' will." >&2
+   fi
 
    sync
-
-   ## Report (do not fail on) anything still mounted under the tree. This is
-   ## a best-effort helper: warn loudly so a leftover host bind mount is
-   ## visible, but return success. Returning non-zero would be pointless
-   ## and harmful -- no caller consumes the exit code (2800's success sweep
-   ## uses '|| true', the failure-path exception handler ignores it), and a
-   ## non-zero 'return' here would trip THIS script's own ERR trap (installed
-   ## by the sourced 'pre'), firing exception_handler_general before any
-   ## caller could react. The actual fail-closed guarantee -- that a
-   ## downstream recursive deletion cannot cross a leftover bind mount into
-   ## the real /dev -- lives in the 'rm --one-file-system' of
-   ## 'build-steps.d/3600_convert-raw-to-iso',
-   ## which is structural (the kernel refuses the crossing) regardless of
-   ## this warning.
-   local remaining
-   remaining="$(lb_mounts_under "${live_build_folder}")" || {
-      printf '%s\n' "WARNING: ${BASH_SOURCE[0]}: could not read the mount table to confirm '${live_build_folder}' is unmounted." >&2
-      return 0
-   }
-   if [ -n "${remaining}" ]; then
-      printf '%s\n' "WARNING: ${BASH_SOURCE[0]}: mounts still present under '${live_build_folder}' after unmount:" >&2
-      printf '%s\n' "${remaining}" >&2
-      printf '%s\n' "WARNING: do NOT 'rm -rf' '${live_build_folder}' until these are unmounted -- a recursive delete would cross the bind mount(s). Unmount them manually, or the next build's 'lb clean' will." >&2
-   fi
 }
 
 main "$@"
