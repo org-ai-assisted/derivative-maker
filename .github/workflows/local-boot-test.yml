@@ -184,9 +184,9 @@ jobs:
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/cowbuilder-base-cache
-          key: ${{ runner.os }}-boot-cowbase-${{ matrix.flavor }}-${{ env.BOOT_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-boot-cowbase-${{ matrix.flavor }}-${{ env.BOOT_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**', 'help-steps/mmdebstrap', 'help-steps/pbuilder-hooks/**') }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-boot-cowbase-${{ matrix.flavor }}-${{ env.BOOT_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**') }}-
+            ${{ runner.os }}-boot-cowbase-${{ matrix.flavor }}-${{ env.BOOT_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**', 'help-steps/mmdebstrap', 'help-steps/pbuilder-hooks/**') }}-
 
       - name: Unpack cowbuilder base into place (temporary speed-up)
         if: env.BASE_CACHE == 'true'
@@ -276,7 +276,7 @@ jobs:
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/cowbuilder-base-cache
-          key: ${{ runner.os }}-boot-cowbase-${{ matrix.flavor }}-${{ env.BOOT_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-boot-cowbase-${{ matrix.flavor }}-${{ env.BOOT_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**', 'help-steps/mmdebstrap', 'help-steps/pbuilder-hooks/**') }}-${{ github.run_id }}
 
       - name: Upload built ${{ matrix.image_kind }} image
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
