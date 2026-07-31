@@ -677,7 +677,14 @@ Not running any chroot scripts.${reset}"
    ## is finalized, popped out of and unmounted so the tree is unneeded: it is never a
    ## released artifact, and freeing it keeps a disk-constrained runner from filling up
    ## during a later VM-image build. Safe on any build (the ISO is already written).
-   ${SUDO_TO_ROOT} safe-rm --recursive --force -- "${dist_live_build_folder}" || true
+   ##
+   ## '--one-file-system' is the structural guard, not the unmount-lb sweep above: the
+   ## step bind-mounts the HOST's /dev, /dev/pts, /sys and /proc into the lb chroot, so
+   ## if a mount is somehow still live the kernel REFUSES to recurse across it rather
+   ## than deleting the host's device nodes. It exits non-zero when it skips a
+   ## boundary, which the trailing '|| true' absorbs -- best-effort cleanup must not
+   ## fail an otherwise-successful build.
+   ${SUDO_TO_ROOT} safe-rm --one-file-system --recursive --force -- "${dist_live_build_folder}" || true
 }
 
 main() {
