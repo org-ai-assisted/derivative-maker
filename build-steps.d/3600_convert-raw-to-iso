@@ -1,24 +1,7 @@
 #!/bin/bash
 
-## Copyright (C) 2026 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## Copyright (C) 2012 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
-
-## FIXME: This script is still using live-build. Our goal is to remove
-## live-build from our build process entirely. Rewrite this script to create
-## an ISO directly, do not call *any* live-build scripts or utilities, or
-## reference *any* files provided by live-build in the new code. Do feel free
-## to read live-build's source code to determine what needs to be done to
-## create a proper bootable ISO. Remove all code that installs or uses
-## live-build in any way, shape, or form. Do away with all "lb" naming,
-## as it will be misleading after this. Delete the entire live-build-data
-## subdirectory and move any important code or configuration in it to other
-## places as appropriate. Do not make any effort to preserve GRUB or
-## debian-installer theming in live-build-data. If you are an AI agent, do not
-## remove the live-build source tree submodule, that step must be done by a
-## human to prevent issues with gitlinks.
-
-## TODO: This script has not been reviewed by a human yet. It will be reviewed
-## once the changes requested by the above FIXME have been made.
 
 set -x
 set -o errexit
@@ -30,9 +13,9 @@ shopt -s shift_verbose
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
-MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
+MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd -- "${MYDIR}"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
@@ -64,7 +47,7 @@ create-live-build-image() {
    pushd -- "${dist_live_build_folder}"
 
    ## Avoid errors related to /dev/null when running under Qubes OS
-   if LC_ALL=C mount | grep ' on /home ' | grep --quiet 'nodev'; then
+   if LC_ALL=C mount | grep ' on /home ' | grep -q 'nodev'; then
       ${SUDO_TO_ROOT} mount -o remount,rw,dev /home
    fi
 
@@ -138,28 +121,28 @@ URIs: ${dist_build_apt_sources_mirror}
 Suites: ${dist_build_apt_stable_release}
 Components: main
 Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg" \
-      | sponge -- "${live_build_bootstrap_mirror_file}"
+      | sponge "${live_build_bootstrap_mirror_file}"
    printf '%s\n' "\
 Types: deb
 URIs: ${dist_build_apt_sources_security_mirror}
 Suites: ${dist_build_apt_stable_release}-security
 Components: main
 Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg" \
-      | sponge -- "${live_build_bootstrap_mirror_security_file}"
+      | sponge "${live_build_bootstrap_mirror_security_file}"
    printf '%s\n' "\
 Types: deb
 URIs: ${dist_build_apt_sources_mirror}
 Suites: ${dist_build_apt_stable_release}
 Components: main
 Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg" \
-      | sponge -- "${live_build_parent_bootstrap_mirror_file}"
+      | sponge "${live_build_parent_bootstrap_mirror_file}"
    printf '%s\n' "\
 Types: deb
 URIs: ${dist_build_apt_sources_security_mirror}
 Suites: ${dist_build_apt_stable_release}-security
 Components: main
 Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg" \
-      | sponge -- "${live_build_parent_bootstrap_mirror_security_file}"
+      | sponge "${live_build_parent_bootstrap_mirror_security_file}"
 
    ## TODO: Should quote...? ${DIST_APTGETOPT[*]}
 
@@ -167,9 +150,7 @@ Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg" \
    ##       also update at the same time grub-live:
    ##       /usr/lib/systemd/system/systemd-repart.service.d/30_grub-live.conf
 
-   ## Under '--smbios-reader true' only (default false, so a released ISO carries
-   ## neither the placeholder nor the reader that fills it):
-   ## the trailing '\\\${dm_smbios_extra}' in --bootappend-live is a GRUB variable
+   ## The trailing '\\\${dm_smbios_extra}' in --bootappend-live is a GRUB variable
    ## reference that must reach the generated grub.cfg UN-expanded, so a boot-tester
    ## can inject extra kernel cmdline via 'qemu -smbios' (the reader at the top of
    ## grub.cfg fills the variable; empty otherwise -> no-op). It survives four
@@ -201,15 +182,6 @@ Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg" \
       serial_console_cmdline=" console=tty0 console=ttyS0,115200n8"
    fi
 
-   ## '--smbios-reader true': the placeholder documented above. Escaped here rather
-   ## than in the --bootappend-live line itself, which is equivalent -- the same
-   ## '\\\$' is consumed by this double quoting, and the resulting value is not
-   ## re-scanned when it is expanded into the printf below.
-   smbios_reader_cmdline=""
-   if [ "${dist_build_smbios_reader:-}" = "true" ]; then
-      smbios_reader_cmdline=" \\\${dm_smbios_extra}"
-   fi
-
    printf '%s\n' "#!/bin/sh
 
 lb config noauto \\
@@ -222,7 +194,7 @@ lb config noauto \\
    --archive-areas 'main contrib non-free non-free-firmware' \\
    --backports true \\
    --binary-image iso-hybrid \\
-   --bootappend-live 'rd.live.overlay.overlayfs=1 boot=live components splash live-config.hostname=${dist_build_hostname} rd.live.image root=live:CDLABEL=${dist_build_type_short} rd.live.dir=live rd.live.squashimg=filesystem.squashfs${serial_console_cmdline}${smbios_reader_cmdline}' \\
+   --bootappend-live 'rd.live.overlay.overlayfs=1 boot=live components splash live-config.hostname=${dist_build_hostname} rd.live.image root=live:CDLABEL=${dist_build_type_short} rd.live.dir=live rd.live.squashimg=filesystem.squashfs${serial_console_cmdline} \\\${dm_smbios_extra}' \\
    --bootappend-live-failsafe 'none' \\
    --cache false \\
    --checksums md5 \\
@@ -307,7 +279,7 @@ Signed-By: /usr/share/keyrings/fasttrack-archive-keyring.gpg" | sponge -- archiv
          true "${bold}${cyan}INFO: Dry-run, skipping setting readlink_result_live_build_localrepo_location. ${reset}"
          readlink_result_live_build_localrepo_location="/nonexisting/build_dry_run"
       else
-         readlink_result_live_build_localrepo_location="$(readlink -f -- "${live_build_localrepo_location}")"
+         readlink_result_live_build_localrepo_location="$(readlink -f "${live_build_localrepo_location}")"
       fi
       printf '%s\n' "Types: deb
 URIs: file://${readlink_result_live_build_localrepo_location}
@@ -344,19 +316,6 @@ Trusted: yes" > archives/derivative-localrepo.sources.chroot
    mkdir --parents -- 'includes.installer/usr/share/themes/Clearlooks/gtk-2.0'
    cp -- "${source_code_folder_dist}/live-build-data/d-i-theme/gtkrc" includes.installer/usr/share/themes/Clearlooks/gtk-2.0/gtkrc
    sed -i "s|@DIST_NAME@|${dist_build_type_short_pretty}|; s|@DIST_VERSION@|${dist_build_version}|;" bootloaders/grub-pc/splash.svg
-
-   ## '--smbios-reader true': inline the SMBIOS cmdline reader into config.cfg,
-   ## which grub.cfg sources at its top, so ${dm_smbios_extra} is set at parse time
-   ## before any menuentry is booted. Default OFF -- a released ISO gets no reader.
-   ##
-   ## Appended, not sourced, so the ISO carries no stray config fragment; the copy
-   ## is removed unconditionally either way, so an enabled and a disabled build
-   ## differ only in config.cfg's contents.
-   if [ "${dist_build_smbios_reader:-}" = "true" ]; then
-      true "${cyan}INFO: --smbios-reader true: inlining the SMBIOS cmdline reader into the ISO grub config.${reset}"
-      cat -- bootloaders/grub-pc/smbios-reader.cfg >> bootloaders/grub-pc/config.cfg
-   fi
-   safe-rm --force -- bootloaders/grub-pc/smbios-reader.cfg
 
    ## '--serial-console-enable true': make the GRUB boot MENU itself reachable
    ## over the serial line (in addition to the display), so the ISO can be
@@ -442,16 +401,16 @@ Trusted: yes" > archives/derivative-localrepo.sources.chroot
 
    ## Keep security-misc from erroring out during installation
    ${SUDO_TO_ROOT} mkdir --parents -- "${CHROOT_FOLDER}/var/lib/security-misc"
-   ${SUDO_TO_ROOT} touch -- "${CHROOT_FOLDER}/var/lib/security-misc/skip_install_check"
+   ${SUDO_TO_ROOT} touch "${CHROOT_FOLDER}/var/lib/security-misc/skip_install_check"
 
    ## Indicate to dist-base-files that its postinst script is running during a
    ## live-build build
    ${SUDO_TO_ROOT} mkdir --parents -- "${CHROOT_FOLDER}/var/lib/dist-base-files"
-   ${SUDO_TO_ROOT} touch -- "${CHROOT_FOLDER}/var/lib/dist-base-files/live_build"
+   ${SUDO_TO_ROOT} touch "${CHROOT_FOLDER}/var/lib/dist-base-files/live_build"
 
    ## Ensure kernel is configured properly, we aren't using grml-debootstrap so we have to do this ourselves
    ${SUDO_TO_ROOT} mkdir --parents -- "${CHROOT_FOLDER}/etc"
-   ${SUDO_TO_ROOT} install --mode=0644 -- "${source_code_folder_dist}/live-build-data/live-build-config/live_build_kernel_img_conf" "${CHROOT_FOLDER}/etc/kernel-img.conf"
+   ${SUDO_TO_ROOT} cp -- "${source_code_folder_dist}/live-build-data/live-build-config/live_build_kernel_img_conf" "${CHROOT_FOLDER}/etc/kernel-img.conf"
 
    ## Reset /etc/fstab for the LIVE image to the empty debootstrap default -- exactly what the
    ## released ISO ships ("# UNCONFIGURED FSTAB FOR BASE SYSTEM"). The rootfs is SEEDED from the
@@ -500,10 +459,10 @@ Trusted: yes" > archives/derivative-localrepo.sources.chroot
    ## live-build unmounts several important directories when it exits a stage,
    ## but we actually need some of those here, so we have to manually remount
    ## them.
-   ${SUDO_TO_ROOT} mount --bind -- /dev "${CHROOT_FOLDER}/dev"
-   ${SUDO_TO_ROOT} mount --bind -- /dev/pts "${CHROOT_FOLDER}/dev/pts"
-   ${SUDO_TO_ROOT} mount --bind -- /sys "${CHROOT_FOLDER}/sys"
-   ${SUDO_TO_ROOT} mount --bind -- /proc "${CHROOT_FOLDER}/proc"
+   ${SUDO_TO_ROOT} mount --bind /dev "${CHROOT_FOLDER}/dev"
+   ${SUDO_TO_ROOT} mount --bind /dev/pts "${CHROOT_FOLDER}/dev/pts"
+   ${SUDO_TO_ROOT} mount --bind /sys "${CHROOT_FOLDER}/sys"
+   ${SUDO_TO_ROOT} mount --bind /proc "${CHROOT_FOLDER}/proc"
 
    # || true needed to dodge pipefail
    live_build_bootloader_config="$(chroot_run grub-mkconfig \
@@ -528,10 +487,10 @@ Trusted: yes" > archives/derivative-localrepo.sources.chroot
    ## Enable fallback bootloader installation
    chroot_run debconf-set-selections <<< 'grub-efi-amd64 grub2/force_efi_extra_removable boolean true'
 
-   ${SUDO_TO_ROOT} umount -- "${CHROOT_FOLDER}/proc"
-   ${SUDO_TO_ROOT} umount -- "${CHROOT_FOLDER}/sys"
-   ${SUDO_TO_ROOT} umount -- "${CHROOT_FOLDER}/dev/pts"
-   ${SUDO_TO_ROOT} umount -- "${CHROOT_FOLDER}/dev"
+   ${SUDO_TO_ROOT} umount "${CHROOT_FOLDER}/proc"
+   ${SUDO_TO_ROOT} umount "${CHROOT_FOLDER}/sys"
+   ${SUDO_TO_ROOT} umount "${CHROOT_FOLDER}/dev/pts"
+   ${SUDO_TO_ROOT} umount "${CHROOT_FOLDER}/dev"
 
    ## Add debian-installer
    ## Disabled.
@@ -562,7 +521,7 @@ Trusted: yes" > archives/derivative-localrepo.sources.chroot
    if ${SUDO_TO_ROOT} "${CHROOT_FOLDER}/usr/bin/package-installed-check" "anon-apt-sources-list"; then
       ## '/etc/apt/sources.list.d/debian.sources' gets overwritten and then deleted during the build.
       ## Restore the debian.sources file.
-      ${SUDO_TO_ROOT} install --mode=0644 -- "${source_code_folder_dist}/packages/kicksecure/anon-apt-sources-list/etc/apt/sources.list.d/debian.sources" "${CHROOT_FOLDER}/etc/apt/sources.list.d/debian.sources"
+      ${SUDO_TO_ROOT} cp -- "${source_code_folder_dist}/packages/kicksecure/anon-apt-sources-list/etc/apt/sources.list.d/debian.sources" "${CHROOT_FOLDER}/etc/apt/sources.list.d/debian.sources"
    fi
 
    if ${SUDO_TO_ROOT} test -f "${CHROOT_FOLDER}/etc/apt/sources.list.d/debian.sources"; then
@@ -571,21 +530,21 @@ Trusted: yes" > archives/derivative-localrepo.sources.chroot
 
    ## Run chroot post-install scripts from initializer-dist, TODO consider moving these file removes to there?
    ## Special mounts needed for these scripts to reliably work (in particular autologinchange will crash if this isn't done)
-   ${SUDO_TO_ROOT} mount --bind -- /dev "${CHROOT_FOLDER}/dev"
-   ${SUDO_TO_ROOT} mount --bind -- /dev/pts "${CHROOT_FOLDER}/dev/pts"
-   ${SUDO_TO_ROOT} mount --bind -- /sys "${CHROOT_FOLDER}/sys"
-   ${SUDO_TO_ROOT} mount --bind -- /proc "${CHROOT_FOLDER}/proc"
-   ${SUDO_TO_ROOT} mount -t tmpfs -- tmpfs "${CHROOT_FOLDER}/run"
+   ${SUDO_TO_ROOT} mount --bind /dev "${CHROOT_FOLDER}/dev"
+   ${SUDO_TO_ROOT} mount --bind /dev/pts "${CHROOT_FOLDER}/dev/pts"
+   ${SUDO_TO_ROOT} mount --bind /sys "${CHROOT_FOLDER}/sys"
+   ${SUDO_TO_ROOT} mount --bind /proc "${CHROOT_FOLDER}/proc"
+   ${SUDO_TO_ROOT} mount -t tmpfs tmpfs "${CHROOT_FOLDER}/run"
 
    if [ -d "${CHROOT_FOLDER}/usr/libexec/initializer-dist/chroot-scripts-post.d" ]; then
       ## Check which chroot scripts we got.
-      chroot_run run-parts --verbose --test -- "/usr/libexec/initializer-dist/chroot-scripts-post.d/"
+      chroot_run run-parts --verbose --test "/usr/libexec/initializer-dist/chroot-scripts-post.d/"
 
       ## Debugging.
       #chroot_run str_replace "/usr/sbin/autologinchange" "bash -x /usr/sbin/autologinchange" "/usr/libexec/initializer-dist/chroot-scripts-post.d/75_autologin"
 
       ## Run the chroot scripts.
-      chroot_run run-parts --verbose --exit-on-error -- "/usr/libexec/initializer-dist/chroot-scripts-post.d/"
+      chroot_run run-parts --verbose --exit-on-error "/usr/libexec/initializer-dist/chroot-scripts-post.d/"
    else
       true "${green}${bold}INFO: Folder /usr/libexec/initializer-dist/chroot-scripts-post.d does not exist in chroot.
 Not running any chroot scripts.${reset}"
@@ -600,7 +559,7 @@ Not running any chroot scripts.${reset}"
    hostname_set_inside_chroot="$(${SUDO_TO_ROOT} cat -- chroot/etc/hostname)"
    test -n "${hostname_set_inside_chroot}"
 
-   ${SUDO_TO_ROOT} install --mode=0644 -- "${source_code_folder_dist}/live-build-data/live-build-config/live_build_etc_hosts" "${CHROOT_FOLDER}/etc/hosts"
+   ${SUDO_TO_ROOT} cp -- "${source_code_folder_dist}/live-build-data/live-build-config/live_build_etc_hosts" "${CHROOT_FOLDER}/etc/hosts"
 
    ## Re-enable MOK key generation.
    ${SUDO_TO_ROOT} safe-rm --force --verbose -- "${target_dkms_suppress_mok_snippet}"
@@ -655,9 +614,9 @@ Not running any chroot scripts.${reset}"
 
    ## }}}
 
-   ${SUDO_TO_ROOT} umount -- "${CHROOT_FOLDER}/proc"
-   ${SUDO_TO_ROOT} umount -- "${CHROOT_FOLDER}/sys"
-   ${SUDO_TO_ROOT} umount -- "${CHROOT_FOLDER}/dev/pts"
+   ${SUDO_TO_ROOT} umount "${CHROOT_FOLDER}/proc"
+   ${SUDO_TO_ROOT} umount "${CHROOT_FOLDER}/sys"
+   ${SUDO_TO_ROOT} umount "${CHROOT_FOLDER}/dev/pts"
    ## Do NOT unmount "${CHROOT_FOLDER}/dev" before 'lb binary' -- keep the host /dev
    ## bind-mounted (established above). The live rootfs is SEEDED from the raw image
    ## (help-steps/lb-seed-rootfs-cache), whose on-disk /dev is empty/broken (mmdebstrap
@@ -670,7 +629,7 @@ Not running any chroot scripts.${reset}"
    ## seeded nodes with working ones (/dev/null, /dev/ptmx, ...); the final unmount-lb sweep
    ## and the ERR trap tear it down afterwards. Where the seed already has valid nodes (CI),
    ## the bind-mount simply shadows equivalents, so behaviour there is unchanged.
-   ${SUDO_TO_ROOT} umount -- "${CHROOT_FOLDER}/run"
+   ${SUDO_TO_ROOT} umount "${CHROOT_FOLDER}/run"
 
    ## 'lb chroot' ran blkid (via grub-efi install / update-initramfs) BEFORE the tmpfs
    ## /run mount earlier, so the build host's per-build loop-device UUIDs were written to
@@ -679,38 +638,7 @@ Not running any chroot scripts.${reset}"
    ## filesystem.squashfs and break bit-for-bit reproducibility. initializer-dist's
    ## 80_cleanup clears this during the rootfs build, but live-build regenerates it here.
    ## /run is runtime tmpfs state and must be empty in a shipped image, so drop the cache.
-   ## Empty /run entirely, not just blkid: a tmpfs is mounted over it at boot, so nothing here is
-   ## ever visible at runtime, while WHICH transient entries survive varies by build host. Naming
-   ## them one at a time missed /run/mount, which alone changed the ext4 free counts and the image
-   ## bytes. Matches 4350_reimage-raw-reproducible.
-   ${SUDO_TO_ROOT} find "${CHROOT_FOLDER}/run" -mindepth 1 -maxdepth 1 -exec safe-rm --recursive --force -- {} +
-
-   ## Canonicalize debconf question ownership before the squashfs is packed.
-   ## debconf records config.dat 'Owners:' with the package name AS dpkg spelled
-   ## it per configure phase -- bare ('shim-signed') in one, arch-qualified
-   ## ('shim-signed:amd64') in another -- so a build that configures a package
-   ## across two phases records BOTH while a one-phase build records one. Same
-   ## system, build-varying bytes: it was the last local-vs-CI difference
-   ## (shim-signed, libc6, libpam0g all carried the dual spelling in a CI ISO).
-   ## Strip the arch qualifier and dedupe so the file is identical regardless of
-   ## configure sequence. ONLY config.dat -- templates.dat 'Owners:' hold
-   ## question names, not packages. Matches 4350_reimage-raw-reproducible.
-   if ${SUDO_TO_ROOT} test -f "${CHROOT_FOLDER}/var/cache/debconf/config.dat"; then
-      ${SUDO_TO_ROOT} "${dist_developer_meta_files_folder}/usr/bin/dm-debconf-normalize-owners" \
-         "${CHROOT_FOLDER}/var/cache/debconf/config.dat"
-   fi
-
-   ## Pin SYMLINK mtimes to SOURCE_DATE_EPOCH before mksquashfs, same as the disk
-   ## path (4350). update-alternatives creates its /usr/sbin/<name> ->
-   ## /etc/alternatives/<name> links (e.g. policy-rc.d) with a wall-clock mtime,
-   ## and the build's file-mtime pinning uses 'touch' WITHOUT --no-dereference, so
-   ## it follows the link and pins the TARGET, leaving the link's own mtime
-   ## build-varying. '-h' touches the link itself. (The ISO's EFI FAT image is
-   ## already reproducible: live-build builds efi.img with a SOURCE_DATE_EPOCH
-   ## volume-id, pinned mtimes and a zeroed fresh image, so unlike the disk ESP it
-   ## needs no FAT normalization here.)
-   ${SUDO_TO_ROOT} find "${CHROOT_FOLDER}" -type l \
-      -exec touch --no-dereference --date="@${SOURCE_DATE_EPOCH}" -- {} +
+   ${SUDO_TO_ROOT} safe-rm --one-file-system --recursive --force -- "${CHROOT_FOLDER}/run/blkid"
 
    ## Package into an ISO
    # shellcheck disable=SC2086
@@ -725,7 +653,7 @@ Not running any chroot scripts.${reset}"
 
    ## 'live-build' does not support configuration of the output ISO file name.
    ## Rename from ISO file name defined by live-build format to derivative-maker format.
-   mv -- "${dist_build_type_short}-${dist_build_version}-${dist_build_target_arch}.hybrid.iso" "${binary_image_iso_file}"
+   mv "${dist_build_type_short}-${dist_build_version}-${dist_build_target_arch}.hybrid.iso" "${binary_image_iso_file}"
 
    ${SUDO_TO_ROOT} chown -- "${user_name}:${user_name}" "${binary_image_iso_file}"
 

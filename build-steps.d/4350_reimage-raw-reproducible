@@ -44,7 +44,7 @@ reimage_cleanup() {
       rmdir -- "${reimage_mnt}" 2>/dev/null || true
    fi
    if [ -n "${reimage_tree:-}" ]; then
-      ${SUDO_TO_ROOT} safe-rm --recursive --force -- "${reimage_tree}" 2>/dev/null || true
+      ${SUDO_TO_ROOT} safe-rm --one-file-system --recursive --force -- "${reimage_tree}" 2>/dev/null || true
    fi
    "${dist_source_help_steps_folder}"/unmount-raw 2>/dev/null || true
 }
@@ -139,7 +139,7 @@ reimage_raw() {
    ## re-leaking blkid.tab (+ rotated blkid.tab.old) into the rootfs. Each embeds a wall-clock scan TIME
    ## and the build host's loop DEVNO (e.g. /dev/mapper/loop0p3), so its CONTENT differs every build even
    ## though mke2fs pins the mtime to SOURCE_DATE_EPOCH. Mirrors the ISO path (3600_convert-raw-to-iso).
-   ${SUDO_TO_ROOT} safe-rm --recursive --force -- "${reimage_tree}/run/blkid"
+   ${SUDO_TO_ROOT} safe-rm --one-file-system --recursive --force -- "${reimage_tree}/run/blkid"
 
    ## Strip DKMS build logs. dkms writes <module>/<ver>/<kernel>/<arch>/log/make.log with a wall-clock
    ## build timestamp when it (re)builds a module (e.g. tirdad); this happens after 80_cleanup removes
@@ -183,7 +183,7 @@ reimage_raw() {
       -U "${fs_uuid}" -E hash_seed="${fs_hashseed}" \
       -d "${reimage_tree}" "${dev_mapper_device}"
 
-   ${SUDO_TO_ROOT} safe-rm --recursive --force -- "${reimage_tree}"
+   ${SUDO_TO_ROOT} safe-rm --one-file-system --recursive --force -- "${reimage_tree}"
    reimage_tree=""
 
    ## Pin the superblock timestamps mke2fs stamps from wall-clock. debugfs set_super_value field names
