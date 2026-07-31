@@ -114,7 +114,7 @@ main() {
    ## --cache' is not used here because it would also drop the package cache
    ## we want to keep; only the bootstrap cache is our concern.
    ${SUDO_TO_ROOT} mkdir --parents -- "${lb_dir}/cache"
-   ${SUDO_TO_ROOT} safe-rm --recursive --force -- "${bootstrap_cache_dir}"
+   ${SUDO_TO_ROOT} safe-rm --one-file-system --recursive --force -- "${bootstrap_cache_dir}"
 
    ## '--archive' (== -dR --preserve=all) so the adopted tree is
    ## byte-for-byte what our own steps produced; '--one-file-system' as a
