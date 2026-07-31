@@ -48,13 +48,6 @@ mount_raw() {
       trap error_handler_mount-raw ERR INT TERM
    fi
 
-   if [ "${mount_folder:-}" = "" ]; then
-      true
-   else
-      ## hack for help-steps/analyze-image
-      CHROOT_FOLDER="${mount_folder}"
-   fi
-
    sync
 
    if [ "${dist_build_mount_raw_file:-}" = "" ]; then
