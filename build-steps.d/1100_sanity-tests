@@ -137,6 +137,15 @@ check-git-symlinks() {
    for repo_rel in ${repo_list[@]+"${repo_list[@]}"} ; do
       repo_abs="${source_code_folder_dist}/${repo_rel}"
       test -d "${repo_abs}" || continue
+      ## 'ls-files' below runs in a process substitution, whose exit status the
+      ## loop cannot see: a directory git refuses to read would yield zero entries
+      ## and pass as "no symlinks here". Since silently skipping a repo is the one
+      ## outcome this check must not produce, establish it IS a repository first,
+      ## and say so when it is not rather than passing quietly.
+      if ! git -C "${repo_abs}" rev-parse --git-dir >/dev/null 2>&1 ; then
+         true "${cyan}INFO: ${repo_rel}: not a git repository (submodule not initialized?); no symlinks to verify there.${reset}"
+         continue
+      fi
       ## -z, so a path containing a space, quote or newline is not mangled.
       while IFS= read -r -d '' entry ; do
          mode="${entry%% *}"
