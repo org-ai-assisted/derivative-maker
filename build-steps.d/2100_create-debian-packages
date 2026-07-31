@@ -223,7 +223,7 @@ get_newer_packages_from_third_party_repositories() {
       exit 1
    fi
 
-   ${SUDO_TO_ROOT} safe-rm --recursive --force -- "${temp_newer_packages}"
+   ${SUDO_TO_ROOT} safe-rm --one-file-system --recursive --force -- "${temp_newer_packages}"
    mkdir --parents -- "${temp_newer_packages}"
 
    for dist_build_multiarch_package_item in ${make_cross_build_platform_list} ; do
