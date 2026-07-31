@@ -7,16 +7,12 @@
 ## a chosen or the latest available tag, before initiating the build process.
 ##
 ## GIT=true - run 'git pull'
-##
-## TODO: Is the above comment out-of-date?
 
 set -x
 set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
-shopt -s inherit_errexit
-shopt -s shift_verbose
 
 SOURCE_DIR="${HOME}/derivative-maker"
 BINARY_DIR="${HOME}/derivative-binary"
@@ -29,12 +25,26 @@ chown --recursive -- "${USER}:${USER}" "${LOG_DIR}"
 
 cd -- "${SOURCE_DIR}"
 
-## Exit with the exit code of "$@", but print a warning if 'tee' fails.
-declare -a pipe_status=( 0 0 )
-"$@" 2>&1 | tee -a -- "${BUILD_LOG}" || pipe_status=( "${PIPESTATUS[@]}" )
+## The BUILD's exit status is this script's, never the log writer's. Under
+## 'pipefail' the pipeline reports the rightmost failure, so a 'tee' that cannot
+## write -- a full disk on the log path -- replaces a successful build's status
+## with its own. Callers read that status as the build verdict, and
+## 'ci/reproducible-build-twice' documents exit 1 as "images differ": a log-disk
+## failure then reports a bit-for-bit REPRODUCIBLE run as a reproducibility
+## defect, pointing the reader at the image instead of at the disk.
+##
+## Both branches capture PIPESTATUS identically on purpose: it is only valid
+## immediately after the pipeline, an '|| true' would reset it, and inside an 'if'
+## condition errexit does not abort before it can be read.
+declare -a pipe_status
+if "$@" 2>&1 | tee -a -- "${BUILD_LOG}" ; then
+   pipe_status=( "${PIPESTATUS[@]}" )
+else
+   pipe_status=( "${PIPESTATUS[@]}" )
+fi
 
 if [ ! "${pipe_status[1]}" = "0" ]; then
-   printf '%s\n' "${0##*/}: WARNING: writing '${BUILD_LOG}' failed (tee exit ${pipe_status[1]}); the on-disk build log is INCOMPLETE (out of disk?). The build itself exited ${pipe_status[0]}." >&2
+   printf '%s\n' "${0##*/}: WARNING: writing '${BUILD_LOG}' failed (tee exit ${pipe_status[1]}); the on-disk build log is INCOMPLETE (out of disk?). The build itself exited ${pipe_status[0]}, and that is what this script returns." >&2
 fi
 
 exit "${pipe_status[0]}"
