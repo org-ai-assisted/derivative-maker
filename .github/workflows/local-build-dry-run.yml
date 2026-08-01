@@ -141,6 +141,39 @@ jobs:
         ## referenced via './ci/dry-run' and needs PWD to match.
         run: docker exec --env CI=true --workdir /workspace dryrun ./ci/dry-run
 
+      ## The lane BUILDS a real '.qcow2.libvirt.xz' and its '.dm-buildinfo' and
+      ## then threw both away. Publishing them is what makes the lane's output
+      ## inspectable at all -- and specifically what lets
+      ## dm-repro-verify-against-ci compare a local dry-run against this one.
+      ## Copied OUT of the container first: the build writes to the build user's
+      ## home inside it, not to the bind-mounted workspace.
+      - name: Collect the dry-run artifacts
+        if: always()
+        run: |
+          set -o errexit
+          set -o nounset
+          set -o pipefail
+          mkdir --parents dryrun-artifacts
+          ## '|| true' on the copy alone, never on the assertion below: a lane
+          ## that produced nothing must fail at the upload, not here.
+          docker cp "dryrun:/home/builder/derivative-binary/." dryrun-artifacts/ || true
+          find dryrun-artifacts -type f \( -name '*.qcow2.libvirt.xz' -o -name '*.dm-buildinfo' \) -print
+
+      - name: Upload the dry-run artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dryrun-image
+          ## Only the released artifact and its provenance record. The raw build
+          ## intermediates are not the subject and would bloat the upload.
+          path: |
+            dryrun-artifacts/**/*.qcow2.libvirt.xz
+            dryrun-artifacts/**/*.dm-buildinfo
+          ## An empty upload would make a lane that built nothing look like one
+          ## whose artifacts simply expired.
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Tear down container
         if: always()
         run: docker rm --force dryrun || true
