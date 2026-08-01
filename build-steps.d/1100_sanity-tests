@@ -785,7 +785,7 @@ check-required-tools() {
       "parted:parted" ; do
       tool_name="${tool_spec%%:*}"
       tool_package="${tool_spec#*:}"
-      if command -v "${tool_name}" >/dev/null ; then
+      if has "${tool_name}" ; then
          continue
       fi
       missing_count=$(( missing_count + 1 ))
