@@ -34,17 +34,36 @@ pwd
 if [ "${CI:-}" = "true" ]; then
   ## fetch/merge git submodules
   ## CI testing of 'derivative-update'.
-  derivative_update_args=()
+  ##
+  ## The caller's tolerances have to be carried across as ENVIRONMENT, not as
+  ## arguments: 'derivative-update' runs 'git_sanity_test', which reads
+  ## $dist_build_ignore_uncommitted and $dist_build_ignore_untagged and DIES if
+  ## either is unset -- while the '--allow-uncommitted true' that expresses the
+  ## caller's intent is parsed by 'help-steps/parse-cmd', which runs downstream
+  ## of this script. So the flags are read from ARGV here, the same way
+  ## 'dm-build-official-one' reads '--dry-run'.
+  ##
+  ## Without this the dry-run lane fails at "Uncommitted changes in: main repo"
+  ## even though it passed '--allow-uncommitted true': 'help-steps/sign-and-tag'
+  ## amends the parent to absorb the staged submodule gitlinks, so the tree IS
+  ## momentarily dirty at exactly this point. The branch is new to this lane --
+  ## it runs only under CI=true, which never reached the build until the lane
+  ## started exporting it -- so the gap had no earlier opportunity to show.
   previous_arg=""
+  [ -n "${dist_build_ignore_uncommitted:-}" ] || dist_build_ignore_uncommitted=false
+  [ -n "${dist_build_ignore_untagged:-}" ] || dist_build_ignore_untagged=false
   for arg_item in "$@"; do
-    case "${previous_arg}" in
-      --allow-uncommitted|--allow-untagged)
-        derivative_update_args+=( "${previous_arg}" "${arg_item}" )
-        ;;
-    esac
+    if [ "${previous_arg}" = "--allow-uncommitted" ] && [ "${arg_item}" = "true" ]; then
+      dist_build_ignore_uncommitted=true
+    fi
+    if [ "${previous_arg}" = "--allow-untagged" ] && [ "${arg_item}" = "true" ]; then
+      dist_build_ignore_untagged=true
+    fi
     previous_arg="${arg_item}"
   done
-  ./derivative-update --update-only "${derivative_update_args[@]}"
+  export dist_build_ignore_uncommitted
+  export dist_build_ignore_untagged
+  ./derivative-update --update-only
 fi
 
 true "$0: --------------------"
