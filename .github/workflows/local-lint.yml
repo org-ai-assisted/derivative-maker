@@ -20,7 +20,7 @@ on:
   push:
     tags:
       ## '**' not '*': '*' does not match a slash, so a slash-delimited tag
-      ## would silently skip this gate while local-reproducible-build-test.yml still builds it --
+      ## would silently skip this gate while local-build.yml still builds it --
       ## the expensive lane running on a commit the cheap one never checked.
       - '**'
 
@@ -37,11 +37,7 @@ jobs:
   checks:
     runs-on: ubuntu-latest
 
-    ## CI runs only where we enabled it; ANDed with the existing guard.
-    ## Unset variable -> skipped, no runner, run stays green.
-    if: >-
-      vars.CI_ENABLED_ORG_AI_ASSISTED == 'true'
-      && (github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request')
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
 
     timeout-minutes: 7
 
@@ -78,7 +74,7 @@ jobs:
         ## Excludes:
         ##   SC2086 - Many call sites intentionally word-split string
         ##     variables containing space-separated option lists
-        ##     ('$apt_unattended_opts', '$pids' in mount-cleanup,
+        ##     ('$apt_unattended_opts', '$pids' in umount_kill.sh,
         ##     'eval $cmd_string' in pre's retry dispatch). Refactoring
         ##     each into arrays is sound but invasive; out of scope.
         ##   SC2317 - False positive in the build-step dispatch pattern:
@@ -93,7 +89,10 @@ jobs:
         with:
           ## Mirrors the pre-composite ci/lint-shellcheck scope:
           ## help-steps, build-steps.d, automated_builder, ci + two
-          ## root entry points.
+          ## root entry points. Out-of-scope deliberately: the
+          ## live-build-config/ subtree (live-build owns those
+          ## #!/bin/sh scripts; SC3040 'pipefail in POSIX sh' there
+          ## is a known latent issue tracked separately).
           paths: 'help-steps build-steps.d automated_builder ci derivative-maker derivative-update'
           excludes: 'SC2086,SC2317,SC2016'
           severity: 'info'
