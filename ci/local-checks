@@ -10,9 +10,13 @@
 ##   ./ci/local-checks    # run all
 ##
 ## CI invokes the per-step scripts directly so failures are attributed
-## to the right step in the GitHub Actions UI:
-##   ci/lint-yaml
-##   ci/lint-shellcheck
+## to the right step in the GitHub Actions UI. The set is DISCOVERED
+## rather than listed: a hardcoded list silently rots. This script
+## previously called a 'ci/lint-shellcheck' that no longer exists --
+## shellcheck moved to a composite action in local-lint.yml -- and,
+## because nothing invokes local-checks, the resulting exit 127 went
+## unnoticed. Discovery plus a non-empty assertion prevents both halves
+## of that: a renamed script is picked up, a vanished set is a failure.
 ##
 ## Why no other checks: bash_n is redundant with shellcheck;
 ## actionlint is not packaged in Debian (see
@@ -28,9 +32,43 @@ set -o pipefail
 cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." || exit 2
 
 rc=0
-./ci/lint-yaml       || rc=$?
-printf '\n'
-./ci/lint-shellcheck || rc=$?
+
+## This script IS the sanctioned local runner, so it grants the override the
+## individual lints require. Several of them refuse to run outside CI unless
+## ALLOW_LOCAL is set -- without it, a script whose entire purpose is local
+## pre-commit coverage would refuse to check anything locally.
+export ALLOW_LOCAL=true
+
+## Every executable ci/lint-* in this checkout, in name order.
+shopt -s nullglob
+lint_scripts=( ./ci/lint-* )
+readarray -t lint_scripts < <(printf '%s\n' "${lint_scripts[@]}" | LC_ALL=C sort)
+
+runnable=0
+for lint_script in ${lint_scripts[@]+"${lint_scripts[@]}"} ; do
+  [ -x "${lint_script}" ] || continue
+  ## ci/lint-install INSTALLS the lint toolchain; it is a CI setup step, not an
+  ## offline check of this tree, and it needs root for apt. Running it here would
+  ## make a local pre-commit run fail on a permission error that says nothing
+  ## about the code.
+  case "${lint_script}" in
+    ./ci/lint-install)
+      continue
+      ;;
+  esac
+  runnable=$(( runnable + 1 ))
+  printf '%s\n' "== ${lint_script} =="
+  "${lint_script}" || rc=$?
+  printf '\n'
+done
+
+## An empty set means the lints were renamed or moved away, not that
+## everything passed. Reporting success there is the failure mode this
+## script already had once.
+if [ "${runnable}" -eq 0 ]; then
+  printf '%s\n' "ERROR: no executable ./ci/lint-* found; this checked nothing." >&2
+  exit 2
+fi
 
 if (( rc != 0 )); then
   printf '\nFAILED\n' >&2
