@@ -163,19 +163,73 @@ frozen_snapshot_sanity_test() {
   ## Simple cross-check, deliberately not clever: the plain file must match what
   ## the two deb822 files carry on their 'URIs:' lines. Comment prose in those
   ## files contains example dates, which is why only URIs lines are considered.
-  local expected="$1" deb822_file found
+  local expected="$1" deb822_file uri
   for deb822_file in \
     "${SOURCE_VOLUME}/build_sources/debian_stable_frozen_clearnet.sources" \
     "${SOURCE_VOLUME}/build_sources/debian_stable_frozen_direct_clearnet.sources" ; do
-    [ -f "${deb822_file}" ] || continue
-    found="$(grep -E '^[[:space:]]*URIs:' -- "${deb822_file}" \
-      | grep -oE '[0-9]{8}T[0-9]{6}Z' | sort --unique | tr '\n' ' ')"
-    found="${found% }"
-    if [ ! "${found}" = "${expected}" ]; then
-      printf '%s\n' "${0##*/}: ERROR: ${deb822_file} is pinned to '${found:-none}', but build_sources/frozen-snapshot-timestamp says '${expected}'." >&2
+    ## A declared pin file that is ABSENT is a failure, not something to skip.
+    ## Skipping it let this function return success having validated nothing --
+    ## with both files missing it vouched for a completely unpinned build.
+    if [ ! -f "${deb822_file}" ]; then
+      printf '%s\n' "${0##*/}: ERROR: declared frozen sources file '${deb822_file}' is missing; cannot verify the snapshot pin." >&2
       return 1
     fi
+    ## EVERY URI must carry the expected snapshot, not merely 'the set of
+    ## timestamps present equals one'. A stanza listing the pinned snapshot
+    ## alongside a live archive ('URIs: http://snapshot.../<pin> https://deb.debian.org/debian')
+    ## yields exactly one timestamp and passed, while apt fetched from the live
+    ## archive too -- defeating the pin the check exists to prove.
+    while read -r uri; do
+      [ -n "${uri}" ] || continue
+      case "${uri}" in
+        *"/${expected}/"*|*"/${expected}")
+          ;;
+        *)
+          printf '%s\n' "${0##*/}: ERROR: ${deb822_file} lists URI '${uri}', which is not pinned to snapshot '${expected}' (from build_sources/frozen-snapshot-timestamp)." >&2
+          return 1
+          ;;
+      esac
+    done < <(deb822_uris "${deb822_file}")
   done
+}
+
+## Every URI token of every 'URIs:' field, one per line -- including deb822 FOLDED
+## continuation lines (a field may continue on following lines that begin with
+## whitespace). Matching only the 'URIs:' line itself misses those, so a URI
+## hidden on a continuation line was never validated.
+deb822_uris() {
+  local line trimmed token in_field
+  in_field=false
+  while IFS= read -r line; do
+    ## Leading whitespace stripped for the field test, but remembered: it is what
+    ## marks a continuation line.
+    trimmed="${line#"${line%%[![:space:]]*}"}"
+    case "${trimmed}" in
+      URIs:*)
+        in_field=true
+        trimmed="${trimmed#URIs:}"
+        ;;
+      '')
+        ## A blank line ends the stanza, and therefore the field.
+        in_field=false
+        continue
+        ;;
+      *)
+        if [ "${in_field}" = "true" ] && [ ! "${line}" = "${trimmed}" ]; then
+          ## Indented and inside the field: a folded continuation of it.
+          true
+        else
+          in_field=false
+          continue
+        fi
+        ;;
+    esac
+    ## Deliberate word splitting: a URIs field is whitespace-separated.
+    # shellcheck disable=SC2086
+    for token in ${trimmed}; do
+      printf '%s\n' "${token}"
+    done
+  done < "$1"
 }
 
 build_docker_image() {
