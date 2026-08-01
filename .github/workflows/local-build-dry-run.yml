@@ -49,7 +49,11 @@ jobs:
       vars.CI_ENABLED_ORG_AI_ASSISTED == 'true'
       && (github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request')
 
-    timeout-minutes: 25
+    ## MUST exceed the 'timeout 3600' (60 min) inside
+    ## ci/dry-run.d/300_run-derivative-maker, plus checkout and the image
+    ## build/cache restore. At 25 the job was cancelled before that inner ceiling
+    ## could ever fire, so a run measured at ~35 min could not have passed here.
+    timeout-minutes: 75
 
     ## Subsequent steps run inside a privileged debian:trixie with
     ## systemd as PID 1 so 'systemctl start approx' (the build's apt

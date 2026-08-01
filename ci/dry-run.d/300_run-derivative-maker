@@ -115,8 +115,12 @@ assert_produced "reproducibility buildinfo emitted by dm-prepare-release" '*.dm-
 ## The buildinfo must carry the pre-sign provenance, not the 'unrecorded' fallback
 ## -- sign-and-tag ran in step 200, so the state file must have been there.
 buildinfo_file="$(find "${binary_dir}" -type f -name '*.dm-buildinfo' -print -quit)"
-if grep --quiet --fixed-strings -- 'Source-Commit: unrecorded' "${buildinfo_file}"; then
-   printf '%s\n' "${0##*/}: ERROR: buildinfo says Source-Commit: unrecorded, but sign-and-tag ran in step 200 and should have left a source-state file." >&2
+## Both halves: a buildinfo with NO Source-Commit field, or an empty one, is not
+## "recorded provenance" either -- and testing only for the literal 'unrecorded'
+## let it pass and report success.
+if ! grep --quiet --extended-regexp -- '^Source-Commit: [^[:space:]]' "${buildinfo_file}" \
+   || grep --quiet --fixed-strings -- 'Source-Commit: unrecorded' "${buildinfo_file}"; then
+   printf '%s\n' "${0##*/}: ERROR: buildinfo carries no recorded Source-Commit, but sign-and-tag ran in step 200 and should have left a source-state file." >&2
    exit 1
 fi
 printf '%s\n' "${0##*/}: ok: buildinfo carries recorded provenance." >&2
