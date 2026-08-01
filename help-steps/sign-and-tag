@@ -72,7 +72,18 @@ printf '%s\n' "${BASH_SOURCE[0]}: using policy ${sq_git_policy_file}"
 ## walks every submodule.
 ./help-steps/signing-key-test
 
-## Record the source state before anything is amended.
+## Record the source state BEFORE anything is amended. This is the only moment
+## it can be recorded: sign-tag-head rewrites the parent's HEAD and EVERY
+## submodule's HEAD via 'commit --amend -S', and those rewritten commits exist
+## only inside this build. A provenance record written afterwards names commits
+## that cannot be fetched -- which is what the released '.dm-buildinfo' has been
+## doing, publishing a signed record pointing at nothing.
+##
+## The submodule half matters just as much: CI's build jobs run
+## 'ci/checkout-fork-submodule-branches', which moves submodules off their
+## gitlink onto a branch TIP. Those tips move, and can be deleted outright once
+## merged, so a run that records no submodule state cannot be reproduced later
+## even in principle.
 source_state_file="${binary_build_folder_dist}/dm-source-state"
 mkdir --parents -- "${binary_build_folder_dist}"
 {
