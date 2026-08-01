@@ -149,10 +149,17 @@ jobs:
           set -o errexit
           set -o nounset
           set -o pipefail
-          mkdir --parents dryrun-artifacts
+          ## sudo for the mkdir: the privileged dryrun container ran ./ci/dry-run
+          ## as ROOT in this bind-mounted workspace, so it is root-owned by now
+          ## and an unprivileged mkdir fails. The workflow's own "Reclaim
+          ## workspace ownership" step fixes that, but it runs LATER -- after the
+          ## container is torn down, and 'docker cp' needs the container alive.
+          sudo mkdir --parents dryrun-artifacts
           ## '|| true' on the copy alone, never on the assertion below: a lane
           ## that produced nothing must fail at the upload, not here.
-          docker cp "dryrun:/home/builder/derivative-binary/." dryrun-artifacts/ || true
+          sudo docker cp "dryrun:/home/builder/derivative-binary/." dryrun-artifacts/ || true
+          ## Hand it back before upload-artifact reads it.
+          sudo chown -R "$(id -u):$(id -g)" dryrun-artifacts
           find dryrun-artifacts -type f \( -name '*.qcow2.libvirt.xz' -o -name '*.dm-buildinfo' \) -print
 
       - name: Upload the dry-run artifacts
