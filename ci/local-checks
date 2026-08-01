@@ -49,7 +49,7 @@ lint_scripts=( ./ci/lint-* )
 readarray -t lint_scripts < <(printf '%s\n' "${lint_scripts[@]}" | LC_ALL=C sort)
 
 runnable=0
-for lint_script in ${lint_scripts[@]+"${lint_scripts[@]}"} ; do
+for lint_script in "${lint_scripts[@]}" ; do
   [ -x "${lint_script}" ] || continue
   ## ci/lint-install INSTALLS the lint toolchain; it is a CI setup step, not an
   ## offline check of this tree, and it needs root for apt. Running it here would
