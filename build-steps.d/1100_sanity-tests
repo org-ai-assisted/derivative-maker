@@ -771,6 +771,18 @@ check-libvirt-xml() {
       return 0
    fi
 
+   ## An EMPTY value is a different failure and needs a different message:
+   ## 'dirname -- ""' is '.', which exists, so the listing below would dump the
+   ## whole source root into the error instead of naming XML files.
+   if [ -z "${libvirt_source_kvm_file}" ]; then
+      error "\
+libvirt_source_kvm_file is empty, so no libvirt XML could be located for this
+build. It is set in help-steps/variables from SHORT_VMNAME; an empty value means
+the flavor did not resolve to a VM name.
+  flavor: ${dist_build_flavor:-unset}
+  target: raw/qcow2"
+   fi
+
    xml_dir="$( dirname -- "${libvirt_source_kvm_file}" )"
    available="  (${xml_dir} does not exist)"
    if [ -d "${xml_dir}" ]; then
