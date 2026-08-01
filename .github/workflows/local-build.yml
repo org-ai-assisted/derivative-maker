@@ -28,26 +28,36 @@ on:
         type: choice
         ## A choice input defaults to the first option (qcow2); the env fallback
         ## below ('inputs.target || qcow2') covers schedule/push.
-        ## 'virtualbox' exports the .ova through helper-scripts'
-        ## vbox-ova-reproducible-normalize (run in-build), which is present at the
-        ## pinned helper-scripts gitlink, so the .ova build completes and the two
-        ## runners' .ova are compared byte-for-byte like qcow2 / iso.
+        ## 'virtualbox' is deliberately absent: the .ova export calls helper-scripts'
+        ## vbox-ova-reproducible-normalize, which is not in the pinned gitlink, so
+        ## dm-prepare-release aborts after a ~50 minute build. Offering a choice that
+        ## deterministically fails is worse than not offering it. Restore it once
+        ## org-ai-assisted/helper-scripts#69 lands and the gitlink is bumped.
         options:
           - qcow2
           - iso
-          - virtualbox
-  ## Dispatch-only, plus release tags below:
-  ##   dm-ci-dispatch --workflow local-build.yml --ref <ref>
+  ## Branch pushes deliberately DROPPED; this lane is dispatch-only.
+  ##
+  ## Not a cost decision -- minutes are free on a public repo (measured:
+  ## billable.total_ms = 0 on a 71-minute run). Concurrency is the constraint:
+  ## the free plan allows 20 jobs ORG-WIDE, and one push to 'ai' fanned out 17
+  ## across this lane and its sibling, plus the PR lanes on the same commit.
+  ## Measured here: 54% of push runs were cancelled as superseded, and this lane
+  ## was green 7 times in 49. Most of that fan-out re-ran a known-red lane while
+  ## starving every other repo in the org.
+  ##
+  ## A push trigger fires on whatever was committed. A dispatch can REFUSE:
+  ## dist-ai's 'dm-ci-dispatch' runs 'dm-preflight' first and will not fire on a
+  ## tree whose submodule work is uncommitted -- which is how a commit reached
+  ## this repo carrying none of the change it was meant to test.
+  ##
+  ##   dm-ci-dispatch --workflow local-build.yml --ref ai
+  ##
+  ## Tags still build automatically: a release tag is deliberate by construction.
+  ## Dropping the branch trigger also removes the double-fire where a tag-bearing
+  ## branch push produced TWO runs -- github.ref differs between them, so a
+  ## per-ref concurrency group cannot merge them.
   push:
-    branches:
-      ## Coverage follows the branch convention: all work lands on 'ai' or
-      ## 'ai-<topic>', so a build runs without anyone remembering an opt-in
-      ## token. Exact prefixes, never a substring glob -- a glob admits
-      ## branches by accident of spelling and leaves the rest reporting every
-      ## check green having built nothing. Per-ref 'cancel-in-progress' below
-      ## keeps a burst of pushes to one branch from stacking builds.
-      - 'ai'
-      - 'ai-**'
     tags:
       ## '**' not '*': '*' does not match a slash, so a slash-delimited tag would
       ## silently skip the gate.
@@ -116,11 +126,7 @@ jobs:
   build:
     ## Fork-PR guard (rule 3); always true for the dispatch / schedule triggers
     ## this workflow uses.
-    ## CI runs only where we enabled it; ANDed with the existing guard.
-    ## Unset variable -> skipped, no runner, run stays green.
-    if: >-
-      vars.CI_ENABLED_ORG_AI_ASSISTED == 'true'
-      && (github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request')
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
     strategy:
       fail-fast: false
       matrix:
@@ -256,27 +262,15 @@ jobs:
           ## 1300_cowbuilder-setup a stale or absent tree, so the flag is tied to
           ## BASE_CACHE rather than set unconditionally.
           COWBASE_REUSE_FLAG: ${{ env.BASE_CACHE == 'true' && '--reuse-cowbuilder-base' || '' }}
-        ## The memory sampler runs INSIDE this step, backgrounded, so its readings
-        ## interleave into THIS step's log. A later step cannot help: when the runner
-        ## dies, every subsequent step -- including 'if: failure()' and github's own
-        ## post-steps -- is recorded as never having run, so the only evidence that
-        ## survives is whatever already reached the log.
-        run: |
-          ./ci/memory-sampler 30 &
-          memory_sampler_pid="$!"
-          trap 'kill "${memory_sampler_pid}" 2>/dev/null || true' EXIT
-          ./docker/derivative-maker-docker-run -- bash -c "export dist_build_version=\"\$(git describe --always --abbrev=1000000000 --exclude '*_*_*')\" && export dist_build_sign_and_tag=true && ./help-steps/signing-key-create && ./help-steps/sign-and-tag && env dist_build_target_arch='${ARCH}' flavors_list='${FLAVOR}' dist_build_multi_target_list='${MULTI}' ./help-steps/dm-build-official --freshness '${FRESHNESS}' --package-jobs '${PKG_JOBS}' ${COWBASE_REUSE_FLAG}"
+        run: >-
+          ./docker/derivative-maker-docker-run --
+          bash -c "export dist_build_version=\"\$(git describe --always --abbrev=1000000000 --exclude '*_*_*')\" &&
+          ./help-steps/signing-key-create && ./help-steps/sign-and-tag &&
+          env dist_build_target_arch='${ARCH}' flavors_list='${FLAVOR}'
+          dist_build_multi_target_list='${MULTI}'
+          ./help-steps/dm-build-official --freshness '${FRESHNESS}' --package-jobs '${PKG_JOBS}' ${COWBASE_REUSE_FLAG}"
 
       ## Pack the cowbuilder base into its tarball BEFORE freeing it: under
-      ## Runs only when the build FAILED but the runner survived -- e.g. a
-      ## container OOM-killed inside an otherwise healthy job, where docker's
-      ## OOMKilled flag is decisive. It cannot help when the runner itself dies:
-      ## every step after the build, this one included, is then recorded as
-      ## never having run. The in-step memory sampler above covers that case.
-      - name: Diagnose a killed build
-        if: failure()
-        run: ./ci/diagnose-build-kill
-
       ## --reuse-cowbuilder-base the base lives in this tree, and the upload glob
       ## below scandirs binary_mnt, where a root-owned 0700 chroot would EACCES.
       ## No-op when there is no base in the tree.
@@ -320,113 +314,22 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: repro-image-${{ matrix.copy }}
-          ## The distributable images + their sidecars, matched by EXTENSION so
-          ## this works for any product (Kicksecure OR Whonix) -- image filenames
-          ## are '<Product>-<flavor>-<version>...', so a 'Kicksecure-*' prefix
-          ## silently drops Whonix images. Excludes the '.raw' build intermediate
-          ## (a 100 GB sparse disk that is not the reproducibility subject and
-          ## bloats the compare job's disk) and every build-cache dir under
-          ## binary_mnt (they carry none of these extensions).
+          ## Released image + siblings only, NOT the '.raw' build intermediate: a
+          ## 100 GB sparse disk image that is not the reproducibility subject and
+          ## bloats the artifact past the compare job's disk.
           path: |
-            /home/runner/binary_mnt/**/*.qcow2.libvirt.xz
-            /home/runner/binary_mnt/**/*.qcow2.libvirt.xz.*
-            /home/runner/binary_mnt/**/*.iso
-            /home/runner/binary_mnt/**/*.iso.*
-            /home/runner/binary_mnt/**/*.ova
-            /home/runner/binary_mnt/**/*.ova.*
+            /home/runner/binary_mnt/**/Kicksecure-*
+            !/home/runner/binary_mnt/**/*.raw
           if-no-files-found: error
           ## 2 days, matching boot-image-*: nothing consumes these after the
           ## compare job (its only reader), so a longer window just holds
           ## storage. The report below is the durable, human-facing output.
           retention-days: 2
 
-      ## The PROVENANCE record, kept far longer than the image it describes.
-      ## The image artifact expires in 2 days because it is half a gigabyte and
-      ## only the compare job reads it. The '.dm-buildinfo' is a few kilobytes and
-      ## is what answers "what source did this run actually build?" -- the
-      ## Submodule-State it carries is the only record of the branch TIPS this
-      ## lane checks out instead of the commit's pins. Losing it after 2 days
-      ## makes every older run unanalysable, so it is uploaded separately and
-      ## retained for a quarter. Storage cost is negligible; the alternative is
-      ## re-running an hour-long build to recover a few KB of metadata.
-      - name: Upload build ${{ matrix.copy }} provenance record
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: repro-buildinfo-${{ matrix.copy }}
-          path: |
-            /home/runner/binary_mnt/**/*.dm-buildinfo
-            /home/runner/binary_mnt/**/*.dm-buildinfo.asc
-            /home/runner/binary_mnt/**/*.dm-buildinfo.sig
-          ## A run that produced an image but no provenance record is a defect,
-          ## not an empty upload to shrug at.
-          if-no-files-found: error
-          retention-days: 90
-
-      ## The small VERIFICATION sidecars, uploaded WITHOUT the multi-hundred-MB
-      ## image. A reproducibility check compares the '.sha512sums' -- a few
-      ## hundred bytes -- so downloading the whole 'repro-image' artifact (~1.3 GB)
-      ## just to read one hash line is pure waste. This bundle is ~100 KB: the
-      ## per-image '.sha512sums' (+ '.asc'/'.sig'), the image and torrent
-      ## signatures, and the build's auto-generated signing PUBLIC keys
-      ## (5200_prepare-release exports the signify '.pub' and the OpenPGP cert
-      ## next to the images) so a verifier can check the signatures without the
-      ## operator's keys. Public keys only -- never a secret half.
-      - name: Upload build ${{ matrix.copy }} checksums, signatures and public keys
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: repro-checksums-${{ matrix.copy }}
-          ## Matched by EXTENSION, not a 'Kicksecure-*' prefix, so it also covers
-          ## Whonix images. Only image sidecars and the signing public keys carry
-          ## these suffixes under binary_mnt; the build-cache dirs and the big
-          ## images (.qcow2.libvirt.xz / .iso) do not, so nothing large is caught.
-          path: |
-            /home/runner/binary_mnt/**/*.sha512sums
-            /home/runner/binary_mnt/**/*.asc
-            /home/runner/binary_mnt/**/*.sig
-            /home/runner/binary_mnt/**/*.torrent
-            /home/runner/binary_mnt/**/*.pub
-          if-no-files-found: error
-          retention-days: 90
-
-  ## A build that DIES takes its own diagnostics with it: every step after the
-  ## build -- the 'if: failure()' collector and github's own post-steps included
-  ## -- is then recorded as never having run, so nothing in that job can report
-  ## anything. Proven by synthetic probe: on a job that does not fail cleanly the
-  ## step-level collector is SKIPPED while a separate job still runs.
-  ##
-  ## This job runs on a FRESH runner, so it survives. It cannot see the dead
-  ## runner's memory or dmesg -- the in-step sampler covers that by writing into
-  ## the log while the build is alive -- but it makes the shape of the failure
-  ## EXPLICIT instead of leaving a silent mystery.
-  postmortem:
-    needs: build
-    if: always() && needs.build.result != 'success'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: read
-      actions: read
-    steps:
-      - name: Report which steps never ran
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          printf '%s\n' "===== BUILD DID NOT SUCCEED: ${{ needs.build.result }} ====="
-          printf '%s\n' "A step recorded as 'none' never ran. If the BUILD step is 'none'"
-          printf '%s\n' "and everything after it is too, the runner died rather than the"
-          printf '%s\n' "build failing -- look at the MEMSAMPLE lines in the build log."
-          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs" \
-            --jq '.jobs[] | "\(.name): \(.conclusion) | " + ([.steps[] | "\(.number)=\(.conclusion // "none")"] | join(","))' \
-            || printf '%s\n' "api query failed"
-
   compare:
     needs: build
     ## Fork-PR guard (rule 3), mirroring the build job; also gated by needs:build.
-    ## CI runs only where we enabled it; ANDed with the existing guard.
-    ## Unset variable -> skipped, no runner, run stays green.
-    if: >-
-      vars.CI_ENABLED_ORG_AI_ASSISTED == 'true'
-      && (github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request')
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
