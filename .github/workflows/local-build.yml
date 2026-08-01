@@ -307,6 +307,28 @@ jobs:
           ## storage. The report below is the durable, human-facing output.
           retention-days: 2
 
+      ## The PROVENANCE record, kept far longer than the image it describes.
+      ## The image artifact expires in 2 days because it is half a gigabyte and
+      ## only the compare job reads it. The '.dm-buildinfo' is a few kilobytes and
+      ## is what answers "what source did this run actually build?" -- the
+      ## Submodule-State it carries is the only record of the branch TIPS this
+      ## lane checks out instead of the commit's pins. Losing it after 2 days
+      ## makes every older run unanalysable, so it is uploaded separately and
+      ## retained for a quarter. Storage cost is negligible; the alternative is
+      ## re-running an hour-long build to recover a few KB of metadata.
+      - name: Upload build ${{ matrix.copy }} provenance record
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: repro-buildinfo-${{ matrix.copy }}
+          path: |
+            /home/runner/binary_mnt/**/*.dm-buildinfo
+            /home/runner/binary_mnt/**/*.dm-buildinfo.asc
+            /home/runner/binary_mnt/**/*.dm-buildinfo.sig
+          ## A run that produced an image but no provenance record is a defect,
+          ## not an empty upload to shrug at.
+          if-no-files-found: error
+          retention-days: 90
+
   compare:
     needs: build
     ## Fork-PR guard (rule 3), mirroring the build job; also gated by needs:build.
