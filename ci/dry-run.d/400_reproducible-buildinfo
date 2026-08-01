@@ -1,0 +1,104 @@
+#!/bin/bash
+
+## Copyright (C) 2026 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## See the file COPYING for copying conditions.
+
+## AI-Assisted
+
+## Cover what the REAL caller cannot reach. Step 300 builds '--target raw', so
+## dm-prepare-release now invokes dm-reproducible-buildinfo itself, with the
+## arguments it really uses, and signs the result -- that is the faithful
+## coverage of the happy path, and it is not duplicated here.
+##
+## What a successful release never exercises is the tool's REFUSALS. Those only
+## run on bad input, so nothing else in CI reaches them: a green lane is exactly
+## the run that does not. They are asserted here, on a dummy file, in well under
+## a second.
+##
+## The default output NAME is also checked: dm-prepare-release calls the tool
+## WITHOUT '--output' and then signs '<image>.dm-buildinfo', so that derivation is
+## load-bearing for the release path even though nothing states it.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+
+## style-ok: no-safe-rm -- removes only a mktemp'd work dir (not user input), and
+## safe-rm is not guaranteed on PATH inside the dry-run container.
+
+MYDIR="$( cd -- "$( dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")" )" && pwd )"
+source_root="$( cd -- "${MYDIR}/../.." && pwd )"
+buildinfo_tool="${source_root}/packages/kicksecure/developer-meta-files/usr/bin/dm-reproducible-buildinfo"
+
+work_dir="$(mktemp --directory)"
+cleanup() {
+   rm --recursive --force -- "${work_dir}"
+}
+trap cleanup EXIT
+
+dummy_image="${work_dir}/dummy.raw"
+true > "${dummy_image}"
+buildinfo_file="${dummy_image}.dm-buildinfo"
+
+## Export a couple of build variables so val() has real (not 'unknown') input to
+## propagate; the tool tolerates the rest being unset.
+export dist_build_flavor="kicksecure-cli"
+export SOURCE_DATE_EPOCH="1600000000"
+
+## No '--output': the form dm-prepare-release uses. The tool must derive
+## '<image>.dm-buildinfo', which is the exact name that caller then signs.
+"${buildinfo_tool}" --target raw --image "${dummy_image}"
+
+if [ ! -f "${buildinfo_file}" ]; then
+   printf '%s\n' "ERROR: without --output the tool did not create '${buildinfo_file}'; dm-prepare-release signs that exact name." >&2
+   exit 1
+fi
+
+## The emit must be a well-formed Deb822 record: the fixed fields plus the two
+## exported values must be present.
+expected_fields=(
+   "Format: 1.0"
+   "Buildinfo-Type: derivative-image"
+   "Target: raw"
+   "Image-File: dummy.raw"
+   "Flavor: kicksecure-cli"
+   "Source-Date-Epoch: 1600000000"
+)
+for field in "${expected_fields[@]}"; do
+   if ! grep --quiet --fixed-strings -- "${field}" "${buildinfo_file}"; then
+      printf '%s\n' "ERROR: buildinfo missing expected field: ${field}" >&2
+      exit 1
+   fi
+done
+
+## An unset variable must render as 'unknown' rather than an empty value, so the
+## record stays well-formed for a parser.
+if ! grep --quiet --fixed-strings -- "Build-Type: unknown" "${buildinfo_file}"; then
+   printf '%s\n' "ERROR: an unset build variable did not render as 'unknown'." >&2
+   exit 1
+fi
+
+## The refusals. Each must exit 2 -- a release that silently emitted a buildinfo
+## for a missing image, or for no target, would publish a signed record of
+## nothing. Only bad input reaches these, so no successful build ever does.
+assert_refuses() {
+   local description="$1"
+   shift
+   local refuse_rc=0
+
+   "${buildinfo_tool}" "$@" >/dev/null 2>&1 || refuse_rc="$?"
+   if [ "${refuse_rc}" -ne 2 ]; then
+      printf '%s\n' "ERROR: ${description}: expected exit 2, got ${refuse_rc}." >&2
+      exit 1
+   fi
+}
+
+assert_refuses "missing --target" --image "${dummy_image}"
+assert_refuses "missing --image" --target raw
+assert_refuses "nonexistent image" --target raw --image "${work_dir}/does-not-exist.raw"
+assert_refuses "unknown argument" --target raw --image "${dummy_image}" --nonsense
+
+printf '%s\n' "INFO: reproducibility buildinfo refusals + default output name verified." >&2
