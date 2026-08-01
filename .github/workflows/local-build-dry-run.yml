@@ -43,17 +43,9 @@ jobs:
     name: derivative-maker --dry-run true
     runs-on: ubuntu-latest
 
-    ## CI runs only where we enabled it; ANDed with the existing guard.
-    ## Unset variable -> skipped, no runner, run stays green.
-    if: >-
-      vars.CI_ENABLED_ORG_AI_ASSISTED == 'true'
-      && (github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request')
+    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
 
-    ## MUST exceed the 'timeout 3600' (60 min) inside
-    ## ci/dry-run.d/300_run-derivative-maker, plus checkout and the image
-    ## build/cache restore. At 25 the job was cancelled before that inner ceiling
-    ## could ever fire, so a run measured at ~35 min could not have passed here.
-    timeout-minutes: 75
+    timeout-minutes: 25
 
     ## Subsequent steps run inside a privileged debian:trixie with
     ## systemd as PID 1 so 'systemctl start approx' (the build's apt
@@ -100,7 +92,7 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.dm-docker-image
-          key: ${{ runner.os }}-dryrun-dmimg-${{ hashFiles('docker/**', 'build_sources/frozen-snapshot-timestamp', 'build_sources/debian_stable_frozen_direct_clearnet.sources.in') }}
+          key: ${{ runner.os }}-dryrun-dmimg-${{ hashFiles('docker/**', 'build_sources/frozen-snapshot-timestamp', 'build_sources/debian_stable_frozen_direct_clearnet.sources') }}
 
       - name: Load cached docker image
         if: steps.dmimg-cache.outputs.cache-hit == 'true'
@@ -118,72 +110,20 @@ jobs:
         if: steps.dmimg-cache.outputs.cache-hit != 'true'
         run: ./ci/dm-docker-image-cache save
 
-      - name: Resolve the derivative-maker image reference
-        id: dmimg-ref
-        ## Never spell the reference out here: docker-run, ci/dm-docker-image-cache
-        ## and this workflow must all name the SAME image, and a hardcoded copy
-        ## does not fail loudly -- it silently starts a different container. The
-        ## helper is the single definition, and it arch-qualifies the tag.
-        run: printf 'ref=%s\n' "$(./docker/derivative-maker-docker-image-ref)" >> "${GITHUB_OUTPUT}"
-
       - name: Start systemd container from the derivative-maker image
         ## The action layers systemd onto whatever base it is given, so it takes
         ## the build image directly.
         uses: org-ai-assisted/developer-meta-files/.github/actions/launch-systemd-container@master
         with:
           name: dryrun
-          image: ${{ steps.dmimg-ref.outputs.ref }}
+          image: kicksecure/derivative-maker-docker:x86_64
           wait-seconds: '90'
 
-      ## FIXME: Let's use a more intuitive name than "dry-run". dry-run implies
-      ## that the code does nothing, whereas our "dry-run" does quite a lot of
-      ## file generation, commit amending, etc. "quick-blank-build" would be
-      ## more suitable.
       - name: Run dry-run inside container
         ## --workdir /workspace: the action mounts ${{ github.workspace }}
         ## at /workspace inside the container; the dry-run script is
         ## referenced via './ci/dry-run' and needs PWD to match.
         run: docker exec --env CI=true --workdir /workspace dryrun ./ci/dry-run
-
-      ## The lane BUILDS a real '.qcow2.libvirt.xz' and its '.dm-buildinfo' and
-      ## then threw both away. Publishing them is what makes the lane's output
-      ## inspectable at all -- and specifically what lets
-      ## dm-repro-verify-against-ci compare a local dry-run against this one.
-      ## Copied OUT of the container first: the build writes to the build user's
-      ## home inside it, not to the bind-mounted workspace.
-      - name: Collect the dry-run artifacts
-        if: always()
-        run: |
-          set -o errexit
-          set -o nounset
-          set -o pipefail
-          ## sudo for the mkdir: the privileged dryrun container ran ./ci/dry-run
-          ## as ROOT in this bind-mounted workspace, so it is root-owned by now
-          ## and an unprivileged mkdir fails. The workflow's own "Reclaim
-          ## workspace ownership" step fixes that, but it runs LATER -- after the
-          ## container is torn down, and 'docker cp' needs the container alive.
-          sudo mkdir --parents dryrun-artifacts
-          ## '|| true' on the copy alone, never on the assertion below: a lane
-          ## that produced nothing must fail at the upload, not here.
-          sudo docker cp "dryrun:/home/builder/derivative-binary/." dryrun-artifacts/ || true
-          ## Hand it back before upload-artifact reads it.
-          sudo chown -R "$(id -u):$(id -g)" dryrun-artifacts
-          find dryrun-artifacts -type f \( -name '*.qcow2.libvirt.xz' -o -name '*.dm-buildinfo' \) -print
-
-      - name: Upload the dry-run artifacts
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: dryrun-image
-          ## Only the released artifact and its provenance record. The raw build
-          ## intermediates are not the subject and would bloat the upload.
-          path: |
-            dryrun-artifacts/**/*.qcow2.libvirt.xz
-            dryrun-artifacts/**/*.dm-buildinfo
-          ## An empty upload would make a lane that built nothing look like one
-          ## whose artifacts simply expired.
-          if-no-files-found: error
-          retention-days: 7
 
       - name: Tear down container
         if: always()
@@ -221,7 +161,7 @@ jobs:
         ## in-run: flag).
         env:
           JOB_STATUS: ${{ job.status }}
-          DRYRUN_IMAGE: ${{ steps.dmimg-ref.outputs.ref }}
+          DRYRUN_IMAGE: kicksecure/derivative-maker-docker:x86_64
         run: |
           ./.github/dist-ai/usr/bin/step-summary-emit \
             --tool 'Dry-run' \
