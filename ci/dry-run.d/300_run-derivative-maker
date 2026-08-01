@@ -136,9 +136,11 @@ assert_produced "reproducibility buildinfo emitted by dm-prepare-release" '*.qco
 
 ## The buildinfo must carry the pre-sign provenance, not the 'unrecorded' fallback.
 ## dm-reproducible-buildinfo reads '${binary_build_folder_dist}/dm-source-state',
-## which sign-and-tag wrote in step 200 BEFORE amending anything; 'unrecorded'
-## here means that file was missing or did not validate, so the released record
-## would name the post-amend commit -- which nobody can fetch.
+## which sign-and-tag wrote in step 200 BEFORE amending anything, and validates it;
+## 'unrecorded' here means that file was missing or did not validate, so the
+## released record would name the post-amend commit -- which nobody can fetch.
+## That validation lives in the developer-meta-files submodule, so this assertion
+## is only meaningful while the gitlink carries it.
 buildinfo_file="$(find "${binary_dir}" -type f -name '*.qcow2.libvirt.xz.dm-buildinfo' -print -quit)"
 ## Both halves: a buildinfo with NO Source-Commit field, or an empty one, is not
 ## "recorded provenance" either -- and testing only for the literal 'unrecorded'
