@@ -41,6 +41,11 @@ MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 ## Enable trixie-backports so diffoscope can be pulled from it: copy the static
 ## ci/trixie-backports.sources drop-in (a single suite; the build's own sources
 ## are untouched) rather than generating it inline.
+## 'has' rather than 'command -v' (R-090): it verifies the hit is executable and
+## is not an alias or shell function.
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/has.sh
+source "${MYDIR}/../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/has.sh"
+
 sudo cp -- "${MYDIR}/trixie-backports.sources" /etc/apt/sources.list.d/trixie-backports.sources
 
 sudo apt-get update
@@ -51,4 +56,28 @@ sudo apt-get install --yes --no-install-recommends -t trixie-backports \
    fakeroot \
    xxd \
    p7zip-full \
-   qemu-utils
+   qemu-utils \
+   kmod
+
+## Assert, do not assume. This is the compare job's ONLY preflight: it runs
+## 'docker-run -- ci/reproducible-compare' and no build step, so
+## build-steps.d/1100_sanity-tests -- where the build checks its own tools --
+## never executes here. A tool missing at this point does not fail loudly; it
+## makes dm-reproducible-compare-artifacts fall back from the mounted route to
+## comparing packed artifacts directly, which OOMs on a multi-gigabyte image and
+## reports "diffoscope could not explain the diff", naming nothing. 'kmod' was
+## exactly that gap.
+missing_tools=""
+for required_tool in modprobe qemu-nbd qemu-img diffoscope mountpoint ; do
+   if has "${required_tool}" ; then
+      continue
+   fi
+   missing_tools="${missing_tools} ${required_tool}"
+done
+
+if [ -n "${missing_tools}" ]; then
+   printf '%s\n' "${0##*/}: ERROR: still missing after install:${missing_tools}" >&2
+   printf '%s\n' "${0##*/}: the reproducibility comparison needs these; without them it degrades to an unattributable 'could not explain the diff'." >&2
+   exit 1
+fi
+printf '%s\n' "${0##*/}: comparison tooling present." >&2
