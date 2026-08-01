@@ -77,8 +77,12 @@ snapshot.
   longer matches, so a bump cannot silently reuse the previous snapshot's image.
 - The sources are https and the slim base ships no `ca-certificates`, so
   `apt-bootstrap-ca-certificates` installs the trust store first from the base image's
-  own sources. That is the only unpinned fetch; the package is reinstalled from the
-  snapshot afterwards.
+  own sources, because https to the snapshot cannot be validated before it exists.
+  That is the only unpinned fetch: the base image itself is digest-pinned
+  (`FROM debian:trixie-slim@sha256:...`), not tag-resolved. `derivative-maker-docker-setup`
+  then re-fetches the package from the snapshot with `apt-get install --reinstall`;
+  without `--reinstall` that call is a no-op whenever the live archive and the
+  snapshot carry the same version, leaving the unpinned copy in place.
 
 The build context is the repo root (`docker build --file docker/Dockerfile .`) so the
 Dockerfile can COPY out of `build_sources/`; `.dockerignore` keeps the context to
