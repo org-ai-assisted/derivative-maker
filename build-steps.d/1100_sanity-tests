@@ -614,7 +614,13 @@ install_required_packages() {
 }
 
 check_required_packages_installed() {
-   required_packages_list="git time curl approx lsb-release fakeroot fasttrack-archive-keyring safe-rm gpg-sq"
+   ## kmod / qemu-utils / kpartx / parted are bootstrapped HERE, not left to
+   ## '*_prepare-build-machine': check-required-tools below asserts them, and this
+   ## step runs first, so the container image -- which ships none of them -- would
+   ## otherwise fail the assertion before anything had a chance to install them.
+   ## They are also declared in buildconfig.d/30_dependencies.conf, which is what
+   ## keeps them installed for the rest of the build.
+   required_packages_list="git time curl approx lsb-release fakeroot fasttrack-archive-keyring safe-rm gpg-sq kmod qemu-utils kpartx parted"
    local required_package_item
 
    ## SC2086: intentional word-splitting of the space-separated package list.
