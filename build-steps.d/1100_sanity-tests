@@ -613,6 +613,54 @@ install_required_packages() {
          ${required_packages_list}
 }
 
+check-required-tools() {
+   local tool_spec tool_name tool_package missing_list missing_count
+
+   ## Every external tool the build or the reproducibility comparison invokes must
+   ## be present, ALWAYS, checked here rather than at the point of use. A tool that
+   ## is merely optional-in-practice is the failure mode this guards: 'modprobe'
+   ## was absent from the build container, so the comparison silently fell back to
+   ## a route that cannot explain a difference on a multi-gigabyte image, and the
+   ## reproducibility report said only "could not explain the diff" -- hours in,
+   ## naming nothing. Requiring the tool unconditionally is simpler than reasoning
+   ## about which step needs which, and it fails in seconds instead.
+   ##
+   ## 'diffoscope' is deliberately NOT here: ci/reproducible-install-deps pulls it
+   ## from trixie-backports because the version in trixie OOMs on these artifacts,
+   ## so declaring it a plain build dependency would install the known-bad one.
+   ## That one asserts itself at its own install site.
+   missing_list=""
+   missing_count=0
+
+   for tool_spec in \
+      "modprobe:kmod" \
+      "losetup:util-linux" \
+      "mountpoint:util-linux" \
+      "qemu-img:qemu-utils" \
+      "qemu-nbd:qemu-utils" \
+      "kpartx:kpartx" \
+      "parted:parted" ; do
+      tool_name="${tool_spec%%:*}"
+      tool_package="${tool_spec#*:}"
+      if command -v "${tool_name}" >/dev/null ; then
+         continue
+      fi
+      missing_count=$(( missing_count + 1 ))
+      missing_list="${missing_list}
+  ${tool_name} (package: ${tool_package})"
+   done
+
+   if [ "${missing_count}" -gt 0 ]; then
+      error "\
+${missing_count} required tool(s) are not installed:
+${missing_list}
+
+These are invoked by the build and by the reproducibility comparison. Install the
+listed packages; they are declared in buildconfig.d/30_dependencies.conf, so a
+gap here means the build environment was assembled without them."
+   fi
+}
+
 check_required_packages_installed() {
    required_packages_list="git time curl approx lsb-release fakeroot fasttrack-archive-keyring safe-rm gpg-sq"
    local required_package_item
@@ -646,6 +694,9 @@ main() {
    check-build-primitives "$@"
    check-copy-vms-into-raw "$@"
    check_required_packages_installed "$@"
+   ## After the installer above, so a first run on a bare machine installs and
+   ## then verifies rather than failing on a gap it was about to close.
+   check-required-tools "$@"
 
    "${dist_source_help_steps_folder}/git_sanity_test" --mode all --context "main repo"
 
