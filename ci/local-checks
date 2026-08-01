@@ -27,11 +27,7 @@
 set -o nounset
 set -o errtrace
 set -o pipefail
-shopt -s inherit_errexit
-shopt -s shift_verbose
 ## NOT errexit: if one test fails, other tests should still be run.
-## style-ok: no-strict -- errexit is deliberately absent for that reason; the
-## remaining strict-mode directives are all set.
 
 cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." || exit 2
 
@@ -49,7 +45,7 @@ lint_scripts=( ./ci/lint-* )
 readarray -t lint_scripts < <(printf '%s\n' "${lint_scripts[@]}" | LC_ALL=C sort)
 
 runnable=0
-for lint_script in "${lint_scripts[@]}" ; do
+for lint_script in ${lint_scripts[@]+"${lint_scripts[@]}"} ; do
   [ -x "${lint_script}" ] || continue
   ## ci/lint-install INSTALLS the lint toolchain; it is a CI setup step, not an
   ## offline check of this tree, and it needs root for apt. Running it here would
@@ -63,6 +59,7 @@ for lint_script in "${lint_scripts[@]}" ; do
   runnable=$(( runnable + 1 ))
   printf '%s\n' "== ${lint_script} =="
   "${lint_script}" || rc=$?
+  printf '\n'
 done
 
 ## An empty set means the lints were renamed or moved away, not that
@@ -74,6 +71,6 @@ if [ "${runnable}" -eq 0 ]; then
 fi
 
 if (( rc != 0 )); then
-  printf '%s\n' "FAILED" >&2
+  printf '\nFAILED\n' >&2
 fi
 exit "${rc}"
