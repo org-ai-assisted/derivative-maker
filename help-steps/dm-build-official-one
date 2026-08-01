@@ -63,7 +63,7 @@ for arg_item in "$@"; do
     forwarded_args+=("${arg_item}")
   fi
 done
-set -- ${forwarded_args[@]+"${forwarded_args[@]}"}
+set -- "${forwarded_args[@]}"
 
 if [ "${CI:-}" = "true" ]; then
   true "INFO: Skipping test if folder ~/.ssh exists on CI."

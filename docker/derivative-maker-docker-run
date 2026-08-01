@@ -43,14 +43,12 @@ CACHER_VOLUME="${HOME}/approx_cache_mnt"
 ## sq uses the softkeys backend, but harmless and correct for those configurations).
 KEY_VOLUME="${HOME}/.key_mnt"
 GNUPG_VOLUME="${HOME}/.gnupg_mnt"
-IMG="kicksecure/derivative-maker-docker"
-## Arch-qualify the image tag so an amd64 and an arm64 image can never collide
-## in a shared docker store or image cache. The image is built natively on the
-## runner, so its architecture is the host's; 'uname --machine' (e.g. x86_64 /
-## aarch64) names it unambiguously. ci/dm-docker-image-cache derives the same
-## reference.
-image_arch="$(uname --machine)"
-image_ref="${IMG}:${image_arch}"
+## Single definition, shared with ci/dm-docker-image-cache and the CI workflows:
+## a second copy does not fail loudly, it silently names a different image.
+image_ref="$( "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/derivative-maker-docker-image-ref" )"
+## The tag, for the container name below. Taken from the reference rather than
+## re-derived, so the two cannot disagree.
+image_arch="${image_ref##*:}"
 [[ -v CI ]] || CI=""
 
 if [ "${CI:-}" = "true" ]; then
