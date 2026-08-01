@@ -365,6 +365,14 @@ dist_build_one_parse_cmd() {
                   build_target_counter="$(( ${build_target_counter} + 1 ))"
                   export dist_build_raw="true"
                   dist_build_image_upload_supported="false"
+                  ## Same implication as every other VM-image target, '--target
+                  ## utm' included -- utm sets this very flag and implies vm.
+                  ## Without it '--target raw' alone reached 1100_sanity-tests
+                  ## with no type and died on "You must add either '--type vm'
+                  ## '--type host'", a message that never mentions the target
+                  ## that caused it. An explicit '--type' still wins: the helper
+                  ## returns early when one was passed.
+                  implicit_dist_type_vm "--target ${2:-}"
                elif [ "${2:-}" = "root" ]; then
                   build_target_counter="$(( ${build_target_counter} + 1 ))"
                   export dist_build_install_to_root="true"
