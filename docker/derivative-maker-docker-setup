@@ -34,9 +34,44 @@ dm_apt_options=(
 ## The pin is read back out of the file apt is pointed at, because that file is
 ## the only thing apt obeys; verifying anything else would prove the wrong
 ## statement. Only 'URIs:' lines count -- comment prose carries example dates.
-DM_FROZEN_SNAPSHOT="$(grep -E '^[[:space:]]*URIs:' "${DM_FROZEN_SOURCES}" \
+## Every URI token of every 'URIs:' field, one per line -- including deb822 FOLDED
+## continuation lines (a field may continue on lines beginning with whitespace).
+## Matching only the 'URIs:' line itself misses those, leaving a URI hidden on a
+## continuation line unvalidated.
+dm_deb822_uris() {
+   local line trimmed token in_field
+   in_field=false
+   while IFS= read -r line; do
+      trimmed="${line#"${line%%[![:space:]]*}"}"
+      case "${trimmed}" in
+         URIs:*)
+            in_field=true
+            trimmed="${trimmed#URIs:}"
+            ;;
+         '')
+            in_field=false
+            continue
+            ;;
+         *)
+            if [ "${in_field}" = "true" ] && [ ! "${line}" = "${trimmed}" ]; then
+               true
+            else
+               in_field=false
+               continue
+            fi
+            ;;
+      esac
+      ## Deliberate word splitting: a URIs field is whitespace-separated.
+      # shellcheck disable=SC2086
+      for token in ${trimmed}; do
+         printf '%s\n' "${token}"
+      done
+   done < "$1"
+}
+
+DM_FROZEN_SNAPSHOT="$(dm_deb822_uris "${DM_FROZEN_SOURCES}" \
    | grep -oE '[0-9]{8}T[0-9]{6}Z' | sort --unique | head -n 1 || true)"
-dm_frozen_snapshot_count="$(grep -E '^[[:space:]]*URIs:' "${DM_FROZEN_SOURCES}" \
+dm_frozen_snapshot_count="$(dm_deb822_uris "${DM_FROZEN_SOURCES}" \
    | grep -oE '[0-9]{8}T[0-9]{6}Z' | sort --unique | grep --count . || true)"
 
 ## Exactly one snapshot, or the two archives resolve to different ones and the
@@ -46,6 +81,20 @@ if [ ! "${dm_frozen_snapshot_count}" = "1" ]; then
       "${BASH_SOURCE[0]}: ERROR: expected exactly one pinned snapshot in '${DM_FROZEN_SOURCES}', found ${dm_frozen_snapshot_count}." >&2
    exit 1
 fi
+## Counting DISTINCT TIMESTAMPS is not the same as validating the URIs. A stanza
+## listing the pinned snapshot alongside a live archive
+## ('URIs: http://snapshot.../<pin> https://deb.debian.org/debian') yields exactly
+## one timestamp and passed the count test, while apt still fetched from the live
+## archive -- defeating the pin this check exists to prove. So require EVERY URI
+## to carry the snapshot.
+dm_unpinned_uri="$(dm_deb822_uris "${DM_FROZEN_SOURCES}" \
+   | grep -vE '[0-9]{8}T[0-9]{6}Z' | head -n 1 || true)"
+if [ -n "${dm_unpinned_uri}" ]; then
+   printf '%s\n' \
+      "${BASH_SOURCE[0]}: ERROR: '${DM_FROZEN_SOURCES}' lists URI '${dm_unpinned_uri}', which carries no snapshot timestamp; apt would fetch from it unpinned." >&2
+   exit 1
+fi
+
 if [ -z "${DM_FROZEN_SNAPSHOT}" ]; then
    printf '%s\n' "${BASH_SOURCE[0]}: ERROR: no pinned snapshot in '${DM_FROZEN_SOURCES}'." >&2
    exit 1
