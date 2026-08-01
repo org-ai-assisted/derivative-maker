@@ -32,6 +32,12 @@ source variables
 cd "${MYDIR}"
 cd ..
 
+## 'has' rather than 'command -v' (R-090): it verifies the hit is executable and
+## is not an alias or shell function. 'pre' sets HELPER_SCRIPTS_PATH to the
+## in-tree submodule, so this resolves before helper-scripts is installed.
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/has.sh
+source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/has.sh
+
 test-wc() {
    if ! printf '%s\n' "" | wc -l >/dev/null ; then
       error "\
@@ -642,7 +648,7 @@ check-required-tools() {
       "parted:parted" ; do
       tool_name="${tool_spec%%:*}"
       tool_package="${tool_spec#*:}"
-      if command -v "${tool_name}" >/dev/null ; then
+      if has "${tool_name}" ; then
          continue
       fi
       missing_count=$(( missing_count + 1 ))
