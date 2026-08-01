@@ -8,13 +8,40 @@
 ## Resolve target_home via getent rather than '/home/<user>/' to
 ## avoid baking the OS's home-dir convention into this script.
 ##
-## '--target raw' in addition to '--target source', because the release path
+## An IMAGE target in addition to the source target, because the release path
 ## behaves differently for the two and only the image path is interesting.
+##
+## 'qcow2', not 'raw': parse-cmd marks raw 'dist_build_image_upload_supported=false'
+## and dm-upload-images refuses it ("upload support for this --target is not yet
+## implemented"), so a raw lane dies in Phase 4 by design. qcow2 is upload-supported
+## and is the target the real build lanes use.
+##
+## The flavor and targets are passed as 'flavors_list' / 'dist_build_multi_target_list',
+## NOT as '--flavor' / '--target'. dm-build-official composes its own
+## '--flavor <item>' per flavor and its own '--target' set, and forwards "$@" on
+## top, so an option given here arrives TWICE and the build dies on
+## "You cannot use --flavor multiple times!". This is also the shape the real CI
+## build lane uses.
+##
+## 'kicksecure-lxqt' specifically: dm-build-official's Phase 4 runs
+## dm-prepare-release only 'if flavor_built kicksecure-lxqt', so any other flavor
+## silently skips the source release -- the very step this lane exists to cover.
+##
+## Not '--flavor source': the flavor selects SHORT_VMNAME, which names the libvirt
+## XML 1600_export-libvirt-xml copies for every raw/qcow2 target. 'source' has no
+## such XML, so that combination dies ~15 minutes in on
+## 'cp: cannot stat .../source.xml'. 1100_sanity-tests' check-libvirt-xml now
+## rejects it in seconds; the flavor here is chosen so the lane is VALID, not so
+## it dodges that guard.
 ## dm-prepare-release records an empty target name for the source archive and so
 ## SKIPS the per-image work: the reproducibility buildinfo is emitted only for
 ## virtualbox/raw/qcow2/iso. With source alone, that call -- and the sign_and_verify
 ## of its output -- never ran here, which is why it needed a hand-rolled stand-in
 ## instead of being covered by the real caller.
+##
+## '--freshness frozen' is mandatory for dm-build-official and is the right value
+## here regardless: it pins the snapshot.debian.org suite, so the lane does not
+## start failing because a live mirror moved.
 ##
 ## It is cheap: 'help-steps/variables' pins VMSIZE to 1M under --dry-run, so this
 ## is a 1 MB image through sha512sum, mktorrent and signing, not 100G.
@@ -30,14 +57,66 @@ target_user=builder
 
 cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../.."
 
-timeout 1200 \
+## 3600, not 1200: a full source+image dry run is ~35 min of real package work in
+## the cowbuilder chroot, and a timeout that fires mid-build reads as a lane
+## failure with no diagnosis.
+timeout 3600 \
    ./help-steps/run-as-user --chown "${PWD}" -- \
       "${target_user}" \
-      ./derivative-maker \
+      env flavors_list=kicksecure-lxqt dist_build_multi_target_list=qcow2 \
+      ./help-steps/dm-build-official \
          --dry-run true \
          --unsupported-os true \
          --allow-uncommitted true \
          --allow-untagged true \
-         --flavor source \
-         --target source \
-         --target raw
+         --freshness frozen
+
+## Exit 0 alone is not evidence. Most build steps return early under --dry-run,
+## so a regression that made one MORE step return early would leave this lane
+## green while covering less -- the failure this whole lane exists to prevent.
+## Assert the artifacts the run is supposed to have produced.
+##
+## Resolve it for the TARGET USER, not from this script's environment. The build
+## runs through help-steps/run-as-user, whose 'sudo --preserve-env=PATH' does NOT
+## carry binary_build_folder_dist across, so the build derives its own from the
+## build user's home. Trusting the caller's value here made these assertions
+## inspect a directory the build never writes: an empty mount, reported as
+## "the build exited 0 but produced nothing" when it had in fact produced
+## everything, one directory over.
+##
+## getent rather than '/home/<user>', so the OS's home-dir convention is not
+## baked in.
+target_home="$( getent passwd "${target_user}" | cut -d: -f6 )"
+if [ -z "${target_home}" ]; then
+   printf '%s\n' "${0##*/}: ERROR: no home directory for build user '${target_user}'; cannot locate the build output." >&2
+   exit 1
+fi
+binary_dir="${target_home}/derivative-binary"
+
+assert_produced() {
+   local description="$1" pattern="$2" hit
+
+   hit="$(find "${binary_dir}" -type f -name "${pattern}" -print -quit 2>/dev/null)"
+   if [ -z "${hit}" ]; then
+      printf '%s\n' "${0##*/}: ERROR: ${description}: no '${pattern}' under '${binary_dir}'. The build exited 0 but produced nothing, so this lane verified nothing." >&2
+      exit 1
+   fi
+   printf '%s\n' "${0##*/}: ok: ${description} (${hit})" >&2
+}
+
+## The image target exists so the release path runs for a real image: that is what
+## makes dm-prepare-release invoke dm-reproducible-buildinfo and sign it.
+## '*.qcow2.libvirt.xz', not '*.qcow2*': the loose glob also matches
+## '<image>.qcow2.libvirt.xz.dm-buildinfo', so it was satisfied by the buildinfo
+## file the NEXT assertion checks -- green without an image ever existing.
+assert_produced "qcow2 image built" '*.qcow2.libvirt.xz'
+assert_produced "reproducibility buildinfo emitted by dm-prepare-release" '*.dm-buildinfo'
+
+## The buildinfo must carry the pre-sign provenance, not the 'unrecorded' fallback
+## -- sign-and-tag ran in step 200, so the state file must have been there.
+buildinfo_file="$(find "${binary_dir}" -type f -name '*.dm-buildinfo' -print -quit)"
+if grep --quiet --fixed-strings -- 'Source-Commit: unrecorded' "${buildinfo_file}"; then
+   printf '%s\n' "${0##*/}: ERROR: buildinfo says Source-Commit: unrecorded, but sign-and-tag ran in step 200 and should have left a source-state file." >&2
+   exit 1
+fi
+printf '%s\n' "${0##*/}: ok: buildinfo carries recorded provenance." >&2
