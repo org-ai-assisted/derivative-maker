@@ -135,7 +135,7 @@ DEBIAN_FRONTEND=noninteractive \
     --yes \
     sq sqv sqop sequoia-git sequoia-chameleon-gnupg gpg-agent \
     signify-openbsd moreutils \
-    dbus dbus-user-session ca-certificates git time curl lsb-release fakeroot \
+    dbus dbus-user-session git time curl lsb-release fakeroot \
     dpkg-dev fasttrack-archive-keyring safe-rm adduser sudo approx \
     python3 python3-yaml
 
@@ -143,6 +143,22 @@ DEBIAN_FRONTEND=noninteractive \
 ## user only exists in the IMAGE. 'sudo' resets USER to 'root' on the host (see
 ## 'help-steps/dm-build-official-one' CI branch); the Dockerfile ENV sets
 ## USER=user during the image build.
+## ca-certificates is installed SEPARATELY with --reinstall. It is already present
+## at this point -- apt-bootstrap-ca-certificates installed it from the base
+## image's own (unpinned) sources so https to the snapshot could be validated at
+## all. A plain 'apt-get install ca-certificates' is then a no-op whenever the
+## live archive and the snapshot carry the same version, which is the normal case:
+## apt reports "already the newest version" and fetches nothing, so the trust
+## store in the image stays the one that came from the unpinned fetch. --reinstall
+## forces it to be re-fetched from the pinned snapshot, which is what makes the
+## trust store's provenance match the rest of the image.
+DEBIAN_FRONTEND=noninteractive \
+   apt-get "${dm_apt_options[@]}" install \
+      --no-install-recommends \
+      --reinstall \
+      --yes \
+      ca-certificates
+
 if [ "${USER}" = "root" ]; then
    ## Host: install the docker engine + client (see the comment above the
    ## apt-get call). Never needed inside the image.
