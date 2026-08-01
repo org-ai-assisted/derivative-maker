@@ -23,9 +23,12 @@
 ## "You cannot use --flavor multiple times!". This is also the shape the real CI
 ## build lane uses.
 ##
-## 'kicksecure-lxqt' specifically: dm-build-official's Phase 4 runs
-## dm-prepare-release only 'if flavor_built kicksecure-lxqt', so any other flavor
-## silently skips the source release -- the very step this lane exists to cover.
+## 'kicksecure-lxqt' is the DEFAULT of dist_build_source_release_flavor, which
+## Phase 4's source release is gated on. A lighter flavor is now possible -- set
+## both flavors_list and dist_build_source_release_flavor together -- but the
+## lane is kept on the combination that has actually been validated end to end.
+## Setting only flavors_list would skip the source release, the step this lane
+## exists to cover; Phase 4 now reports that rather than doing it silently.
 ##
 ## Not '--flavor source': the flavor selects SHORT_VMNAME, which names the libvirt
 ## XML 1600_export-libvirt-xml copies for every raw/qcow2 target. 'source' has no
