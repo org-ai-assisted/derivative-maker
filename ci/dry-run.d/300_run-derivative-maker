@@ -7,6 +7,17 @@
 
 ## Resolve target_home via getent rather than '/home/<user>/' to
 ## avoid baking the OS's home-dir convention into this script.
+##
+## '--target raw' in addition to '--target source', because the release path
+## behaves differently for the two and only the image path is interesting.
+## dm-prepare-release records an empty target name for the source archive and so
+## SKIPS the per-image work: the reproducibility buildinfo is emitted only for
+## virtualbox/raw/qcow2/iso. With source alone, that call -- and the sign_and_verify
+## of its output -- never ran here, which is why it needed a hand-rolled stand-in
+## instead of being covered by the real caller.
+##
+## It is cheap: 'help-steps/variables' pins VMSIZE to 1M under --dry-run, so this
+## is a 1 MB image through sha512sum, mktorrent and signing, not 100G.
 
 set -o errexit
 set -o nounset
@@ -28,4 +39,5 @@ timeout 1200 \
          --allow-uncommitted true \
          --allow-untagged true \
          --flavor source \
-         --target source
+         --target source \
+         --target raw
