@@ -28,13 +28,13 @@ repo_root="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." &&
 saved_cwd="${PWD}"
 export dist_build_source_run=true
 export dist_build_one_parsed=true
-# shellcheck source=help-steps/pre
+# shellcheck source=./pre
 source "${repo_root}/help-steps/pre"
-# shellcheck source=help-steps/variables
+# shellcheck source=./variables
 source "${repo_root}/help-steps/variables"
 cd -- "${saved_cwd}"
 
-# shellcheck source=help-steps/verify-ref
+# shellcheck source=./verify-ref
 source "${repo_root}/help-steps/verify-ref"
 
 context_label="${1:-}"
@@ -99,7 +99,7 @@ fi
 ## short-circuit the signed-tag creation; it falls through to the checks below. (Provenance by
 ## name is adequate for a LOCAL, per-build key; the downstream git_sanity_test still enforces a
 ## real signed tag either way.)
-for tag_ref in ${tags_at_head[@]+"${tags_at_head[@]}"}; do
+for tag_ref in "${tags_at_head[@]}"; do
    if [ "${tag_ref#refs/tags/}" != "${signed_tag}" ]; then
       continue
    fi

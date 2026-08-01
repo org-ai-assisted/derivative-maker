@@ -1,0 +1,28 @@
+#!/bin/bash
+
+## Copyright (C) 2026 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## See the file COPYING for copying conditions.
+
+## AI-Assisted
+
+## Print the derivative-maker container image reference, and nothing else.
+##
+## ONE definition, because three places consume it -- docker-run (builds and runs
+## it), ci/dm-docker-image-cache (saves and loads it) and the CI workflows (start
+## a systemd container from it). A copy that drifts does not fail loudly: docker
+## simply pulls or builds a DIFFERENT image, so a stale copy silently runs the
+## wrong container.
+##
+## The tag is arch-qualified so an amd64 and an arm64 image can never collide in
+## a shared docker store or image cache. The image is built natively, so its
+## architecture is the host's; 'uname --machine' (e.g. x86_64 / aarch64) names it
+## unambiguously.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+
+printf '%s\n' "kicksecure/derivative-maker-docker:$(uname --machine)"

@@ -118,13 +118,21 @@ jobs:
         if: steps.dmimg-cache.outputs.cache-hit != 'true'
         run: ./ci/dm-docker-image-cache save
 
+      - name: Resolve the derivative-maker image reference
+        id: dmimg-ref
+        ## Never spell the reference out here: docker-run, ci/dm-docker-image-cache
+        ## and this workflow must all name the SAME image, and a hardcoded copy
+        ## does not fail loudly -- it silently starts a different container. The
+        ## helper is the single definition, and it arch-qualifies the tag.
+        run: printf 'ref=%s\n' "$(./docker/derivative-maker-docker-image-ref)" >> "${GITHUB_OUTPUT}"
+
       - name: Start systemd container from the derivative-maker image
         ## The action layers systemd onto whatever base it is given, so it takes
         ## the build image directly.
         uses: org-ai-assisted/developer-meta-files/.github/actions/launch-systemd-container@master
         with:
           name: dryrun
-          image: kicksecure/derivative-maker-docker:x86_64
+          image: ${{ steps.dmimg-ref.outputs.ref }}
           wait-seconds: '90'
 
       - name: Run dry-run inside container
@@ -169,7 +177,7 @@ jobs:
         ## in-run: flag).
         env:
           JOB_STATUS: ${{ job.status }}
-          DRYRUN_IMAGE: kicksecure/derivative-maker-docker:x86_64
+          DRYRUN_IMAGE: ${{ steps.dmimg-ref.outputs.ref }}
         run: |
           ./.github/dist-ai/usr/bin/step-summary-emit \
             --tool 'Dry-run' \
