@@ -27,7 +27,11 @@
 set -o nounset
 set -o errtrace
 set -o pipefail
+shopt -s inherit_errexit
+shopt -s shift_verbose
 ## NOT errexit: if one test fails, other tests should still be run.
+## style-ok: no-strict -- errexit is deliberately absent for that reason; the
+## remaining strict-mode directives are all set.
 
 cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." || exit 2
 
@@ -59,7 +63,6 @@ for lint_script in ${lint_scripts[@]+"${lint_scripts[@]}"} ; do
   runnable=$(( runnable + 1 ))
   printf '%s\n' "== ${lint_script} =="
   "${lint_script}" || rc=$?
-  printf '\n'
 done
 
 ## An empty set means the lints were renamed or moved away, not that
