@@ -14,7 +14,7 @@ name: Build
 ## == bit-for-bit reproducible, red == a difference remains.
 ## The diffoscope report artifact says exactly what differs. The build runs through
 ## the official orchestration (help-steps/dm-build-official) with a single-flavor smoke
-## (kicksecure-cli for qcow2/virtualbox, kicksecure-lxqt for iso), so there is
+## (kicksecure-debug, the flavor local-boot-test.yml also builds), so there is
 ## ONE build path and no duplicate build
 ## logic; all compare logic lives in developer-meta-files' dm-reproducible-compare-artifacts,
 ## so the shell stays lint-covered and locally runnable. See
@@ -24,7 +24,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "Which built image to compare (qcow2/virtualbox build kicksecure-cli; iso builds kicksecure-lxqt)."
+        description: "Which built image to compare. Both are built from kicksecure-debug, the flavor local-boot-test.yml also uses."
         type: choice
         ## A choice input defaults to the first option (qcow2); the env fallback
         ## below ('inputs.target || qcow2') covers schedule/push.
@@ -36,16 +36,9 @@ on:
         options:
           - qcow2
           - iso
+  ## Dispatch-only, plus release tags below:
+  ##   dm-ci-dispatch --workflow local-build.yml --ref <ref>
   push:
-    branches:
-      ## Coverage follows the branch convention: all work lands on 'ai' or
-      ## 'ai-<topic>', so a build runs without anyone remembering an opt-in
-      ## token. Exact prefixes, never a substring glob -- a glob admits
-      ## branches by accident of spelling and leaves the rest reporting every
-      ## check green having built nothing. Per-ref 'cancel-in-progress' below
-      ## keeps a burst of pushes to one branch from stacking builds.
-      - 'ai'
-      - 'ai-**'
     tags:
       ## '**' not '*': '*' does not match a slash, so a slash-delimited tag would
       ## silently skip the gate.
@@ -70,14 +63,24 @@ concurrency:
 ## scheduled run (where inputs are empty). Fixed to amd64: the primary
 ## reproducibility target; arm64 is a follow-up.
 env:
-  ## Compare target -> flavor: qcow2/virtualbox come from kicksecure-cli (a fast
-  ## smoke that builds both VM images on amd64); iso is lxqt-only, so target=iso
-  ## builds kicksecure-lxqt instead. Default to qcow2: mountable, and the
-  ## comparator descends the shipped '.qcow2.libvirt.xz'.
+  ## Default to qcow2: mountable, and the comparator descends the shipped
+  ## '.qcow2.libvirt.xz'.
   REPRO_TARGET: ${{ inputs.target || 'qcow2' }}
   REPRO_ARCH: amd64
-  ## iso is produced only by the lxqt flavor; every other target by the cli smoke.
-  REPRO_FLAVOR: ${{ inputs.target == 'iso' && 'kicksecure-lxqt' || 'kicksecure-cli' }}
+  ## The SAME flavor local-boot-test.yml builds, for every target. Two lanes on
+  ## two flavors means two full builds of the same commit that can never share an
+  ## artifact; agreeing on one is what lets the boot lane consume this lane's
+  ## image instead of rebuilding it.
+  ##
+  ## kicksecure-debug is the minimal one that still boots: the boot chain,
+  ## hardening core, systemcheck and user-sysmaint-split (both boot sessions), no
+  ## GUI/browser/anonymity layer. 'dracut' comes in through ram-wipe's own
+  ## Depends, so the initramfs path is present despite not being named in the
+  ## meta package. What it does NOT carry -- grub-live-dracut,
+  ## bootclockrandomization, boot-info-script -- is live-mode, clock-privacy and
+  ## diagnostics, none of which a boot needs. The boot lane has produced green
+  ## boots on this flavor, which is the evidence that matters.
+  REPRO_FLAVOR: kicksecure-debug
   ## Build ONLY the target this run compares, not the whole 'virtualbox qcow2' set:
   ## the other is pure runner time, and the .ova leg cannot complete anyway (see the
   ## target choices above). Empty for iso, which the lxqt flavor produces on its own.
@@ -208,8 +211,8 @@ jobs:
         ## local ci/reproducible-build-twice drive the same entrypoint, so a
         ## local verdict transfers. Passed via an 'env VAR=val' prefix (the container entrypoint execs
         ## "$@", so this sets them inside the container without a docker-run change):
-        ##   flavors_list=$FLAVOR         -> SINGLE-flavor smoke (cli for qcow2/
-        ##       virtualbox, lxqt for iso; the script honours a flavors_list
+        ##   flavors_list=$FLAVOR         -> SINGLE-flavor smoke (the same flavor
+        ##       local-boot-test.yml builds; the script honours a flavors_list
         ##       override and the release steps are flavor-aware)
         ##   dist_build_multi_target_list=$MULTI -> for an iso run, empty so only
         ##       the iso is produced; 'virtualbox qcow2' for the VM targets
