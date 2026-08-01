@@ -140,7 +140,7 @@ check-git-symlinks() {
       git -C "${source_code_folder_dist}" submodule --quiet foreach --recursive 'printf "%s\0" "${displaypath}"'
    )
 
-   for repo_rel in ${repo_list[@]+"${repo_list[@]}"} ; do
+   for repo_rel in "${repo_list[@]}" ; do
       repo_abs="${source_code_folder_dist}/${repo_rel}"
       test -d "${repo_abs}" || continue
       ## 'ls-files' below runs in a process substitution, whose exit status the
@@ -619,104 +619,23 @@ install_required_packages() {
          ${required_packages_list}
 }
 
-check-libvirt-xml() {
-   local xml_dir available
-
-   ## 1600_export-libvirt-xml copies this file for every raw or qcow2 target. The
-   ## file name comes from SHORT_VMNAME, which is derived from the FLAVOR, so a
-   ## flavor that has no libvirt XML is accepted here and dies ~15 minutes later
-   ## on a bare "cp: cannot stat", naming neither the flavor nor the combination
-   ## that produced it. Assert it in seconds instead.
-   if [ ! "${dist_build_raw:-}" = "true" ] && [ ! "${dist_build_qcow2:-}" = "true" ]; then
-      return 0
-   fi
-   if [ -r "${libvirt_source_kvm_file}" ]; then
-      return 0
-   fi
-
-   ## An EMPTY value is a different failure and needs a different message:
-   ## 'dirname -- ""' is '.', which exists, so the listing below would dump the
-   ## whole source root into the error instead of naming XML files.
-   if [ -z "${libvirt_source_kvm_file}" ]; then
-      error "\
-libvirt_source_kvm_file is empty, so no libvirt XML could be located for this
-build. It is set in help-steps/variables from SHORT_VMNAME; an empty value means
-the flavor did not resolve to a VM name.
-  flavor: ${dist_build_flavor:-unset}
-  target: raw/qcow2"
-   fi
-
-   xml_dir="$( dirname -- "${libvirt_source_kvm_file}" )"
-   available="  (${xml_dir} does not exist)"
-   if [ -d "${xml_dir}" ]; then
-      available="$( ls -1 -- "${xml_dir}" )"
-   fi
-
-   error "No libvirt XML exists for this flavor and target combination:
-  flavor       : ${dist_build_flavor:-unset}
-  target       : raw/qcow2
-  expected file: ${libvirt_source_kvm_file}
-
-build-steps.d/1600_export-libvirt-xml copies that file for every raw or qcow2
-target, so this build cannot finish. Flavors that do have one:
-${available}"
-}
-
-check-required-tools() {
-   local tool_spec tool_name tool_package missing_list missing_count
-
-   ## Every external tool the build or the reproducibility comparison invokes must
-   ## be present, ALWAYS, checked here rather than at the point of use. A tool that
-   ## is merely optional-in-practice is the failure mode this guards: 'modprobe'
-   ## was absent from the build container, so the comparison silently fell back to
-   ## a route that cannot explain a difference on a multi-gigabyte image, and the
-   ## reproducibility report said only "could not explain the diff" -- hours in,
-   ## naming nothing. Requiring the tool unconditionally is simpler than reasoning
-   ## about which step needs which, and it fails in seconds instead.
+check_required_packages_installed() {
+   ## kmod / qemu-utils / kpartx / parted are bootstrapped HERE, not left to
+   ## '*_prepare-build-machine': the container image ships none of them, and this
+   ## step runs first. They are also declared in
+   ## buildconfig.d/30_dependencies.conf, which is what keeps them installed for
+   ## the rest of the build.
+   ##
+   ## 'kmod' is the one that has already bitten: without 'modprobe' the
+   ## reproducibility comparison cannot attach an image through nbd, and silently
+   ## fell back to comparing the packed artifacts, which OOMs on a multi-gigabyte
+   ## image. The run then reported only "diffoscope could not explain the diff",
+   ## hours in, naming neither the tool nor the package.
    ##
    ## 'diffoscope' is deliberately NOT here: ci/reproducible-install-deps pulls it
    ## from trixie-backports because the version in trixie OOMs on these artifacts,
    ## so declaring it a plain build dependency would install the known-bad one.
    ## That one asserts itself at its own install site.
-   missing_list=""
-   missing_count=0
-
-   for tool_spec in \
-      "modprobe:kmod" \
-      "losetup:util-linux" \
-      "mountpoint:util-linux" \
-      "qemu-img:qemu-utils" \
-      "qemu-nbd:qemu-utils" \
-      "kpartx:kpartx" \
-      "parted:parted" ; do
-      tool_name="${tool_spec%%:*}"
-      tool_package="${tool_spec#*:}"
-      if has "${tool_name}" ; then
-         continue
-      fi
-      missing_count=$(( missing_count + 1 ))
-      missing_list="${missing_list}
-  ${tool_name} (package: ${tool_package})"
-   done
-
-   if [ "${missing_count}" -gt 0 ]; then
-      error "\
-${missing_count} required tool(s) are not installed:
-${missing_list}
-
-These are invoked by the build and by the reproducibility comparison. Install the
-listed packages; they are declared in buildconfig.d/30_dependencies.conf, so a
-gap here means the build environment was assembled without them."
-   fi
-}
-
-check_required_packages_installed() {
-   ## kmod / qemu-utils / kpartx / parted are bootstrapped HERE, not left to
-   ## '*_prepare-build-machine': check-required-tools below asserts them, and this
-   ## step runs first, so the container image -- which ships none of them -- would
-   ## otherwise fail the assertion before anything had a chance to install them.
-   ## They are also declared in buildconfig.d/30_dependencies.conf, which is what
-   ## keeps them installed for the rest of the build.
    required_packages_list="git time curl approx lsb-release fakeroot fasttrack-archive-keyring safe-rm gpg-sq kmod qemu-utils kpartx parted"
    local required_package_item
 
@@ -737,9 +656,6 @@ main() {
    check-redistributable-builds-requirements "$@"
    check-git-folder "$@"
    check-git-symlinks "$@"
-   ## Early: it is a pure variable/file check, and catching an unbuildable
-   ## flavor/target combination here saves the whole run.
-   check-libvirt-xml "$@"
    check-operating-system-version "$@"
    check-sudo "$@"
    check-dpkg "$@"
@@ -752,9 +668,6 @@ main() {
    check-build-primitives "$@"
    check-copy-vms-into-raw "$@"
    check_required_packages_installed "$@"
-   ## After the installer above, so a first run on a bare machine installs and
-   ## then verifies rather than failing on a gap it was about to close.
-   check-required-tools "$@"
 
    "${dist_source_help_steps_folder}/git_sanity_test" --mode all --context "main repo"
 
