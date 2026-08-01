@@ -41,8 +41,21 @@ true "INFO: 0: $0"
 
 ## '--show-steps' is an alias for 'TESTING_MODE=1'. Filtered out of the
 ## forwarded arguments because the downstream build steps do not know it.
+##
+## The same pass records whether '--dry-run true' was requested. It has to be
+## read from ARGV here: $build_dry_run is set by 'help-steps/parse-cmd', which
+## runs DOWNSTREAM of this script, so the option alone never reached the
+## '~/.ssh' check below and only an exported CI=true suppressed it -- despite
+## that check documenting dry-run as a reason to skip. '--dry-run' is forwarded
+## unchanged; unlike '--show-steps' the build steps do know it.
 forwarded_args=()
+previous_arg=""
+dry_run_requested=false
 for arg_item in "$@"; do
+  if [ "${previous_arg}" = "--dry-run" ] && [ "${arg_item}" = "true" ]; then
+    dry_run_requested=true
+  fi
+  previous_arg="${arg_item}"
   if [ "${arg_item}" = "--show-steps" ]; then
     TESTING_MODE=1
     export TESTING_MODE
@@ -54,7 +67,7 @@ set -- ${forwarded_args[@]+"${forwarded_args[@]}"}
 
 if [ "${CI:-}" = "true" ]; then
   true "INFO: Skipping test if folder ~/.ssh exists on CI."
-elif [ "${build_dry_run:-}" = "true" ]; then
+elif [ "${build_dry_run:-}" = "true" ] || [ "${dry_run_requested}" = "true" ]; then
   ## '--dry-run true' is documented (see 'help-steps/parse-cmd') as
   ## "useful for debugging dm-prepare-release"; rsync is mocked
   ## (see 'help-steps/variables' '$rsync_cmd' default for dry-run),
