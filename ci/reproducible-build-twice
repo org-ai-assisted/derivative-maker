@@ -219,8 +219,15 @@ build_one() {
    ## pipe after one line, which would SIGPIPE find/sort (exit 141 under pipefail +
    ## inherit_errexit) once their output exceeds the pipe buffer, breaking the exit
    ## contract with no diagnostic.
-   found="$( find "${binary_build_folder_dist}/${dist_build_version}" -type f -name "${artifact_glob}" | LC_ALL=C sort )"
-   found="${found%%$'\n'*}"
+   ## A build that wrote nothing leaves no version directory at all, and 'find' on a
+   ## missing path fails -- under errexit that exits 1, which this script's own
+   ## contract documents as "images differ", and the message below never prints. An
+   ## absent directory and an empty one mean the same thing here: no artifact.
+   found=""
+   if [ -d "${binary_build_folder_dist}/${dist_build_version}" ]; then
+      found="$( find "${binary_build_folder_dist}/${dist_build_version}" -type f -name "${artifact_glob}" | LC_ALL=C sort )"
+      found="${found%%$'\n'*}"
+   fi
    if [ -z "${found}" ]; then
       printf '%s\n' "${0##*/}: build ${tag} produced no ${artifact_glob}" >&2
       exit 3
