@@ -62,7 +62,8 @@ usage() {
 ## 1 trails, 2 could not be verified.
 check_one_submodule() {
    local submodule_path="$1" upstream_ref="$2"
-   local pinned_sha upstream_sha behind_count
+   local pinned_sha upstream_sha behind_count upstream_candidate
+   local remote_refreshed verdict_qualifier ancestor_rc
 
    if [ ! -d "${submodule_path}" ]; then
       printf '%s\n' "${0##*/}: '${submodule_path}' is not a directory -- run 'git submodule update --init' first." >&2
@@ -81,18 +82,40 @@ check_one_submodule() {
    if [ -z "${upstream_ref}" ]; then
       ## Ask the submodule's own remote what its default branch is, rather than
       ## assuming 'master': a wrong guess would silently compare against nothing.
+      ##
+      ## 'actions/checkout' does not create 'refs/remotes/origin/HEAD', so the
+      ## fallbacks matter in CI. They are TRIED, not assumed -- a repo whose
+      ## default branch is neither is reported as unverifiable rather than
+      ## compared against a branch that does not exist.
       upstream_ref="$(git -C "${submodule_path}" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
       if [ -z "${upstream_ref}" ]; then
-         upstream_ref="origin/master"
+         for upstream_candidate in origin/master origin/main; do
+            if git -C "${submodule_path}" rev-parse --verify --quiet "${upstream_candidate}^{commit}" >/dev/null; then
+               upstream_ref="${upstream_candidate}"
+               break
+            fi
+         done
+      fi
+      if [ -z "${upstream_ref}" ]; then
+         printf '%s\n' "${0##*/}: no default branch found for '${submodule_path}' (no origin/HEAD, origin/master or origin/main) -- cannot verify freshness." >&2
+         return 2
       fi
    fi
 
+   ## Refresh BEFORE comparing, not only when the pin is unreachable. A
+   ## remote-tracking ref that has not moved since the last clone makes an
+   ## outdated pin read as current -- a false clean verdict, which is worse than
+   ## no verdict. A failure here is not fatal (the checkout may be offline), but
+   ## it is carried into the verdict so a 'current' is never reported as if the
+   ## remote had been consulted.
+   remote_refreshed=true
+   git -C "${submodule_path}" fetch --quiet 2>/dev/null || remote_refreshed=false
+
    ## The pin must be REACHABLE before it can be compared; a shallow submodule
-   ## clone often lacks it. Deepen rather than report a false verdict.
+   ## clone often lacks it even after the fetch above. Deepen rather than report
+   ## a false verdict.
    if ! git -C "${submodule_path}" cat-file -e "${pinned_sha}^{commit}" 2>/dev/null; then
-      git -C "${submodule_path}" fetch --quiet --unshallow 2>/dev/null \
-         || git -C "${submodule_path}" fetch --quiet 2>/dev/null \
-         || true
+      git -C "${submodule_path}" fetch --quiet --unshallow 2>/dev/null || true
    fi
    if ! git -C "${submodule_path}" cat-file -e "${pinned_sha}^{commit}" 2>/dev/null; then
       printf '%s\n' "${0##*/}: pinned commit ${pinned_sha} is not present in '${submodule_path}' -- cannot verify freshness, refusing to report it as current." >&2
@@ -105,15 +128,30 @@ check_one_submodule() {
 
    upstream_sha="$(git -C "${submodule_path}" rev-parse "${upstream_ref}^{commit}")"
 
+   verdict_qualifier=""
+   if [ "${remote_refreshed}" = "false" ]; then
+      verdict_qualifier=" [remote NOT refreshed; compared against the local tracking ref]"
+   fi
+
    if [ "${pinned_sha}" = "${upstream_sha}" ]; then
-      printf '%s\n' "${0##*/}: '${submodule_path}' pin is current (${pinned_sha})."
+      printf '%s\n' "${0##*/}: '${submodule_path}' pin is current (${pinned_sha})${verdict_qualifier}."
       return 0
    fi
 
    ## STRICT ancestor == the pin is simply behind. A pin that is NOT an ancestor
    ## has diverged or is ahead, which is a deliberate state (a coordinated fork
    ## branch), not lag -- do not fail those.
-   if git -C "${submodule_path}" merge-base --is-ancestor "${pinned_sha}" "${upstream_sha}"; then
+   ## 'merge-base --is-ancestor' exits 0 for ancestor, 1 for NOT ancestor, and
+   ## >1 for an ERROR. Grouping every non-zero as "diverged or ahead" turns a git
+   ## failure into an accepted pin, which contradicts the rule that an
+   ## unverifiable pin is never reported as current.
+   ancestor_rc=0
+   git -C "${submodule_path}" merge-base --is-ancestor "${pinned_sha}" "${upstream_sha}" || ancestor_rc="$?"
+   if [ "${ancestor_rc}" -gt 1 ]; then
+      printf '%s\n' "${0##*/}: 'git merge-base --is-ancestor' failed (${ancestor_rc}) in '${submodule_path}' -- cannot verify freshness." >&2
+      return 2
+   fi
+   if [ "${ancestor_rc}" -eq 0 ]; then
       behind_count="$(git -C "${submodule_path}" rev-list --count "${pinned_sha}..${upstream_sha}")"
       printf '%s\n' "${0##*/}: ERROR: '${submodule_path}' pin TRAILS ${upstream_ref} by ${behind_count} commit(s)." >&2
       printf '%s\n' "  pinned:   ${pinned_sha}" >&2
@@ -125,7 +163,7 @@ check_one_submodule() {
       return 1
    fi
 
-   printf '%s\n' "${0##*/}: '${submodule_path}' pin ${pinned_sha} is not an ancestor of ${upstream_ref} (diverged or ahead) -- deliberate, not lag."
+   printf '%s\n' "${0##*/}: '${submodule_path}' pin ${pinned_sha} is not an ancestor of ${upstream_ref} (diverged or ahead) -- deliberate, not lag${verdict_qualifier}."
    return 0
 }
 
