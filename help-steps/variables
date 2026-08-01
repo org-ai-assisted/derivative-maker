@@ -716,6 +716,13 @@ else
    error "unknown dist_build_type_short!"
 fi
 
+## Exported because dm-reproducible-buildinfo runs as a SUBPROCESS of
+## dm-prepare-release and reads these from the environment; unexported, they
+## reached it as the literal string 'unknown' and the released, signed record
+## said so.
+export project_clearnet
+export dist_build_type
+
 ## example dist_build_desktop_lowercase:
 ## lxqt
 ## Bash's lowercase expansion ',,' refuses an unset var under
