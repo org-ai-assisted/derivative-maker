@@ -756,6 +756,37 @@ install_required_packages() {
          ${required_packages_list}
 }
 
+check-libvirt-xml() {
+   local xml_dir available
+
+   ## 1600_export-libvirt-xml copies this file for every raw or qcow2 target. The
+   ## file name comes from SHORT_VMNAME, which is derived from the FLAVOR, so a
+   ## flavor that has no libvirt XML is accepted here and dies ~15 minutes later
+   ## on a bare "cp: cannot stat", naming neither the flavor nor the combination
+   ## that produced it. Assert it in seconds instead.
+   if [ ! "${dist_build_raw:-}" = "true" ] && [ ! "${dist_build_qcow2:-}" = "true" ]; then
+      return 0
+   fi
+   if [ -r "${libvirt_source_kvm_file}" ]; then
+      return 0
+   fi
+
+   xml_dir="$( dirname -- "${libvirt_source_kvm_file}" )"
+   available="  (${xml_dir} does not exist)"
+   if [ -d "${xml_dir}" ]; then
+      available="$( ls -1 -- "${xml_dir}" )"
+   fi
+
+   error "No libvirt XML exists for this flavor and target combination:
+  flavor       : ${dist_build_flavor:-unset}
+  target       : raw/qcow2
+  expected file: ${libvirt_source_kvm_file}
+
+build-steps.d/1600_export-libvirt-xml copies that file for every raw or qcow2
+target, so this build cannot finish. Flavors that do have one:
+${available}"
+}
+
 check-required-tools() {
    local tool_spec tool_name tool_package missing_list missing_count
 
@@ -841,6 +872,9 @@ main() {
    check-redistributable-builds-requirements "$@"
    check-git-folder "$@"
    check-git-symlinks "$@"
+   ## Early: it is a pure variable/file check, and catching an unbuildable
+   ## flavor/target combination here saves the whole run.
+   check-libvirt-xml "$@"
    check-operating-system-version "$@"
    check-sudo "$@"
    check-dpkg "$@"
