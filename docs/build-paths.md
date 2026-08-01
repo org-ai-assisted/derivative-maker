@@ -52,7 +52,7 @@ Two things that read like gaps and are not:
 ## 1. CI reproducibility lane
 
 ```
-.github/workflows/local-build.yml
+.github/workflows/local-build.yml     # dispatch-only + release tags + weekly
   -> job build (matrix: copy = a, b)          # two SEPARATE runners
        flavor kicksecure-debug -- the SAME flavor the boot-test lane builds,
        so the two lanes can share one image instead of building two
@@ -98,7 +98,7 @@ Two things that read like gaps and are not:
 ## 3. CI boot-test lane
 
 ```
-.github/workflows/local-boot-test.yml
+.github/workflows/local-boot-test.yml   # dispatch-only + weekly
   -> job build (matrix: image_kind = qcow2, iso)
        docker/derivative-maker-docker-run --
          signing-key-create && sign-and-tag && dm-build-official --freshness frozen
@@ -121,6 +121,24 @@ ci/reproducible-build-twice --target T --arch A
 
 docker/derivative-maker-docker-run -- <any command>    # bare entry point
 ```
+
+## Triggering the expensive lanes
+
+The two image-build lanes are dispatch-only. Minutes are free on a public repo,
+so this is not about cost -- the free plan allows 20 concurrent jobs ORG-WIDE and
+one push fanned out 17 of them.
+
+```
+dm-ci-dispatch --workflow local-build.yml    --ref ai
+dm-ci-dispatch --workflow local-boot-test.yml --ref ai
+```
+
+It runs `dm-preflight` first and refuses a tree whose submodule work is
+uncommitted, or whose local ref does not match the remote. `--dry-run` shows what
+would be dispatched without starting jobs.
+
+Release tags still build `local-build.yml` automatically. The cheap lanes -- lint,
+dry-run, dist-ai tests, CodeQL, all under a minute -- still run on every PR.
 
 ## 5. dry-run YES vs NO
 
