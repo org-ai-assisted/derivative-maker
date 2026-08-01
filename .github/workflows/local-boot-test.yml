@@ -32,25 +32,7 @@ name: Boot Test
 
 on:
   workflow_dispatch:
-  ## Branch pushes deliberately DROPPED; this lane is dispatch-only.
-  ##
-  ## Not a cost decision -- minutes are free on a public repo (measured:
-  ## billable.total_ms = 0 on a 71-minute run). Concurrency is the constraint:
-  ## the free plan allows 20 jobs ORG-WIDE, and one push to 'ai' fanned out 17
-  ## across this lane and its sibling, plus the PR lanes on the same commit.
-  ## Measured here: 54% of push runs were cancelled as superseded, and this lane
-  ## was green 9 times in 49. Most of that fan-out re-ran a known-red lane while
-  ## starving every other repo in the org.
-  ##
-  ## A push trigger fires on whatever was committed. A dispatch can REFUSE:
-  ## dist-ai's 'dm-ci-dispatch' runs 'dm-preflight' first and will not fire on a
-  ## tree whose submodule work is uncommitted -- which is how a commit reached
-  ## this repo carrying none of the change it was meant to test.
-  ##
-  ##   dm-ci-dispatch --workflow local-boot-test.yml --ref ai
-  ##
-  ## No tag trigger here: a boot test is a check on a build, and the build lane
-  ## is what a tag drives. Dispatch this one against the ref you want booted.
+  ## Dispatch-only: dm-ci-dispatch --workflow local-boot-test.yml --ref <ref>
   schedule:
     ## Weekly, Sundays 08:00 UTC (offset from the build lane at 07:00).
     - cron: '0 8 * * 0'
