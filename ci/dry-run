@@ -19,11 +19,27 @@ fi
 
 cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.."
 
-## Steps must be named [a-zA-Z0-9_-] only: run-parts skips anything else, so a
-## step called '500_compare.sh' would silently not run.
+## --regex, because run-parts' DEFAULT name filter silently ignores any file
+## whose name contains a character outside [a-zA-Z0-9_-] -- a dot above all. A
+## step added as '500_compare.sh' would never run and the lane would still report
+## success, which is the worst possible outcome for a lane whose whole job is to
+## catch breakage early.
 ##
-## Signing opt-in (dist_build_sign_and_tag defaults off) is set per step via the
-## 'env VAR=val' prefix on each run-as-user hand-off, NOT exported here: run-as-user
-## drops privileges with 'sudo --preserve-env=PATH', which strips everything but
-## PATH, so an export here would not survive into 200_sign-and-tag or the build.
-run-parts --exit-on-error --verbose -- ./ci/dry-run.d
+## The count check is the backstop: it asserts every executable step actually
+## ran, so a future filter change, a lost executable bit or a misspelled name
+## fails loudly instead of quietly shrinking the lane's coverage.
+expected_steps="$(find ./ci/dry-run.d -maxdepth 1 -type f -executable -printf '.' | wc --chars)"
+if [ "${expected_steps}" -eq 0 ]; then
+   printf '%s\n' "${BASH_SOURCE[0]}: no executable steps in ./ci/dry-run.d" >&2
+   exit 1
+fi
+
+run_parts_output="$(run-parts --exit-on-error --verbose --regex '.*' -- ./ci/dry-run.d 2>&1 | tee /dev/stderr)"
+
+## run-parts --verbose announces each step it runs as 'run-parts: executing ...'.
+executed_steps="$(printf '%s\n' "${run_parts_output}" | grep --count '^run-parts: executing ' || true)"
+if [ ! "${executed_steps}" = "${expected_steps}" ]; then
+   printf '%s\n' "${BASH_SOURCE[0]}: ran ${executed_steps} of ${expected_steps} executable step(s) in ./ci/dry-run.d -- a step was skipped, so this lane covered less than it appears to." >&2
+   exit 1
+fi
+printf '%s\n' "${BASH_SOURCE[0]}: all ${expected_steps} dry-run step(s) executed." >&2
