@@ -32,6 +32,12 @@ source variables
 cd "${MYDIR}"
 cd ..
 
+## 'has' rather than 'command -v' (R-090): it verifies the hit is executable and
+## is not an alias or shell function. 'pre' sets HELPER_SCRIPTS_PATH to the
+## in-tree submodule, so this resolves before helper-scripts is installed.
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/has.sh
+source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/has.sh
+
 test-wc() {
    if ! printf '%s\n' "" | wc -l >/dev/null ; then
       error "\
@@ -134,7 +140,7 @@ check-git-symlinks() {
       git -C "${source_code_folder_dist}" submodule --quiet foreach --recursive 'printf "%s\0" "${displaypath}"'
    )
 
-   for repo_rel in ${repo_list[@]+"${repo_list[@]}"} ; do
+   for repo_rel in "${repo_list[@]}" ; do
       repo_abs="${source_code_folder_dist}/${repo_rel}"
       test -d "${repo_abs}" || continue
       ## 'ls-files' below runs in a process substitution, whose exit status the
@@ -615,11 +621,21 @@ install_required_packages() {
 
 check_required_packages_installed() {
    ## kmod / qemu-utils / kpartx / parted are bootstrapped HERE, not left to
-   ## '*_prepare-build-machine': check-required-tools below asserts them, and this
-   ## step runs first, so the container image -- which ships none of them -- would
-   ## otherwise fail the assertion before anything had a chance to install them.
-   ## They are also declared in buildconfig.d/30_dependencies.conf, which is what
-   ## keeps them installed for the rest of the build.
+   ## '*_prepare-build-machine': the container image ships none of them, and this
+   ## step runs first. They are also declared in
+   ## buildconfig.d/30_dependencies.conf, which is what keeps them installed for
+   ## the rest of the build.
+   ##
+   ## 'kmod' is the one that has already bitten: without 'modprobe' the
+   ## reproducibility comparison cannot attach an image through nbd, and silently
+   ## fell back to comparing the packed artifacts, which OOMs on a multi-gigabyte
+   ## image. The run then reported only "diffoscope could not explain the diff",
+   ## hours in, naming neither the tool nor the package.
+   ##
+   ## 'diffoscope' is deliberately NOT here: ci/reproducible-install-deps pulls it
+   ## from trixie-backports because the version in trixie OOMs on these artifacts,
+   ## so declaring it a plain build dependency would install the known-bad one.
+   ## That one asserts itself at its own install site.
    required_packages_list="git time curl approx lsb-release fakeroot fasttrack-archive-keyring safe-rm gpg-sq kmod qemu-utils kpartx parted"
    local required_package_item
 

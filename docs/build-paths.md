@@ -62,15 +62,21 @@ Two things that read like gaps and are not:
          help-steps/sign-and-tag
          help-steps/dm-build-official --freshness frozen
   -> job compare
-       dm-reproducible-compare-artifacts   (a vs b, whole-file sha256
-                                            + best-effort diffoscope)
+       ci/assert-submodule-not-stale packages/kicksecure/developer-meta-files
+       ci/assert-submodule-not-stale --all --report-only
+       download the two image artifacts
+       docker-run -- ci/reproducible-compare
+                       -> ci/reproducible-install-deps
+                       -> dm-reproducible-compare-artifacts
+                          (a vs b, whole-file sha256 for the verdict,
+                           best-effort diffoscope to explain a difference)
 ```
 
 ## 2. CI dry-run lane
 
 ```
 .github/workflows/local-build-dry-run.yml
-  -> docker image: kicksecure/derivative-maker-docker (the REAL build image)
+  -> docker image: docker/derivative-maker-docker-image-ref (the REAL build image)
   -> launch-systemd-container
   -> ci/dry-run
        -> run-parts ci/dry-run.d/
@@ -85,7 +91,6 @@ Two things that read like gaps and are not:
               -> assert_produced '*.qcow2.libvirt.xz'
               -> assert_produced '*.dm-buildinfo'
               -> assert provenance is not 'unrecorded'
-            400_reproducible-buildinfo        (hand-rolled stand-in)
 ```
 
 ## 3. CI boot-test lane
@@ -117,42 +122,97 @@ docker/derivative-maker-docker-run -- <any command>    # bare entry point
 
 ## 5. dry-run YES vs NO
 
-`--dry-run true` sets `build_dry_run=true` in `help-steps/parse-cmd`. What that
-changes, by file:
+`--dry-run true` sets `build_dry_run=true` in `help-steps/parse-cmd`.
+
+### The build step by step
+
+Seven steps return before doing any work, and three more never run under the
+lane's target set. This is the whole point of the table: the lane's exit code
+says nothing about them.
+
+```
+step                            under dry-run              gate
+1100_sanity-tests               runs, minus the ~/.ssh
+                                and ~/buildconfig.d checks  :88 -> return 0
+1200_prepare-build-machine      runs                        -
+1300_cowbuilder-setup           runs (real base built)      :356 gate COMMENTED OUT
+1400_local-dependencies         runs (builds one real .deb) -
+1600_export-libvirt-xml         runs (qcow2/raw leg)        -
+1700_create-vm-text             never runs                  needs --target virtualbox
+2100_create-debian-packages     SKIPPED ENTIRELY            :642 -> return 0
+3200_create-raw-image           empty 1M image instead of
+                                grml-debootstrap            :258 -> create-empty-raw-image
+3400_copy-vms-into-raw          SKIPPED ENTIRELY            :79  -> return 0
+3500_install-packages           SKIPPED ENTIRELY            :665 -> return 0
+3600_convert-raw-to-iso         stops after 'lb config';
+                                writes a placeholder ISO    :346 -> return 0
+4300_run-chroot-scripts-post-d  SKIPPED ENTIRELY            :105 -> return 0
+4350_reimage-raw-reproducible   SKIPPED ENTIRELY            :221 -> return 0
+4400_convert-raw-to-qcow2       runs (on the 1M raw)        -
+4600_create-vbox-vm             never runs                  needs --target virtualbox
+4600_export-utm-packages        never runs                  needs dist_build_utm
+5100_create-report              SKIPPED ENTIRELY            :96  -> return 0
+5200_prepare-release            runs, in full               -
+5300_free-build-scratch         never runs                  needs CI=true, see below
+```
+
+So NO derivative package is built, NO root filesystem is constructed, NO package
+is installed into an image, and the reproducibility reimaging and the compare
+report do not run. What the lane does exercise end to end is the ORCHESTRATION
+(dm-build-official -> dm-build-official-one -> parse-cmd -> variables), the
+build-machine and cowbuilder setup, one real `.deb` build in `1400`, the qcow2
+conversion, and the whole RELEASE path in `5200` -- mktorrent, sha512sums,
+OpenPGP and signify signing with self-verification, and the buildinfo emission.
+
+### The other variables
 
 ```
                          dry-run NO            dry-run YES
 help-steps/variables
   VMSIZE                 100G   (:745)         1M   (:743)
   rsync_cmd              rsync  (:1068)        echo simulate-only rsync  (:1066)
+  rsync_opts             as configured         + --dry-run  (:1089)
 
 help-steps/dm-build-official-one
   ~/.ssh required        yes    (:80)          skipped  (:78)
 ```
 
-`rsync_cmd` has THREE mock sites, and the first one to set it wins (each is
-`[ -n "${rsync_cmd:-}" ] ||` or an `if [ -z ... ]`):
+`rsync_cmd` has THREE mock sites, and the first to set it wins:
 
 ```
-help-steps/pre:134                 CI=true                  -> echo simulate-only rsync
+help-steps/pre:134                    CI=true      -> echo simulate-only rsync
 help-steps/dm-build-official-one:164  CI=true, or
-                                   remote-derivative-packages true
-                                                            -> true simulate-only
-help-steps/variables:1066          build_dry_run=true       -> echo simulate-only rsync
+                                      remote-derivative-packages true
+                                                   -> true simulate-only
+help-steps/variables:1066             dry-run      -> echo simulate-only rsync
 ```
 
-So an upload is prevented by CI alone, by dry-run alone, or by both. The dry-run
-lane sets both. `~/.ssh` is likewise skipped under CI=true independently of
-dry-run.
+### CI=true does NOT reach the build in the dry-run lane
 
-Everything else -- package building in cowbuilder, the raw image, qcow2
-conversion, sign-and-tag, dm-prepare-release, dm-reproducible-buildinfo -- runs
-the same code in both modes. The image is simply 1M instead of 100G, so it is
-built and packaged for real but contains almost nothing.
+The workflow sets `CI=true` (`docker exec --env CI=true`) and `ci/dry-run` refuses
+to start without it, but `ci/dry-run.d/300_run-derivative-maker` hands off through
+`help-steps/run-as-user:173`, which uses `sudo --preserve-env=PATH` -- PATH and
+nothing else. Inside the build, `help-steps/variables:335` then defaults `CI` to
+`false`.
+
+The real lane does the opposite: `docker/derivative-maker-docker-run:369` injects
+`--env CI=true` into the container and `:394` hands off with a full
+`--preserve-env`.
+
+Consequence: every `CI=true` branch is UNEXERCISED by the dry-run lane, including
+`help-steps/parse-cmd`'s real-vs-dry decision for CI builds, `dm-build-official`'s
+`derivative-update --update-only`, and `5300_free-build-scratch`. The lane also
+builds amd64 rather than the arm64 that `dm-build-official-one:92` selects under
+CI. Anything passed on the `env` prefix at
+`ci/dry-run.d/300_run-derivative-maker:69` DOES reach the build -- that is the
+supported way to set a variable across `run-as-user`.
 
 ### Where the dry-run therefore stops being evidence
 
-- Anything that depends on the image CONTENTS: a 1M image cannot hold a
-  filesystem worth booting, so the boot-test lane cannot be replaced by it.
-- Anything that depends on a real upload.
-- Reproducibility: comparing two dry-run images compares two 1M placeholders.
+- Package building, root-filesystem construction, package installation, chroot
+  post-scripts: not run at all (the table above).
+- Anything depending on image CONTENTS: a 1M image holds no filesystem, so the
+  boot-test lane cannot be replaced by it.
+- Reproducibility: `4350` does not run, and comparing two dry-run images would
+  compare two 1M placeholders.
+- Any real upload.

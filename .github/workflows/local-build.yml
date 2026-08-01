@@ -338,6 +338,15 @@ jobs:
       - name: Assert the developer-meta-files pin is not stale
         run: ./ci/assert-submodule-not-stale packages/kicksecure/developer-meta-files
 
+      ## Every OTHER pin, reported but not enforced. Most dm submodules pin a
+      ## deliberately older, tested revision, so a hard gate on all 80-odd would
+      ## fail every run and teach everyone to ignore it. Enumerated from
+      ## .gitmodules, not listed here, so a submodule added later is covered
+      ## without an edit -- and the summary states how many were NOT verified,
+      ## because a check that did not run must not read as a pass.
+      - name: Report the freshness of every submodule pin
+        run: ./ci/assert-submodule-not-stale --all --report-only
+
       - name: Check out matching fork branch in cross-org submodules (if present)
         if: github.repository_owner != 'Whonix' && github.repository_owner != 'Kicksecure'
         env:
