@@ -28,7 +28,10 @@ else
 fi
 
 implicit_dist_type_vm() {
-   if printf '%s\n' "${args[@]}" | grep --fixed-strings -- "--type" &>/dev/null; then
+   ## --line-regexp: a whole ARGUMENT, not a substring. Without it a value that
+   ## merely contains the text (e.g. '--conffile /tmp/build--type.conf')
+   ## suppressed the inference, and the build then failed the later type check.
+   if printf '%s\n' "${args[@]}" | grep --fixed-strings --line-regexp -- "--type" &>/dev/null; then
       return 0
    fi
    if [ ! "${dist_build_type:-}" = "" ]; then
@@ -39,7 +42,10 @@ implicit_dist_type_vm() {
 }
 
 implicit_dist_type_host() {
-   if printf '%s\n' "${args[@]}" | grep --fixed-strings -- "--type" &>/dev/null; then
+   ## --line-regexp: a whole ARGUMENT, not a substring. Without it a value that
+   ## merely contains the text (e.g. '--conffile /tmp/build--type.conf')
+   ## suppressed the inference, and the build then failed the later type check.
+   if printf '%s\n' "${args[@]}" | grep --fixed-strings --line-regexp -- "--type" &>/dev/null; then
       return 0
    fi
    if [ ! "${dist_build_type:-}" = "" ]; then
