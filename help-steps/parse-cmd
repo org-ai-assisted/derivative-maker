@@ -200,6 +200,7 @@ Advanced Options:
   --package-jobs N                : Speed-up: build up to N derivative packages concurrently (serial when unset). Safe to pass unconditionally: the build verifies its preconditions and falls back to serial, saying so, when they are not met. Around nproc-2 is a reasonable cap.
   --skip-prepare-build-machine    : Shared-work speed-up: skip build-steps.d/*_prepare-build-machine. Only safe when the build machine was already prepared by an earlier run in the same session.
   --skip-cowbuilder-setup         : Shared-work speed-up: skip build-steps.d/*_cowbuilder-setup. Only safe when the cowbuilder chroot was already created by an earlier run in the same session.
+  --reproducible-dist-build-version : VERIFICATION AID, not for official builds. Normalizes 'dist_build_version' to the nearest tag, dropping the '-<n>-g<commit>' describe suffix, so the embedded version stops encoding the commit id. Lets a local rebuild be byte-compared against a CI build whose Source-Commit necessarily differs (checking out CI's off-pin submodule SHAs dirties the gitlinks, and sign-and-tag then commits that state). Once the tree is stable and official this is NOT used: a rebuilder reproduces byte-for-byte only from the SAME TAG, and a different commit SHOULD yield a different version.
   --reuse-cowbuilder-base         : Speed-up: in build-steps.d/*_cowbuilder-setup, reuse an already-present cowbuilder base chroot instead of rebuilding it; if none exists yet, build one as usual. Unlike --skip-cowbuilder-setup this is safe when the base may or may not be present (e.g. a base restored from a CI cache).
   --skip-local-dependencies       : Shared-work speed-up: skip build-steps.d/*_local-dependencies. Only safe when the local dependencies were already installed by an earlier run in the same session.
   --base-image-role <create|consume> : Internal (dm-build-official-one): shared post-debootstrap base handling. 'create' captures the pure base as base-image.raw (create-raw-image only); 'consume' copies that base instead of re-running grml-debootstrap.
@@ -659,6 +660,27 @@ dist_build_one_parse_cmd() {
                ## already created by an earlier run in the same session.
                export dist_build_skip_cowbuilder_setup="true"
                true "${cyan}INFO: --skip-cowbuilder-setup: reusing the existing cowbuilder chroot.${reset}"
+               shift
+               ;;
+           --reproducible-dist-build-version)
+               ## VERIFICATION AID ONLY -- deliberately not part of an official
+               ## build. 'dist_build_version' embeds the git describe suffix
+               ## '-<n>-g<commit>', and that string reaches the artifact NAME, the
+               ## libvirt XML and the '.dm-buildinfo'. Two builds of an IDENTICAL
+               ## source tree therefore cannot be byte-identical if their commit
+               ## ids differ -- which is exactly the position a local rebuild of a
+               ## CI image is in, because reproducing CI means checking out its
+               ## off-pin submodule SHAs, which dirties the gitlinks, and
+               ## 'sign-and-tag' then commits that state under a NEW commit.
+               ##
+               ## Normalizing the version removes that one unavoidable difference
+               ## so every REMAINING byte difference is a real finding.
+               ##
+               ## NOT a change to release semantics: for an official build the
+               ## version is the point, and a rebuilder reproduces byte-for-byte
+               ## only from the same TAG. Added commits SHOULD change the version.
+               export dist_build_version_reproducible="true"
+               true "${cyan}INFO: --reproducible-dist-build-version: version will be normalized to the nearest tag (verification aid; NOT for official builds).${reset}"
                shift
                ;;
            --reuse-cowbuilder-base)
