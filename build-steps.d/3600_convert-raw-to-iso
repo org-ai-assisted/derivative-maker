@@ -638,7 +638,11 @@ Not running any chroot scripts.${reset}"
    ## filesystem.squashfs and break bit-for-bit reproducibility. initializer-dist's
    ## 80_cleanup clears this during the rootfs build, but live-build regenerates it here.
    ## /run is runtime tmpfs state and must be empty in a shipped image, so drop the cache.
-   ${SUDO_TO_ROOT} safe-rm --recursive --force -- "${CHROOT_FOLDER}/run/blkid"
+   ## Empty /run entirely, not just blkid: a tmpfs is mounted over it at boot, so nothing here is
+   ## ever visible at runtime, while WHICH transient entries survive varies by build host. Naming
+   ## them one at a time missed /run/mount, which alone changed the ext4 free counts and the image
+   ## bytes. Matches 4350_reimage-raw-reproducible.
+   ${SUDO_TO_ROOT} find "${CHROOT_FOLDER}/run" -mindepth 1 -maxdepth 1 -exec safe-rm --recursive --force -- {} +
 
    ## Package into an ISO
    # shellcheck disable=SC2086
