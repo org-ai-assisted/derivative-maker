@@ -1162,6 +1162,34 @@ if [ "${dist_build_version:-}" = "" ]; then
    true "${cyan}INFO: Variable dist_build_version was unset. Auto detected. Set to: dist_build_version=${dist_build_version}${reset}"
 else
    true "${cyan}INFO: Variable dist_build_version was already set to: dist_build_version=${dist_build_version}${reset}"
+   ## An INHERITED value silently wins over the tree. That is how a reused
+   ## workspace once produced a provenance record naming TWO different commits:
+   ## 'Source-Commit: 02096cd4...' beside 'Source-Version: ...-ge65ff458...'.
+   ## Nobody could see it, because nothing ever printed the two side by side.
+   ##
+   ## REPORTED, never enforced. Legitimate flows make these differ on purpose:
+   ## ci/reproducible-build-twice pins the version BEFORE help-steps/sign-and-tag,
+   ## which then rewrites HEAD via 'commit --amend -S', so afterwards the version
+   ## necessarily describes a commit that is not HEAD and is not even an ancestor
+   ## of it. A check that failed on that would block correct builds -- exactly the
+   ## defect that made the equality assertion in dm-reproducible-buildinfo wrong.
+   ## Printing both is the whole fix: it costs nothing and makes the mismatch
+   ## visible to whoever can judge it.
+   dist_build_version_described="${dist_build_version##*-g}"
+   ## Non-hex means this is not a describe suffix (a tag may contain '-g').
+   case "${dist_build_version_described}" in
+      *[!0-9a-f]*|"")
+         dist_build_version_described=""
+         ;;
+   esac
+   if [ -n "${dist_build_version_described}" ]; then
+      dist_build_version_head="$(${git_bin} rev-parse HEAD 2>/dev/null || true)"
+      if [ -n "${dist_build_version_head}" ] \
+         && [ ! "${dist_build_version_described}" = "${dist_build_version_head}" ]; then
+         true "${cyan}INFO: dist_build_version describes commit ${dist_build_version_described}, but HEAD is ${dist_build_version_head}.${reset}"
+         true "${cyan}INFO: Expected when the version was pinned before signing (sign-and-tag amends HEAD). If neither applies, this value was inherited from the environment and does NOT describe this tree.${reset}"
+      fi
+   fi
 fi
 
 ## VERIFICATION AID (--reproducible-dist-build-version): drop the git describe
