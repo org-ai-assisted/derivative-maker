@@ -1259,6 +1259,11 @@ if [ "${dist_build_version_reproducible:-}" = "true" ]; then
       true "${cyan}INFO: --reproducible-dist-build-version: '${dist_build_version}' carries no describe suffix; unchanged.${reset}"
    else
       true "${cyan}INFO: --reproducible-dist-build-version: normalized '${dist_build_version}' -> '${dist_build_version_normalized}'.${reset}"
+      ## Keep what the version WOULD have been. Normalizing otherwise discards it
+      ## from the record entirely: you could see that a build was normalized but
+      ## not what it was normalized FROM, so a normalized image could not be tied
+      ## back to the release artifact it corresponds to without the repo in hand.
+      export dist_build_version_unnormalized="${dist_build_version}"
       dist_build_version="${dist_build_version_normalized}"
    fi
 fi
