@@ -134,12 +134,20 @@ reimage_raw() {
    ${SUDO_TO_ROOT} truncate -s 0 -- "${reimage_tree}/var/log/alternatives.log" 2>/dev/null || true
    ${SUDO_TO_ROOT} safe-rm --force -- "${reimage_tree}/var/cache/ldconfig/aux-cache"
 
-   ## Strip the leaked blkid cache. /run is runtime tmpfs state that must be empty in a shipped image,
-   ## but blkid runs during late chroot activity (grub / initramfs) AFTER 80_cleanup deletes /run/blkid,
-   ## re-leaking blkid.tab (+ rotated blkid.tab.old) into the rootfs. Each embeds a wall-clock scan TIME
-   ## and the build host's loop DEVNO (e.g. /dev/mapper/loop0p3), so its CONTENT differs every build even
-   ## though mke2fs pins the mtime to SOURCE_DATE_EPOCH. Mirrors the ISO path (3600_convert-raw-to-iso).
-   ${SUDO_TO_ROOT} safe-rm --recursive --force -- "${reimage_tree}/run/blkid"
+   ## Empty /run entirely. It is runtime tmpfs state: systemd mounts a tmpfs over it at boot, so
+   ## nothing stored here is ever visible to the running system -- it is dead weight AND a
+   ## reproducibility hazard, because WHICH transient entries survive depends on what late chroot
+   ## activity happened to run on this particular build host.
+   ##
+   ## This used to delete /run/blkid by name (blkid runs during grub / initramfs work AFTER 80_cleanup,
+   ## re-leaking blkid.tab with a wall-clock scan time and the host's loop DEVNO). Naming entries one at
+   ## a time does not hold: a local build and a CI build of an IDENTICAL tree differed by exactly one
+   ## empty directory, /run/mount, created by util-linux when a mount happens inside the chroot -- one
+   ## inode and one block, enough to change the ext4 free counts, the superblock checksum, and the image
+   ## bytes. Clearing the directory fixes that whole class at once instead of growing a list.
+   ##
+   ## Mirrors the ISO path (3600_convert-raw-to-iso).
+   ${SUDO_TO_ROOT} find "${reimage_tree}/run" -mindepth 1 -maxdepth 1 -exec safe-rm --recursive --force -- {} +
 
    ## Strip DKMS build logs. dkms writes <module>/<ver>/<kernel>/<arch>/log/make.log with a wall-clock
    ## build timestamp when it (re)builds a module (e.g. tirdad); this happens after 80_cleanup removes
