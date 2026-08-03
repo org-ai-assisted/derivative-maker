@@ -1,0 +1,59 @@
+#!/bin/bash
+
+## Copyright (C) 2026 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## See the file COPYING for copying conditions.
+
+## AI-Assisted
+
+## Print a memory reading every interval, to STDOUT, forever.
+##
+## WHY STDOUT AND NOT A LATER STEP: the build lane dies in a way that takes the
+## whole RUNNER with it -- every step after the build, including an
+## 'if: failure()' diagnostic AND github's own post-steps, is recorded as never
+## having run. A failure handler therefore cannot capture anything. The only
+## thing that survives is what already reached the job log, so the evidence has
+## to be interleaved into the build's own output while it is still alive.
+##
+## Meant to be backgrounded by the build step and killed when the build returns.
+## Deliberately tiny: one line per interval, so it cannot itself be what fills
+## the log.
+##
+## style-ok: no-has -- runner-diagnostic script; does not source derivative-maker
+## helper-scripts (same class as ci/free-disk).
+
+set -o errexit
+set -o nounset
+set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+
+sample_interval="${1:-30}"
+
+mem_field() {
+   ## kB value of a /proc/meminfo field, or empty.
+   local field_name="$1" line
+   while IFS= read -r line; do
+      case "${line}" in
+         "${field_name}:"*)
+            line="${line#*:}"
+            line="${line%%kB*}"
+            printf '%s' "${line//[[:space:]]/}"
+            return 0
+            ;;
+      esac
+   done < /proc/meminfo
+   printf '%s' ""
+}
+
+while true; do
+   mem_available="$( mem_field MemAvailable )"
+   swap_free="$( mem_field SwapFree )"
+   mem_total="$( mem_field MemTotal )"
+   ## Largest RSS consumer, so a runaway is named rather than merely implied.
+   top_rss="$( ps -eo rss=,comm= --sort=-rss 2>/dev/null | head -n 1 || true )"
+   top_rss="${top_rss#"${top_rss%%[![:space:]]*}"}"
+   timestamp="$( date --utc +%H:%M:%SZ )"
+   printf '%s\n' "MEMSAMPLE ${timestamp} MemAvailable=${mem_available}kB SwapFree=${swap_free}kB MemTotal=${mem_total}kB topRSS=${top_rss}"
+   sleep "${sample_interval}"
+done
