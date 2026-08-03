@@ -74,6 +74,6 @@ if [ "${runnable}" -eq 0 ]; then
 fi
 
 if (( rc != 0 )); then
-  printf '\nFAILED\n' >&2
+  printf '%s\n' "FAILED" >&2
 fi
 exit "${rc}"
