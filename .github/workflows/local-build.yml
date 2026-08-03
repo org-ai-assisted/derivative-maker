@@ -256,6 +256,16 @@ jobs:
           ./help-steps/dm-build-official --freshness '${FRESHNESS}' --package-jobs '${PKG_JOBS}' ${COWBASE_REUSE_FLAG}"
 
       ## Pack the cowbuilder base into its tarball BEFORE freeing it: under
+      ## The build step has repeatedly DIED rather than failed: it never
+      ## concludes, no error marker appears anywhere, and the log stops
+      ## mid-trace. That shape means the process was killed, but nothing recorded
+      ## why, so each occurrence cost a full re-run to learn nothing. This
+      ## collects the evidence while the runner still exists -- docker's own
+      ## OOMKilled flag being the decisive one. It never fails the job.
+      - name: Diagnose a killed build
+        if: failure()
+        run: ./ci/diagnose-build-kill
+
       ## --reuse-cowbuilder-base the base lives in this tree, and the upload glob
       ## below scandirs binary_mnt, where a root-owned 0700 chroot would EACCES.
       ## No-op when there is no base in the tree.
