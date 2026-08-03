@@ -385,6 +385,89 @@ Recommendation:
    true
 }
 
+check-umask-in-sync() {
+   ## help-steps/variables pins the build umask so file modes in the image do not
+   ## depend on who ran the build. That value is not arbitrary: it mirrors what
+   ## security-misc already grants sudo, precisely so system files do not inherit
+   ## a user's restrictive umask. If the two drift apart the build silently goes
+   ## back to producing host-dependent permissions, which is invisible until two
+   ## images are compared byte for byte.
+   true "INFO: Checking that the build umask matches security-misc..."
+
+   local sudoers_file variables_file security_misc_umask variables_umask
+
+   sudoers_file="${source_code_folder_dist}/packages/kicksecure/security-misc/etc/sudoers.d/security-misc#security-misc-shared"
+   variables_file="${source_code_folder_dist}/help-steps/variables"
+
+   if [ ! -f "${sudoers_file}" ]; then
+      true "INFO: security-misc sudoers drop-in absent (submodule not checked out?). Skipping, OK."
+      return 0
+   fi
+
+   security_misc_umask="$(sed -n 's/^Defaults[[:space:]]\+umask=\([0-7]\+\).*/\1/p' -- "${sudoers_file}" | head -n 1)"
+   variables_umask="$(sed -n 's/^umask[[:space:]]\+\([0-7]\+\).*/\1/p' -- "${variables_file}" | head -n 1)"
+
+   if [ -z "${variables_umask}" ]; then
+      error "help-steps/variables pins no umask.
+
+Without it every file the build creates inherits the BUILDER's umask, so the
+same commit yields different permissions in the image depending on who built it."
+      return 0
+   fi
+
+   if [ -z "${security_misc_umask}" ]; then
+      true "INFO: no 'Defaults umask=' found in security-misc; nothing to compare. OK."
+      return 0
+   fi
+
+   if [ ! "${variables_umask}" = "${security_misc_umask}" ]; then
+      error "Build umask drifted from security-misc.
+
+help-steps/variables: umask ${variables_umask}
+security-misc:        Defaults umask=${security_misc_umask}
+
+These must agree. security-misc grants that umask to sudo so system files do not
+inherit a restrictive user umask; the build pins the same value so image
+permissions do not depend on the builder."
+      return 0
+   fi
+
+   true "INFO: build umask ${variables_umask} matches security-misc, OK."
+}
+
+check-stale-nbd() {
+   ## A previous inspection or comparison can leave an nbd device attached with a
+   ## mount still on it -- image tooling runs in a container that is torn down
+   ## with SIGKILL, so its cleanup traps never run, and the mounts survive in this
+   ## namespace. The build needs nbd itself (4350 reimage), and attaching a new
+   ## image to a device that still carries a stale mount makes every read return
+   ## EIO, which presents as a CORRUPT IMAGE rather than as a stale mount.
+   true "INFO: Checking for stale nbd devices..."
+
+   local nbd_mounts
+
+   if [ ! -e /dev/nbd0 ]; then
+      true "INFO: no nbd devices present, OK."
+      return 0
+   fi
+
+   nbd_mounts="$(${SUDO_TO_ROOT} cat /proc/mounts | grep -- '^/dev/nbd' || true)"
+
+   if [ -z "${nbd_mounts}" ]; then
+      true "INFO: no stale nbd mounts, OK."
+      return 0
+   fi
+
+   error "Stale nbd mount(s) detected:
+
+${nbd_mounts}
+
+Attaching an image to a device that still carries one of these makes every read
+fail with EIO, which looks like a corrupt image. Release them first:
+  dm-nbd-cleanup            ## reports
+  dm-nbd-cleanup --release  ## acts"
+}
+
 check-stray-mounts() {
    true "INFO: Checking for mounts..."
 
@@ -492,7 +575,7 @@ check-build-primitives() {
 the build host. Every '> /dev/null' in the build (chroot operations, live-build's binary \
 stage) will fail. Fix the build environment's /dev.${reset}"
    fi
-   if ! printf 'test\n' > /dev/null 2>&1; then
+   if ! printf '%s\n' "test" > /dev/null 2>&1; then
       error "${bold}${red}ERROR ${BASH_SOURCE[0]}: writing to /dev/null failed -- the \
 build's chroot operations will fail. Fix /dev on the build host.${reset}"
    fi
@@ -663,6 +746,8 @@ main() {
    check-mailname "$@"
    check-source-folder-permissions "$@"
    check-stray-loop-devices "$@"
+   check-umask-in-sync "$@"
+   check-stale-nbd "$@"
    check-stray-mounts "$@"
    mount-test "$@"
    check-build-primitives "$@"
