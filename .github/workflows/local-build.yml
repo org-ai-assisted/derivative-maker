@@ -247,21 +247,23 @@ jobs:
           ## 1300_cowbuilder-setup a stale or absent tree, so the flag is tied to
           ## BASE_CACHE rather than set unconditionally.
           COWBASE_REUSE_FLAG: ${{ env.BASE_CACHE == 'true' && '--reuse-cowbuilder-base' || '' }}
-        run: >-
-          ./docker/derivative-maker-docker-run --
-          bash -c "export dist_build_version=\"\$(git describe --always --abbrev=1000000000 --exclude '*_*_*')\" &&
-          ./help-steps/signing-key-create && ./help-steps/sign-and-tag &&
-          env dist_build_target_arch='${ARCH}' flavors_list='${FLAVOR}'
-          dist_build_multi_target_list='${MULTI}'
-          ./help-steps/dm-build-official --freshness '${FRESHNESS}' --package-jobs '${PKG_JOBS}' ${COWBASE_REUSE_FLAG}"
+        ## The memory sampler runs INSIDE this step, backgrounded, so its readings
+        ## interleave into THIS step's log. A later step cannot help: when the runner
+        ## dies, every subsequent step -- including 'if: failure()' and github's own
+        ## post-steps -- is recorded as never having run, so the only evidence that
+        ## survives is whatever already reached the log.
+        run: |
+          ./ci/memory-sampler 30 &
+          memory_sampler_pid="$!"
+          trap 'kill "${memory_sampler_pid}" 2>/dev/null || true' EXIT
+          ./docker/derivative-maker-docker-run -- bash -c "export dist_build_version=\"\$(git describe --always --abbrev=1000000000 --exclude '*_*_*')\" && ./help-steps/signing-key-create && ./help-steps/sign-and-tag && env dist_build_target_arch='${ARCH}' flavors_list='${FLAVOR}' dist_build_multi_target_list='${MULTI}' ./help-steps/dm-build-official --freshness '${FRESHNESS}' --package-jobs '${PKG_JOBS}' ${COWBASE_REUSE_FLAG}"
 
       ## Pack the cowbuilder base into its tarball BEFORE freeing it: under
-      ## The build step has repeatedly DIED rather than failed: it never
-      ## concludes, no error marker appears anywhere, and the log stops
-      ## mid-trace. That shape means the process was killed, but nothing recorded
-      ## why, so each occurrence cost a full re-run to learn nothing. This
-      ## collects the evidence while the runner still exists -- docker's own
-      ## OOMKilled flag being the decisive one. It never fails the job.
+      ## Runs only when the build FAILED but the runner survived -- e.g. a
+      ## container OOM-killed inside an otherwise healthy job, where docker's
+      ## OOMKilled flag is decisive. It cannot help when the runner itself dies:
+      ## every step after the build, this one included, is then recorded as
+      ## never having run. The in-step memory sampler above covers that case.
       - name: Diagnose a killed build
         if: failure()
         run: ./ci/diagnose-build-kill
