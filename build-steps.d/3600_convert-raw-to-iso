@@ -644,6 +644,21 @@ Not running any chroot scripts.${reset}"
    ## bytes. Matches 4350_reimage-raw-reproducible.
    ${SUDO_TO_ROOT} find "${CHROOT_FOLDER}/run" -mindepth 1 -maxdepth 1 -exec safe-rm --recursive --force -- {} +
 
+   ## Canonicalize debconf question ownership before the squashfs is packed.
+   ## debconf records config.dat 'Owners:' with the package name AS dpkg spelled
+   ## it per configure phase -- bare ('shim-signed') in one, arch-qualified
+   ## ('shim-signed:amd64') in another -- so a build that configures a package
+   ## across two phases records BOTH while a one-phase build records one. Same
+   ## system, build-varying bytes: it was the last local-vs-CI difference
+   ## (shim-signed, libc6, libpam0g all carried the dual spelling in a CI ISO).
+   ## Strip the arch qualifier and dedupe so the file is identical regardless of
+   ## configure sequence. ONLY config.dat -- templates.dat 'Owners:' hold
+   ## question names, not packages. Matches 4350_reimage-raw-reproducible.
+   if ${SUDO_TO_ROOT} test -f "${CHROOT_FOLDER}/var/cache/debconf/config.dat"; then
+      ${SUDO_TO_ROOT} "${dist_developer_meta_files_folder}/usr/bin/dm-debconf-normalize-owners" \
+         "${CHROOT_FOLDER}/var/cache/debconf/config.dat"
+   fi
+
    ## Package into an ISO
    # shellcheck disable=SC2086
    ## No '--verbose': live-build's binary_rootfs turns '_VERBOSE=true' into
