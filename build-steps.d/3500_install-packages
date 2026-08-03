@@ -225,9 +225,9 @@ install-packages() {
    ## image's permissions depended on WHO built it. Measured: this exact file
    ## came out 0644 in CI and 0640 locally for the same commit, and it was one of
    ## only two remaining differences between the two images.
-   ${SUDO_TO_ROOT} install --mode=0644 -- "${source_code_folder_dist}/packages/kicksecure/dist-base-files/usr/share/derivative-base-files/20_dist-base-files.cfg" "${CHROOT_FOLDER}/etc/default/grub.d/20_dist-base-files.cfg"
+   ${SUDO_TO_ROOT} "${cp_reproducible[@]}" "${source_code_folder_dist}/packages/kicksecure/dist-base-files/usr/share/derivative-base-files/20_dist-base-files.cfg" "${CHROOT_FOLDER}/etc/default/grub.d/20_dist-base-files.cfg"
 
-   ${SUDO_TO_ROOT} install --mode=0755 -- "${source_code_folder_dist}/packages/kicksecure/helper-scripts/usr/bin/apt-get-noninteractive" "${CHROOT_FOLDER}/usr/bin/apt-get-noninteractive"
+   ${SUDO_TO_ROOT} "${cp_reproducible_exec[@]}" "${source_code_folder_dist}/packages/kicksecure/helper-scripts/usr/bin/apt-get-noninteractive" "${CHROOT_FOLDER}/usr/bin/apt-get-noninteractive"
 
    "${dist_source_help_steps_folder}/prevent-daemons-from-starting" "$@"
 
