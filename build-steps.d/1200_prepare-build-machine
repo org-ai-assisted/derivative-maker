@@ -491,6 +491,7 @@ normalize-symlinks() {
    while IFS= read -r tree_path; do
       [ -n "${tree_path}" ] || continue
       normalize_symlinks_in_tree "${tree_path}"
+      normalize_file_modes_in_tree "${tree_path}"
    done < <(
       printf '%s\n' "${source_code_folder_dist}"
       ## Single quotes deliberate: ${PWD} must be expanded by foreach's OWN
@@ -499,6 +500,37 @@ normalize-symlinks() {
       git -C "${source_code_folder_dist}" submodule --quiet foreach --recursive \
          'printf "%s\n" "${PWD}"' 2>/dev/null || true
    )
+}
+
+normalize_file_modes_in_tree() {
+   local tree="$1" entry file_mode file_path target_mode
+
+   ## git records only 100644 / 100755, and CHECKOUT applies the umask on top:
+   ## 0644 on a umask-022 host, 0660 on a umask-007 one. Any build step that
+   ## copies a source file with a plain 'cp' then carries that mode into the
+   ## image -- grml-debootstrap does exactly this for /etc/debootstrap/packages,
+   ## which came out 0644 in CI and 0640 locally for the same commit.
+   ##
+   ## Pinning the build's umask does not help: the checkout happened BEFORE the
+   ## build. So the tree is normalised to the mode git actually records.
+   while IFS= read -r -d '' entry; do
+      file_mode="${entry%% *}"
+      case "${file_mode}" in
+         100644)
+            target_mode=0644
+            ;;
+         100755)
+            target_mode=0755
+            ;;
+         *)
+            continue
+            ;;
+      esac
+      file_path="${tree}/${entry#*$'\t'}"
+      [ -f "${file_path}" ] || continue
+      [ -L "${file_path}" ] && continue
+      chmod -- "${target_mode}" "${file_path}" 2>/dev/null || true
+   done < <( git -C "${tree}" ls-files -s -z 2>/dev/null || true )
 }
 
 normalize_symlinks_in_tree() {
