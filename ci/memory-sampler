@@ -19,7 +19,7 @@
 ## the log.
 ##
 ## style-ok: no-has -- runner-diagnostic script; does not source derivative-maker
-## helper-scripts.
+## helper-scripts (same class as ci/free-disk).
 
 set -o errexit
 set -o nounset
@@ -30,8 +30,6 @@ shopt -s shift_verbose
 
 sample_interval="${1:-30}"
 
-## TODO: This could be more efficient, ideally we would only read /proc/meminfo
-## once per cycle.
 mem_field() {
    ## kB value of a /proc/meminfo field, or empty.
    local field_name="$1" line
@@ -39,7 +37,6 @@ mem_field() {
       case "${line}" in
          "${field_name}:"*)
             line="${line#*:}"
-            ## TODO: Why do we trim off "kB" here and then add it back later?
             line="${line%%kB*}"
             printf '%s' "${line//[[:space:]]/}"
             return 0
