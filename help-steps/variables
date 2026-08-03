@@ -20,6 +20,26 @@ set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
 
+## Deterministic umask for the WHOLE build.
+##
+## Without this the builder's umask reaches the image. git checkout creates
+## files as 0666 & ~umask, so the same commit yields 0644 on a umask-022 CI
+## runner and 0660 on a umask-007 Kicksecure host, and a plain 'cp' then carries
+## that mode into the image. Measured: /etc/default/grub.d/20_dist-base-files.cfg
+## came out 0644 in CI and 0640 locally, making the two images differ.
+##
+## 0022 is not a relaxation invented here: security-misc already grants exactly
+## this to sudo (Defaults umask=0022, umask_override) precisely because system
+## files must not inherit a user's restrictive umask.
+umask 0022
+
+## Placement helpers. 'install --mode' STATES the mode; a plain 'cp' inherits
+## whatever the checkout produced, which is the umask bug above. Named arrays so
+## the intent is visible at each call site and the mode cannot drift between
+## them. The mode git records in the index is the intent: 100644 / 100755.
+cp_reproducible=( install --mode=0644 -- )
+cp_reproducible_exec=( install --mode=0755 -- )
+
 true "${BASH_SOURCE[0]} INFO: begin"
 
 ## Silence xtrace while sourcing parse-cmd and running the parser, to
