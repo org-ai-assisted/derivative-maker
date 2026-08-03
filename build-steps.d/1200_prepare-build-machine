@@ -479,94 +479,40 @@ normalize-symlinks() {
    ## tree itself. This does NOT touch git config and does NOT require
    ## core.symlinks=true anywhere: git treats a real symlink and the text-file
    ## form as equally clean when core.symlinks=false, so the working tree stays
-   ## clean either way.
-   local tree_path
-
-   ## The parent, then every submodule. Iterated HERE in bash rather than by
-   ## running the work inside 'git submodule foreach': foreach executes its
-   ## argument with sh (dash on Debian), where an exported bash function does not
-   ## exist -- it fails "command not found", and a '|| true' would hide that,
-   ## leaving every submodule un-normalised while appearing to succeed. foreach
-   ## is used only to PRINT paths, which any shell can do.
-   while IFS= read -r tree_path; do
-      [ -n "${tree_path}" ] || continue
-      normalize_symlinks_in_tree "${tree_path}"
-      normalize_file_modes_in_tree "${tree_path}"
-   done < <(
-      printf '%s\n' "${source_code_folder_dist}"
-      ## Single quotes deliberate: ${PWD} must be expanded by foreach's OWN
-      ## shell in each submodule, not by this one.
-      # shellcheck disable=SC2016
-      git -C "${source_code_folder_dist}" submodule --quiet foreach --recursive \
-         'printf "%s\n" "${PWD}"' 2>/dev/null || true
-   )
-}
-
-normalize_file_modes_in_tree() {
-   local tree="$1" entry file_mode file_path target_mode
-
-   ## git records only 100644 / 100755, and CHECKOUT applies the umask on top:
-   ## 0644 on a umask-022 host, 0660 on a umask-007 one. Any build step that
-   ## copies a source file with a plain 'cp' then carries that mode into the
-   ## image -- grml-debootstrap does exactly this for /etc/debootstrap/packages,
-   ## which came out 0644 in CI and 0640 locally for the same commit.
+   ## clean either way (verified).
    ##
-   ## Pinning the build's umask does not help: the checkout happened BEFORE the
-   ## build. So the tree is normalised to the mode git actually records.
-   while IFS= read -r -d '' entry; do
-      file_mode="${entry%% *}"
-      case "${file_mode}" in
-         100644)
-            target_mode=0644
-            ;;
-         100755)
-            target_mode=0755
-            ;;
-         *)
-            continue
-            ;;
-      esac
-      file_path="${tree}/${entry#*$'\t'}"
-      [ -f "${file_path}" ] || continue
-      [ -L "${file_path}" ] && continue
-      chmod -- "${target_mode}" "${file_path}" 2>/dev/null || true
-   done < <( git -C "${tree}" ls-files -s -z 2>/dev/null || true )
-}
+   ## Only a REGULAR file whose entire content is the recorded target is
+   ## converted; anything else is left alone rather than guessed at.
+   true "INFO: normalizing symlinks under ${source_code_folder_dist}"
 
-normalize_symlinks_in_tree() {
-   local tree="$1" entry link_path link_target
+   normalize_symlinks_in_tree() {
+      local link_path link_target
+      while IFS= read -r link_path; do
+         [ -n "${link_path}" ] || continue
+         ## Already a real link: nothing to do.
+         if [ -L "${link_path}" ]; then
+            continue
+         fi
+         [ -f "${link_path}" ] || continue
+         link_target="$(cat -- "${link_path}")"
+         ## A materialised symlink is a single line naming a relative path. A
+         ## multi-line or empty file is a real file that merely has mode 120000
+         ## recorded wrongly; leave it.
+         case "${link_target}" in
+            ""|*$'\n'*)
+               continue
+               ;;
+         esac
+         rm -f -- "${link_path}"
+         ln -s -- "${link_target}" "${link_path}"
+      done < <(git ls-files -s | sed -n 's/^120000 [0-9a-f]* [0-9]*\t//p')
+   }
 
-   ## '-z' is required, not tidiness: without it git C-quotes any path with a
-   ## non-ASCII or special character ("l\303\244tt.png"), and the quoted string
-   ## names no existing file, so those entries are silently skipped -- exactly
-   ## the assets most likely to be branding.
-   while IFS= read -r -d '' entry; do
-      case "${entry}" in
-         '120000 '*)
-            ;;
-         *)
-            continue
-            ;;
-      esac
-      ## Format: '<mode> <sha> <stage>\t<path>'.
-      link_path="${tree}/${entry#*$'\t'}"
-      ## Already a real link: nothing to do.
-      if [ -L "${link_path}" ]; then
-         continue
-      fi
-      [ -f "${link_path}" ] || continue
-      link_target="$(cat -- "${link_path}")"
-      ## A materialised symlink is a single line naming a relative path. An empty
-      ## or multi-line file is a real file whose mode is recorded wrongly; leave
-      ## it rather than guess.
-      case "${link_target}" in
-         ""|*$'\n'*)
-            continue
-            ;;
-      esac
-      rm -f -- "${link_path}"
-      ln -s -- "${link_target}" "${link_path}"
-   done < <( git -C "${tree}" ls-files -s -z 2>/dev/null || true )
+   pushd -- "${source_code_folder_dist}" >/dev/null
+   normalize_symlinks_in_tree
+   export -f normalize_symlinks_in_tree
+   git submodule --quiet foreach --recursive 'normalize_symlinks_in_tree' || true
+   popd >/dev/null
 }
 
 main() {
