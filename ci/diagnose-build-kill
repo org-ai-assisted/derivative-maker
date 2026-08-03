@@ -63,7 +63,6 @@ else
    printf '%s\n' "no OOM records in dmesg"
 fi
 
-## TODO: Why is "oom_reaper" omitted from the list of possible matches below?
 journal_oom="$( sudo --non-interactive -- journalctl --dmesg --no-pager 2>/dev/null \
    | grep --extended-regexp --ignore-case 'out of memory|oom-kill|killed process' \
    | tail -n 20 || true )"
