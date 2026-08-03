@@ -218,9 +218,16 @@ install-packages() {
    ## /etc/default/grub.d/20_dist-base-files.cfg
    ## https://www.kicksecure.com/wiki/Dev/boot#/etc/default/grub.d/20_dist-base-files.cfg
    ## https://www.kicksecure.com/wiki/Grub#/etc/default/grub.d/20_dist-base-files.cfg
-   ${SUDO_TO_ROOT} cp -- "${source_code_folder_dist}/packages/kicksecure/dist-base-files/usr/share/derivative-base-files/20_dist-base-files.cfg" "${CHROOT_FOLDER}/etc/default/grub.d/20_dist-base-files.cfg"
+   ## install --mode, not cp: a plain cp carries the SOURCE file's mode into the
+   ## image, and that mode is whatever the builder's umask produced at checkout
+   ## time. git records 100644, but 'git checkout' creates 0666 & ~umask -- 0644
+   ## on a umask-022 CI runner, 0660 on a umask-007 Kicksecure host -- so the
+   ## image's permissions depended on WHO built it. Measured: this exact file
+   ## came out 0644 in CI and 0640 locally for the same commit, and it was one of
+   ## only two remaining differences between the two images.
+   ${SUDO_TO_ROOT} install --mode=0644 -- "${source_code_folder_dist}/packages/kicksecure/dist-base-files/usr/share/derivative-base-files/20_dist-base-files.cfg" "${CHROOT_FOLDER}/etc/default/grub.d/20_dist-base-files.cfg"
 
-   ${SUDO_TO_ROOT} cp -- "${source_code_folder_dist}/packages/kicksecure/helper-scripts/usr/bin/apt-get-noninteractive" "${CHROOT_FOLDER}/usr/bin/apt-get-noninteractive"
+   ${SUDO_TO_ROOT} install --mode=0755 -- "${source_code_folder_dist}/packages/kicksecure/helper-scripts/usr/bin/apt-get-noninteractive" "${CHROOT_FOLDER}/usr/bin/apt-get-noninteractive"
 
    "${dist_source_help_steps_folder}/prevent-daemons-from-starting" "$@"
 
