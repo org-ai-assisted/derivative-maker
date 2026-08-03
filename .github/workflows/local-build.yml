@@ -345,6 +345,37 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+  ## A build that DIES takes its own diagnostics with it: every step after the
+  ## build -- the 'if: failure()' collector and github's own post-steps included
+  ## -- is then recorded as never having run, so nothing in that job can report
+  ## anything. Proven by synthetic probe: on a job that does not fail cleanly the
+  ## step-level collector is SKIPPED while a separate job still runs.
+  ##
+  ## This job runs on a FRESH runner, so it survives. It cannot see the dead
+  ## runner's memory or dmesg -- the in-step sampler covers that by writing into
+  ## the log while the build is alive -- but it makes the shape of the failure
+  ## EXPLICIT instead of leaving a silent mystery.
+  postmortem:
+    needs: build
+    if: always() && needs.build.result != 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Report which steps never ran
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s\n' "===== BUILD DID NOT SUCCEED: ${{ needs.build.result }} ====="
+          printf '%s\n' "A step recorded as 'none' never ran. If the BUILD step is 'none'"
+          printf '%s\n' "and everything after it is too, the runner died rather than the"
+          printf '%s\n' "build failing -- look at the MEMSAMPLE lines in the build log."
+          gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs" \
+            --jq '.jobs[] | "\(.name): \(.conclusion) | " + ([.steps[] | "\(.number)=\(.conclusion // "none")"] | join(","))' \
+            || printf '%s\n' "api query failed"
+
   compare:
     needs: build
     ## Fork-PR guard (rule 3), mirroring the build job; also gated by needs:build.
