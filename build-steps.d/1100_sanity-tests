@@ -394,7 +394,7 @@ check-umask-in-sync() {
    ## images are compared byte for byte.
    true "INFO: Checking that the build umask matches security-misc..."
 
-   local sudoers_file variables_file security_misc_umask variables_umask
+   local sudoers_file variables_file security_misc_umask variables_umask sanity_line
 
    sudoers_file="${source_code_folder_dist}/packages/kicksecure/security-misc/etc/sudoers.d/security-misc#security-misc-shared"
    variables_file="${source_code_folder_dist}/help-steps/variables"
@@ -404,8 +404,34 @@ check-umask-in-sync() {
       return 0
    fi
 
-   security_misc_umask="$(sed -n 's/^Defaults[[:space:]]\+umask=\([0-7]\+\).*/\1/p' -- "${sudoers_file}" | head -n 1)"
-   variables_umask="$(sed -n 's/^umask[[:space:]]\+\([0-7]\+\).*/\1/p' -- "${variables_file}" | head -n 1)"
+   ## Read with a bash loop rather than 'sed ... | head -n 1'. Under errexit and
+   ## pipefail, head exiting after the first line gives sed SIGPIPE once the
+   ## output exceeds the pipe buffer, and the pipeline's 141 aborts the whole
+   ## build with NO message and no error handler. Verified: 141 and a silent
+   ## exit on a large input. Not reachable with these small config files, but the
+   ## shape is a trap and a loop costs nothing.
+   security_misc_umask=""
+   while IFS= read -r sanity_line; do
+      case "${sanity_line}" in
+         Defaults*umask=*)
+            security_misc_umask="${sanity_line#*umask=}"
+            security_misc_umask="${security_misc_umask%%[^0-7]*}"
+            break
+            ;;
+      esac
+   done < "${sudoers_file}"
+
+   variables_umask=""
+   while IFS= read -r sanity_line; do
+      case "${sanity_line}" in
+         umask[[:space:]]*)
+            variables_umask="${sanity_line#umask}"
+            variables_umask="${variables_umask#"${variables_umask%%[![:space:]]*}"}"
+            variables_umask="${variables_umask%%[^0-7]*}"
+            break
+            ;;
+      esac
+   done < "${variables_file}"
 
    if [ -z "${variables_umask}" ]; then
       error "help-steps/variables pins no umask.
