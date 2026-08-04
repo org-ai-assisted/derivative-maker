@@ -1566,20 +1566,30 @@ fi
 ## --sign-and-tag / --allow-unsigned options) always wins over the defaults.
 
 ## dist_build_sign_and_tag: whether 'help-steps/sign-and-tag' signs and tags
-## HEAD and every submodule. Default 'true'. Set 'false' for local work where
-## the submodule-gitlink re-bumping that re-signing causes is unwanted (it
-## rewrites submodule HEADs and re-commits the parent gitlinks, dirtying the
-## branch).
-[ -v dist_build_sign_and_tag ] || dist_build_sign_and_tag="true"
+## HEAD and every submodule. Default 'false': signing rewrites submodule HEADs
+## and re-commits the parent gitlinks (dirtying the branch), which local / dev /
+## AI-driven builds do not want. A build that MUST ship signed provenance opts
+## in explicitly -- '--sign-and-tag true', env, or at its dispatch call site --
+## which every redistributable path already does (a redistributable image
+## requires signatures; see dist_build_ignore_unsigned below and
+## help-steps/git_sanity_test's mutual-exclusion check).
+[ -v dist_build_sign_and_tag ] || dist_build_sign_and_tag="false"
 export dist_build_sign_and_tag
 
 ## dist_build_ignore_unsigned: signature-skip flag consumed by
 ## help-steps/git_sanity_test, alongside dist_build_ignore_untagged /
-## dist_build_ignore_uncommitted. Default 'false' (verify). Set 'true' only
-## when deliberately building from unsigned commits; pair it with
-## dist_build_sign_and_tag=false, since not signing means signatures cannot be
-## verified.
-[ -v dist_build_ignore_unsigned ] || dist_build_ignore_unsigned="false"
+## dist_build_ignore_uncommitted. Defaults to the INVERSE of
+## dist_build_sign_and_tag: a build that does not sign cannot have its
+## signatures verified, so verification is skipped in lockstep -- otherwise the
+## default-off signing would leave an unsigned tree failing the signature check.
+## An explicit value still wins.
+if [ -v dist_build_ignore_unsigned ]; then
+   true
+elif [ "${dist_build_sign_and_tag}" = "true" ]; then
+   dist_build_ignore_unsigned="false"
+else
+   dist_build_ignore_unsigned="true"
+fi
 export dist_build_ignore_unsigned
 
 ## dist_build_script_skip_package_install: optional whitespace-separated list of
