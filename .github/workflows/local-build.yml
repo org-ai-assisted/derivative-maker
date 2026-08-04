@@ -28,14 +28,14 @@ on:
         type: choice
         ## A choice input defaults to the first option (qcow2); the env fallback
         ## below ('inputs.target || qcow2') covers schedule/push.
-        ## 'virtualbox' is deliberately absent: the .ova export calls helper-scripts'
-        ## vbox-ova-reproducible-normalize, which is not in the pinned gitlink, so
-        ## dm-prepare-release aborts after a ~50 minute build. Offering a choice that
-        ## deterministically fails is worse than not offering it. Restore it once
-        ## org-ai-assisted/helper-scripts#69 lands and the gitlink is bumped.
+        ## 'virtualbox' exports the .ova through helper-scripts'
+        ## vbox-ova-reproducible-normalize (run in-build), which is present at the
+        ## pinned helper-scripts gitlink, so the .ova build completes and the two
+        ## runners' .ova are compared byte-for-byte like qcow2 / iso.
         options:
           - qcow2
           - iso
+          - virtualbox
   ## Dispatch-only, plus release tags below:
   ##   dm-ci-dispatch --workflow local-build.yml --ref <ref>
   push:
