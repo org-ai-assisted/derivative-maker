@@ -76,11 +76,11 @@ jobs:
           ## -> qcow2 disk image (also builds the VirtualBox ova).
           - flavor: kicksecure-debug
             image_kind: qcow2
-            upload_glob: Kicksecure-*.qcow2*
+            upload_glob: "*.qcow2*"
           ## -> live ISO (same package set, live-booted).
           - flavor: kicksecure-debug
             image_kind: iso
-            upload_glob: Kicksecure-*.iso
+            upload_glob: "*.iso"
     steps:
       - name: Checkout repository (no submodules yet)
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -297,7 +297,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: boot-image-vbox
-          path: /home/runner/binary_mnt/**/Kicksecure-*.ova
+          path: /home/runner/binary_mnt/**/*.ova
           if-no-files-found: error
           retention-days: 2
 
