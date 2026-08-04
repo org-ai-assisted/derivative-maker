@@ -215,7 +215,8 @@ jobs:
           COWBASE_REUSE_FLAG: ${{ env.BASE_CACHE == 'true' && '--reuse-cowbuilder-base' || '' }}
         run: >-
           ./docker/derivative-maker-docker-run --
-          bash -c "./help-steps/signing-key-create && ./help-steps/sign-and-tag &&
+          bash -c "export dist_build_sign_and_tag=true &&
+          ./help-steps/signing-key-create && ./help-steps/sign-and-tag &&
           env dist_build_target_arch='${ARCH}' flavors_list='${FLAVOR}'
           dist_build_multi_target_list='${MULTI_TARGET_LIST}'
           ./help-steps/dm-build-official --freshness '${FRESHNESS}' ${COWBASE_REUSE_FLAG}"
