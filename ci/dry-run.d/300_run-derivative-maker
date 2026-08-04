@@ -81,6 +81,7 @@ timeout 3600 \
    ./help-steps/run-as-user --chown "${PWD}" -- \
       "${target_user}" \
       env CI=true \
+          dist_build_sign_and_tag=true \
           dist_build_target_arch=amd64 \
           flavors_list=kicksecure-lxqt dist_build_multi_target_list=qcow2 \
       ./help-steps/dm-build-official \
