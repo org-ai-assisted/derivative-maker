@@ -311,12 +311,20 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: repro-image-${{ matrix.copy }}
-          ## Released image + siblings only, NOT the '.raw' build intermediate: a
-          ## 100 GB sparse disk image that is not the reproducibility subject and
-          ## bloats the artifact past the compare job's disk.
+          ## The distributable images + their sidecars, matched by EXTENSION so
+          ## this works for any product (Kicksecure OR Whonix) -- image filenames
+          ## are '<Product>-<flavor>-<version>...', so a 'Kicksecure-*' prefix
+          ## silently drops Whonix images. Excludes the '.raw' build intermediate
+          ## (a 100 GB sparse disk that is not the reproducibility subject and
+          ## bloats the compare job's disk) and every build-cache dir under
+          ## binary_mnt (they carry none of these extensions).
           path: |
-            /home/runner/binary_mnt/**/Kicksecure-*
-            !/home/runner/binary_mnt/**/*.raw
+            /home/runner/binary_mnt/**/*.qcow2.libvirt.xz
+            /home/runner/binary_mnt/**/*.qcow2.libvirt.xz.*
+            /home/runner/binary_mnt/**/*.iso
+            /home/runner/binary_mnt/**/*.iso.*
+            /home/runner/binary_mnt/**/*.ova
+            /home/runner/binary_mnt/**/*.ova.*
           if-no-files-found: error
           ## 2 days, matching boot-image-*: nothing consumes these after the
           ## compare job (its only reader), so a longer window just holds
@@ -358,13 +366,16 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: repro-checksums-${{ matrix.copy }}
+          ## Matched by EXTENSION, not a 'Kicksecure-*' prefix, so it also covers
+          ## Whonix images. Only image sidecars and the signing public keys carry
+          ## these suffixes under binary_mnt; the build-cache dirs and the big
+          ## images (.qcow2.libvirt.xz / .iso) do not, so nothing large is caught.
           path: |
-            /home/runner/binary_mnt/**/Kicksecure-*.sha512sums
-            /home/runner/binary_mnt/**/Kicksecure-*.asc
-            /home/runner/binary_mnt/**/Kicksecure-*.sig
-            /home/runner/binary_mnt/**/Kicksecure-*.torrent
-            /home/runner/binary_mnt/**/derivative-maker-signify.pub
-            /home/runner/binary_mnt/**/derivative-maker-openpgp.asc
+            /home/runner/binary_mnt/**/*.sha512sums
+            /home/runner/binary_mnt/**/*.asc
+            /home/runner/binary_mnt/**/*.sig
+            /home/runner/binary_mnt/**/*.torrent
+            /home/runner/binary_mnt/**/*.pub
           if-no-files-found: error
           retention-days: 90
 
