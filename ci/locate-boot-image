@@ -25,15 +25,15 @@ fi
 
 case "${image_kind}" in
    iso)
-      find_glob='Kicksecure-*.iso'
+      find_glob='*.iso'
       ;;
    vbox)
-      find_glob='Kicksecure-*.ova'
+      find_glob='*.ova'
       ;;
    *)
       ## The qcow2 is shipped xz-packed ('.qcow2.libvirt.xz'); the bare '.qcow2'
       ## is removed after packing. dm-boot-test extracts the tar.xz.
-      find_glob='Kicksecure-*.qcow2.libvirt.xz'
+      find_glob='*.qcow2.libvirt.xz'
       ;;
 esac
 
@@ -43,4 +43,4 @@ if [ -z "${image_path}" ]; then
    exit 1
 fi
 
-printf 'path=%s\n' "${image_path}" >> "${GITHUB_OUTPUT}"
+printf '%s\n' "path=${image_path}" >> "${GITHUB_OUTPUT}"
