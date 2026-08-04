@@ -659,6 +659,18 @@ Not running any chroot scripts.${reset}"
          "${CHROOT_FOLDER}/var/cache/debconf/config.dat"
    fi
 
+   ## Pin SYMLINK mtimes to SOURCE_DATE_EPOCH before mksquashfs, same as the disk
+   ## path (4350). update-alternatives creates its /usr/sbin/<name> ->
+   ## /etc/alternatives/<name> links (e.g. policy-rc.d) with a wall-clock mtime,
+   ## and the build's file-mtime pinning uses 'touch' WITHOUT --no-dereference, so
+   ## it follows the link and pins the TARGET, leaving the link's own mtime
+   ## build-varying. '-h' touches the link itself. (The ISO's EFI FAT image is
+   ## already reproducible: live-build builds efi.img with a SOURCE_DATE_EPOCH
+   ## volume-id, pinned mtimes and a zeroed fresh image, so unlike the disk ESP it
+   ## needs no FAT normalization here.)
+   ${SUDO_TO_ROOT} find "${CHROOT_FOLDER}" -type l \
+      -exec touch --no-dereference --date="@${SOURCE_DATE_EPOCH}" -- {} +
+
    ## Package into an ISO
    # shellcheck disable=SC2086
    ## No '--verbose': live-build's binary_rootfs turns '_VERBOSE=true' into
