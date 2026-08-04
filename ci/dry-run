@@ -21,4 +21,9 @@ cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.."
 
 ## Steps must be named [a-zA-Z0-9_-] only: run-parts skips anything else, so a
 ## step called '500_compare.sh' would silently not run.
+##
+## Signing opt-in (dist_build_sign_and_tag defaults off) is set per step via the
+## 'env VAR=val' prefix on each run-as-user hand-off, NOT exported here: run-as-user
+## drops privileges with 'sudo --preserve-env=PATH', which strips everything but
+## PATH, so an export here would not survive into 200_sign-and-tag or the build.
 run-parts --exit-on-error --verbose -- ./ci/dry-run.d
