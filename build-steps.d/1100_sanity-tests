@@ -345,6 +345,34 @@ Please delete derivative-maker source code folder and get it again as user, not 
    true
 }
 
+check-sufficient-disk() {
+   ## Fail EARLY and CLEARLY when the build output folder lacks the disk a full
+   ## build needs, instead of the cryptic 'No space left on device' that surfaces
+   ## deep in a later step (e.g. 3600 live-build's bootstrap_cache restore) after
+   ## ~40 minutes. A full ISO+qcow2 build writes a ~1.3 GB sparse raw, a
+   ## live-build chroot, the qcow2, and working copies; 20 GiB free is a
+   ## conservative floor below which a build reliably runs out.
+   local build_folder avail_kib avail_gib minimum_gib
+   minimum_gib="${dist_build_min_free_gib:-20}"
+   build_folder="${binary_build_folder_dist:-}"
+   if [ -z "${build_folder}" ] || [ ! -d "${build_folder}" ]; then
+      build_folder="${HOME}"
+   fi
+   avail_kib="$(df --output=avail -k -- "${build_folder}" 2>/dev/null | tail -n 1 | tr -d '[:space:]')"
+   if [ -z "${avail_kib}" ]; then
+      true "${bold}${cyan}INFO: ${BASH_SOURCE[0]}: could not read free disk for '${build_folder}'; skipping the disk check.${reset}"
+      return 0
+   fi
+   avail_gib=$(( avail_kib / 1024 / 1024 ))
+   true "${bold}${cyan}INFO: ${BASH_SOURCE[0]}: ${avail_gib} GiB free in '${build_folder}' (minimum ${minimum_gib} GiB).${reset}"
+   if [ "${avail_gib}" -lt "${minimum_gib}" ]; then
+      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: only ${avail_gib} GiB free in the build output folder \
+'${build_folder}', but a full build needs at least ${minimum_gib} GiB and would otherwise fail deep in a \
+later step with 'No space left on device'. Free space (old build outputs, caches) and retry, or set \
+dist_build_min_free_gib to override this floor.${reset}"
+   fi
+}
+
 check-stray-loop-devices() {
    true "INFO: Checking for stray loop devices..."
 
@@ -771,6 +799,7 @@ main() {
    check-hostname "$@"
    check-mailname "$@"
    check-source-folder-permissions "$@"
+   check-sufficient-disk "$@"
    check-stray-loop-devices "$@"
    check-umask-in-sync "$@"
    check-stale-nbd "$@"
