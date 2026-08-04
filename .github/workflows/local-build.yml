@@ -345,6 +345,29 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+      ## The small VERIFICATION sidecars, uploaded WITHOUT the multi-hundred-MB
+      ## image. A reproducibility check compares the '.sha512sums' -- a few
+      ## hundred bytes -- so downloading the whole 'repro-image' artifact (~1.3 GB)
+      ## just to read one hash line is pure waste. This bundle is ~100 KB: the
+      ## per-image '.sha512sums' (+ '.asc'/'.sig'), the image and torrent
+      ## signatures, and the build's auto-generated signing PUBLIC keys
+      ## (5200_prepare-release exports the signify '.pub' and the OpenPGP cert
+      ## next to the images) so a verifier can check the signatures without the
+      ## operator's keys. Public keys only -- never a secret half.
+      - name: Upload build ${{ matrix.copy }} checksums, signatures and public keys
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: repro-checksums-${{ matrix.copy }}
+          path: |
+            /home/runner/binary_mnt/**/Kicksecure-*.sha512sums
+            /home/runner/binary_mnt/**/Kicksecure-*.asc
+            /home/runner/binary_mnt/**/Kicksecure-*.sig
+            /home/runner/binary_mnt/**/Kicksecure-*.torrent
+            /home/runner/binary_mnt/**/derivative-maker-signify.pub
+            /home/runner/binary_mnt/**/derivative-maker-openpgp.asc
+          if-no-files-found: error
+          retention-days: 90
+
   ## A build that DIES takes its own diagnostics with it: every step after the
   ## build -- the 'if: failure()' collector and github's own post-steps included
   ## -- is then recorded as never having run, so nothing in that job can report
