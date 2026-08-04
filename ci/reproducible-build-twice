@@ -176,6 +176,10 @@ dist_build_version="${dist_build_version//-stable/}"
 ## between builds (build b's 'sign-tag-head' would otherwise abort on build a's tag
 ## being signed by a key its new policy does not authorize). Not worth that for a
 ## variable the image does not carry.
+## Opt in to signing: sign-and-tag defaults off, but this harness reproduces the
+## redistributable build (dm-build-official-one sets dist_build_redistributable=true,
+## which git_sanity_test requires be signed), so the tree must be signed here.
+export dist_build_sign_and_tag=true
 ./help-steps/signing-key-create
 ./help-steps/sign-and-tag
 popd >/dev/null
