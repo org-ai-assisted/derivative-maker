@@ -59,6 +59,7 @@ reimage_raw() {
 
    local dev_mapper_device fs_uuid fs_hashseed fs_blocksize fs_inodes fs_isize fs_features
    local reimage_parent sde_hex sde_cmd dd_err debugfs_err dumpe2fs_out
+   local loop_mapping_base esp_device esp_candidate
    export kpartx_only=true
    source "${dist_source_help_steps_folder}"/mount-raw
 
@@ -176,6 +177,16 @@ reimage_raw() {
          "${reimage_tree}/var/cache/debconf/config.dat"
    fi
 
+   ## Pin SYMLINK mtimes to SOURCE_DATE_EPOCH. update-alternatives creates its
+   ## /usr/sbin/<name> -> /etc/alternatives/<name> links (e.g. policy-rc.d) with a
+   ## wall-clock mtime, and the build's file-mtime pinning uses 'touch' WITHOUT
+   ## --no-dereference, so it follows the link and pins the TARGET, never the link
+   ## itself. mke2fs -d then carries the link's wall-clock mtime into the image --
+   ## a build-varying byte in an otherwise identical tree. '-h' touches the link,
+   ## not its target; regular-file mtimes are already deterministic and untouched.
+   ${SUDO_TO_ROOT} find "${reimage_tree}" -type l \
+      -exec touch --no-dereference --date="@${SOURCE_DATE_EPOCH}" -- {} +
+
    ## Zero the partition so free-block slack is deterministic and carries no stale bytes from the
    ## previous online-allocator filesystem (mke2fs writes only metadata + file blocks, not free
    ## space). blkdiscard --zeroout is reliable on loop-backed partitions; on a host without it, fall
@@ -234,6 +245,34 @@ reimage_raw() {
             ;;
       esac
    done
+
+   ## Rebuild the EFI System Partition (vfat) deterministically. mke2fs -d above
+   ## makes the ext4 ROOT reproducible, but grml-debootstrap/grub-install populate
+   ## the FAT ESP during the build and FAT cluster allocation follows the build
+   ## host's file-write order, so the SAME boot files land at different clusters
+   ## on a local build vs CI -- the bulk of the remaining local-vs-CI image
+   ## difference (measured 3.44 MB of a 100 MB ESP). dm-normalize-fat-partition
+   ## extracts the files and rebuilds the FAT from a zero-filled image, preserving
+   ## geometry/serial/label, copying files in sorted order with mtimes pinned to
+   ## SOURCE_DATE_EPOCH. The ESP is the vfat partition on the SAME kpartx mapping
+   ## mke2fs just wrote (dev_mapper_device is the ext4 root, e.g. loop0p3).
+   loop_mapping_base="${dev_mapper_device%p*}"
+   esp_device=""
+   for esp_candidate in "${loop_mapping_base}"p*; do
+      if [ "${esp_candidate}" = "${dev_mapper_device}" ]; then
+         continue
+      fi
+      if [ "$(${SUDO_TO_ROOT} blkid -o value -s TYPE "${esp_candidate}" 2>/dev/null)" = "vfat" ]; then
+         esp_device="${esp_candidate}"
+         break
+      fi
+   done
+   if [ -n "${esp_device}" ]; then
+      ${SUDO_TO_ROOT} "${dist_developer_meta_files_folder}/usr/bin/dm-normalize-fat-partition" \
+         "${esp_device}"
+   else
+      printf '%s\n' "INFO: ${BASH_SOURCE[0]}: no vfat ESP found on ${loop_mapping_base}; nothing to normalize." >&2
+   fi
 
    "${dist_source_help_steps_folder}"/unmount-raw "$@"
    trap - EXIT
