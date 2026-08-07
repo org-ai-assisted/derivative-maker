@@ -294,18 +294,22 @@ jobs:
           if-no-files-found: error
           retention-days: 2
 
-      - name: Upload built .ova (virtualbox)
-        ## vbox temporarily disabled (re-enable once stable): the non-iso job no
-        ## longer builds the .ova (MULTI_TARGET_LIST above). Re-enable by setting
-        ## 'if:' back to: matrix.image_kind == 'qcow2' (and restore 'virtualbox
-        ## qcow2' in MULTI_TARGET_LIST + the 'vbox' image_kind in the boot matrix).
-        if: false
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: boot-image-vbox
-          path: /home/runner/binary_mnt/**/*.ova
-          if-no-files-found: error
-          retention-days: 2
+      ## vbox temporarily disabled (re-enable once stable): the non-iso job no
+      ## longer builds the .ova (MULTI_TARGET_LIST above). Re-enable by
+      ## uncommenting this step with 'if: matrix.image_kind == 'qcow2'' (and
+      ## restoring 'virtualbox qcow2' in MULTI_TARGET_LIST + the 'vbox' image_kind
+      ## in the boot matrix).
+      ##
+      ## Commented out rather than left as 'if: false', which actionlint rejects as
+      ## a constant condition -- the same way the other disabled vbox pieces are.
+      # - name: Upload built .ova (virtualbox)
+      #   if: matrix.image_kind == 'qcow2'
+      #   uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      #   with:
+      #     name: boot-image-vbox
+      #     path: /home/runner/binary_mnt/**/*.ova
+      #     if-no-files-found: error
+      #     retention-days: 2
 
   boot-test:
     needs: build
