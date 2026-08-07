@@ -621,6 +621,31 @@ ${dist_build_script_skip_package_install}${reset}"
    ## root=/dev/mapper/loop0p2
    ## which then results in an unbootable system.
 
+   ## '--smbios-reader true': let vm-config-dist's etc/grub.d/01_smbios-reader and
+   ## etc/default/grub.d/99_smbios-cmdline.cfg emit the SMBIOS cmdline reader and
+   ## its ${dm_smbios_extra} placeholder. Both are opt-in and default OFF, so a
+   ## released image carries neither. Written BEFORE grub-mkconfig below, which is
+   ## what turns the drop-in into grub.cfg content.
+   ##
+   ## Sorts before 99_smbios-cmdline.cfg, which is where the variable is read and
+   ## exported to the /etc/grub.d helpers; grub-mkconfig sources
+   ## /etc/default/grub.d/*.cfg in glob order.
+   ##
+   ## Removed rather than left behind when disabled: the file must not survive from
+   ## an earlier build in the same build slot.
+   ${SUDO_TO_ROOT} safe-rm --force -- "${CHROOT_FOLDER}/etc/default/grub.d/50_dm-smbios-reader.cfg"
+   if [ "${dist_build_smbios_reader:-}" = "true" ]; then
+      true "${cyan}INFO: --smbios-reader true: enabling the GRUB SMBIOS cmdline reader.${reset}"
+      printf '%s\n' \
+         '## Copyright (C) 2025 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>' \
+         '## See the file COPYING for copying conditions.' \
+         '' \
+         '## Written by derivative-maker 3500_install-packages under' \
+         "## '--smbios-reader true'. Boot-test images only." \
+         'GRUB_ENABLE_DM_SMBIOS_READER="true"' \
+         | ${SUDO_TO_ROOT} tee "${CHROOT_FOLDER}/etc/default/grub.d/50_dm-smbios-reader.cfg" >/dev/null
+   fi
+
    ## Debugging.
    ## update-grub is a wrapper that essentially runs:
    ## grub-mkconfig -o /boot/grub/grub.cfg
