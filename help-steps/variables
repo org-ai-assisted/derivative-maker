@@ -1240,34 +1240,6 @@ if [ "${dist_build_version_reproducible:-}" = "true" ]; then
    fi
 fi
 
-## VERIFICATION AID (--reproducible-dist-build-version): drop the git describe
-## suffix '-<n>-g<commit>', leaving the nearest tag.
-##
-## The version reaches the artifact NAME, the libvirt XML and the
-## '.dm-buildinfo', so it alone makes two builds of an IDENTICAL tree
-## byte-different whenever their commit ids differ. Normalizing it lets a local
-## rebuild be compared against a CI image whose Source-Commit cannot match (see
-## parse-cmd). Every remaining byte difference is then a real finding.
-##
-## Deliberately NOT the default and NOT for official builds: there the version is
-## the point, and a rebuilder gets byte-for-byte identity only from the SAME TAG.
-## Extra commits SHOULD change the version -- that is correct behaviour, not a
-## reproducibility defect.
-if [ "${dist_build_version_reproducible:-}" = "true" ]; then
-   dist_build_version_normalized="$(printf '%s\n' "${dist_build_version}" | sed -E 's/-[0-9]+-g[0-9a-f]+$//')"
-   if [ "${dist_build_version_normalized}" = "${dist_build_version}" ]; then
-      true "${cyan}INFO: --reproducible-dist-build-version: '${dist_build_version}' carries no describe suffix; unchanged.${reset}"
-   else
-      true "${cyan}INFO: --reproducible-dist-build-version: normalized '${dist_build_version}' -> '${dist_build_version_normalized}'.${reset}"
-      ## Keep what the version WOULD have been. Normalizing otherwise discards it
-      ## from the record entirely: you could see that a build was normalized but
-      ## not what it was normalized FROM, so a normalized image could not be tied
-      ## back to the release artifact it corresponds to without the repo in hand.
-      export dist_build_version_unnormalized="${dist_build_version}"
-      dist_build_version="${dist_build_version_normalized}"
-   fi
-fi
-
 ## Strip channel suffixes ('-developers-only', '-testers-only', '-stable')
 ## that may be attached to the git tag so that 'dist_build_version' is a
 ## clean version string regardless of which release channel we are on.

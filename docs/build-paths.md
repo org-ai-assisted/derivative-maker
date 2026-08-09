@@ -54,6 +54,8 @@ Two things that read like gaps and are not:
 ```
 .github/workflows/local-build.yml     # dispatch-only + release tags + weekly
   -> job build (matrix: copy = a, b)          # two SEPARATE runners
+       flavor kicksecure-debug -- the SAME flavor the boot-test lane builds,
+       so the two lanes can share one image instead of building two
        ci/configure-fork-mirror
        git submodule update --init --recursive
        ci/checkout-fork-submodule-branches
@@ -174,9 +176,10 @@ step                            under dry-run              gate
 5300_free-build-scratch         never runs                  needs CI=true, see below
 ```
 
-So NO derivative package is built, NO root filesystem is constructed, NO package
-is installed into an image, and the reproducibility reimaging and the compare
-report do not run. What the lane does exercise end to end is the ORCHESTRATION
+So no DERIVATIVE package is built, no image root filesystem is constructed, no
+package is installed into an image, and the reproducibility reimaging and the
+compare report do not run. The cowbuilder base and the one `.deb` that `1400`
+builds are real -- they are build-machine setup, not image content. What the lane does exercise end to end is the ORCHESTRATION
 (dm-build-official -> dm-build-official-one -> parse-cmd -> variables), the
 build-machine and cowbuilder setup, one real `.deb` build in `1400`, the qcow2
 conversion, and the whole RELEASE path in `5200` -- mktorrent, sha512sums,
@@ -205,30 +208,36 @@ help-steps/dm-build-official-one:164  CI=true, or
 help-steps/variables:1066             dry-run      -> echo simulate-only rsync
 ```
 
-### CI=true does NOT reach the build in the dry-run lane
+### CI=true reaches the build only because the lane passes it explicitly
 
-The workflow sets `CI=true` (`docker exec --env CI=true`) and `ci/dry-run` refuses
-to start without it, but `ci/dry-run.d/300_run-derivative-maker` hands off through
-`help-steps/run-as-user:173`, which uses `sudo --preserve-env=PATH` -- PATH and
-nothing else. Inside the build, `help-steps/variables:335` then defaults `CI` to
-`false`.
+`help-steps/run-as-user:173` hands off with `sudo --preserve-env=PATH` -- PATH and
+nothing else. So the workflow's `docker exec --env CI=true` reaches `ci/dry-run`
+but NOT the build, where `help-steps/variables:335` would default `CI` to `false`.
 
-The real lane does the opposite: `docker/derivative-maker-docker-run:369` injects
-`--env CI=true` into the container and `:394` hands off with a full
-`--preserve-env`.
+`ci/dry-run.d/300_run-derivative-maker` therefore passes it on the `env` prefix,
+which is the supported way to set a variable across `run-as-user`:
 
-Consequence: every `CI=true` branch is UNEXERCISED by the dry-run lane, including
-`help-steps/parse-cmd`'s real-vs-dry decision for CI builds, `dm-build-official`'s
-`derivative-update --update-only`, and `5300_free-build-scratch`. The lane also
-builds amd64 rather than the arm64 that `dm-build-official-one:92` selects under
-CI. Anything passed on the `env` prefix at
-`ci/dry-run.d/300_run-derivative-maker:69` DOES reach the build -- that is the
-supported way to set a variable across `run-as-user`.
+```
+env CI=true dist_build_target_arch=amd64 flavors_list=... ./help-steps/dm-build-official
+```
+
+`dist_build_target_arch=amd64` comes with it: under `CI=true`,
+`dm-build-official-one:92` selects arm64, and the runners are amd64.
+`local-build.yml` pins the same value.
+
+The real lane gets `CI` from the container instead:
+`docker/derivative-maker-docker-run:369` injects `--env CI=true` and `:394` hands
+off with a full `--preserve-env`.
+
+Anything NOT on that `env` prefix still does not cross `run-as-user` -- that is
+the trap to remember when adding a variable the build must see.
 
 ### Where the dry-run therefore stops being evidence
 
-- Package building, root-filesystem construction, package installation, chroot
-  post-scripts: not run at all (the table above).
+- The DERIVATIVE package set (`2100`), the image ROOT FILESYSTEM (`3200`/`3500`)
+  and the chroot post-scripts (`4300`): not run at all (the table above). The
+  cowbuilder base (`1300`) and one real `.deb` (`1400`) DO get built -- those are
+  build-machine setup, not the image.
 - Anything depending on image CONTENTS: a 1M image holds no filesystem, so the
   boot-test lane cannot be replaced by it.
 - Reproducibility: `4350` does not run, and comparing two dry-run images would
