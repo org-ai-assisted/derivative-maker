@@ -44,7 +44,7 @@ source variables
 ## opt-in --skip-published-packages path calls into it, but source it
 ## unconditionally (no conditional imports): it just defines functions, and the
 ## helper always ships with the developer-meta-files submodule.
-source "${dist_developer_meta_files_folder}/usr/libexec/developer-meta-files/reprepro-freshness.bsh"
+source "${dist_developer_meta_files_folder}/usr/libexec/developer-meta-files/package-build-freshness.bsh"
 
 cd "${MYDIR}"
 cd ..
@@ -603,7 +603,7 @@ create_derivative_distribution_debian_packages() {
       "${genmkfile_bin}" reprepro-add
       ## Record the source content hash so the next --skip-published-packages build
       ## skips this package unless its source changes again (auto-detected, no
-      ## package name or changelog bump needed). See reprepro-freshness.bsh.
+      ## package name or changelog bump needed). See package-build-freshness.bsh.
       dm_source_hash_record \
          "$(dm_source_hash_manifest_path "${dist_build_apt_codename}")" \
          "$(dpkg-parsechangelog --show-field Source --file "${item}/debian/changelog")" \
