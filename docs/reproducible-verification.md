@@ -53,6 +53,25 @@ TMPDIR=/var/tmp diffoscope \
   --text report.txt our-image.iso your-image.iso
 ```
 
+### The automated comparator on large ISO / OVA images
+
+`dm-reproducible-compare-artifacts --target iso|virtualbox` decides the verdict
+from the whole-image sha256 and runs diffoscope only as a best-effort
+EXPLANATION. On a real multi-gigabyte DIFFERING image that explanation can still
+exhaust memory even with the bounds above. Measured on a 1.4 GB differing `.iso`
+pair: diffoscope descends into the image (parsing the filesystem and the unified
+kernel image), then exits 2 -- `Out of memory. Diffoscope exiting.` -- under the
+tool's address-space cap. The tool degrades gracefully: it prints
+`diffoscope could not explain the diff (exit 2); the sha256 mismatch above is the
+verdict` and the sha256 result stands. The VERDICT is never affected (it is a
+whole-file hash); only the per-file explanation is lost.
+
+The `qcow2` target already avoids this by attaching each image read-only and
+handing diffoscope the two MOUNT POINTS, so its working set is one file pair at a
+time. Extending that mounted route to `iso`/`virtualbox` would give them a
+memory-safe explanation too -- a future improvement, not required for a correct
+verdict.
+
 ## Reporting a difference
 
 If the images differ and it is not an intentional variation, that is a
