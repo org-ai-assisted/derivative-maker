@@ -484,8 +484,9 @@ jobs:
       ## build (consistency + clean layering), not bare on the runner: the source
       ## tree and the downloaded build-a / build-b bind-mount into the container,
       ## where ci/reproducible-compare installs diffoscope and runs the comparator.
-      ## Exit code IS the pass/fail: 0 reproducible, 1 differs (report written),
-      ## 2 environment error; a remaining difference fails the job on purpose.
+      ## Exit code IS the pass/fail: 0 reproducible, 4 differs (report written),
+      ## 2 environment error, 1 internal error; a remaining difference (4) fails
+      ## the job on purpose.
       - name: Compare images in the derivative-maker container
         env:
           REPORT: reproducible-report.html
