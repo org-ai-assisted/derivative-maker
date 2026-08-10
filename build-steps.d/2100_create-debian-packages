@@ -465,13 +465,13 @@ create_derivative_distribution_debian_packages() {
             grep -- "Architecture:" "${control_file}" || true
             error "unknown Architecture: in ${control_file}"
          fi
-         ## Fast local iteration (opt-in): skip a package already published in the
-         ## local reprepro repo at its current changelog version. Off by default,
-         ## so editing a package without bumping debian/changelog is not silently
-         ## skipped. Bump the changelog (or unset the flag) to force a rebuild.
+         ## Fast local iteration (opt-in): skip a package whose SOURCE CONTENT is
+         ## unchanged since it was last built (a content-hash manifest; a
+         ## debian/changelog bump is part of that content, so it forces a rebuild).
+         ## Off by default. Unset the flag to force a rebuild of everything.
          if [ "${dist_build_skip_published_packages:-}" = "true" ] \
-            && ! dm_package_needs_rebuild "${item}" "${dist_build_apt_codename}" "${derivative_name_item}"; then
-            true "${cyan}INFO: Skipping up-to-date package ${base_name} (already published).${reset}"
+            && ! dm_package_needs_rebuild "${item}" "${dist_build_apt_codename}"; then
+            true "${cyan}INFO: Skipping up-to-date package ${base_name} (source unchanged).${reset}"
             continue
          fi
          package_build_list+=("${item}")
