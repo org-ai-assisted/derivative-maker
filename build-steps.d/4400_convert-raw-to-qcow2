@@ -13,7 +13,7 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
@@ -31,7 +31,7 @@ convert_raw_to_qcow2() {
    ## Debugging.
    qemu-img \
       info \
-         "$binary_image_raw_file"
+         "${binary_image_raw_file}"
 
    ## Create qcow2 image form raw image.
    ## VMSIZE defaults to 100G as per help-steps/variables.
@@ -42,13 +42,13 @@ convert_raw_to_qcow2() {
          -o compat=1.1 \
          -o extended_l2=on,cluster_size=128k \
          -o preallocation=metadata \
-         "$binary_image_raw_file" \
-         "$binary_image_qcow2_file"
+         "${binary_image_raw_file}" \
+         "${binary_image_qcow2_file}"
 
    ## Debugging.
    qemu-img \
       info \
-         "$binary_image_qcow2_file"
+         "${binary_image_qcow2_file}"
 
    true
 }

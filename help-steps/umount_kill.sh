@@ -8,13 +8,28 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
 true "$0 INFO: start"
 
-if [ "$EUID" != "0" ]; then
+if [ "${EUID}" != "0" ]; then
    printf '%s\n' "$0: ERROR: This MUST be run as root (sudo)!" >&2
    exit 1
 fi
+
+while :
+do
+    case "${1:-}" in
+        --)
+            shift
+            break
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
 
 file_system_object="${1:-}"
 
@@ -28,64 +43,63 @@ if [ "${file_system_object:-}" = "/" ]; then
    exit 1
 fi
 
-if ! test -e "$file_system_object" ; then
+if ! test -e "${file_system_object}" ; then
    true "$0: INFO: file_system_object does not exist. Skip checking if processes are running there, ok."
    true "$0: INFO: end"
    exit 0
 fi
 
-real_path=$(realpath -- "$file_system_object") || true
+real_path=$(realpath -- "${file_system_object}") || true
 
 ## Hard guard: with an empty '$real_path' the prefix patterns below
 ## ('"${real_path}"/*') would degenerate to '/*' and match EVERY process on
 ## the system; with '/' they would too (and '/' is already rejected above
 ## for '$file_system_object').
 if [ "${real_path:-}" = "" ] || [ "${real_path:-}" = "/" ]; then
-   printf '%s\n' "$0: ERROR: could not canonicalize file_system_object '$file_system_object' (realpath returned '${real_path:-}')." >&2
+   printf '%s\n' "$0: ERROR: could not canonicalize file_system_object '${file_system_object}' (realpath returned '${real_path:-}')." >&2
    exit 1
 fi
 
-if [ "${file_system_object:-}" = "$real_path" ]; then
+if [ "${file_system_object:-}" = "${real_path}" ]; then
    true "INFO: file_system_object = real_path, ok."
 else
-   if test -L "$file_system_object" ; then
+   if test -L "${file_system_object}" ; then
       true "INFO: symlink"
    else
-      printf '%s\n' "INFO: real_path: '$real_path'"
-      printf '%s\n' "INFO: file_system_object: '$file_system_object'"
+      printf '%s\n' "INFO: real_path: '${real_path}'"
+      printf '%s\n' "INFO: file_system_object: '${file_system_object}'"
       printf '%s\n' "WARNING: file_system_object is different from real_path!" >&2
    fi
 fi
 
-skip_name_list="pts dev proc sys hostname resolv.conf hosts hostname"
+skip_name_list="pts dev proc sys hostname resolv.conf hosts"
 
 base_name="${file_system_object##*/}"
 
-for skip_name_item in $skip_name_list ; do
-   if [ "${base_name:-}" = "$skip_name_item" ]; then
+for skip_name_item in ${skip_name_list} ; do
+   if [ "${base_name:-}" = "${skip_name_item}" ]; then
       ## Most likely just mounted host /dev in chroot can be ignored.
       ## Would otherwise show a long, confusing lsof.
-      true "$0: INFO: base_name: $skip_name_item Skip checking if processes are running there, ok."
+      true "$0: INFO: base_name: ${skip_name_item} Skip checking if processes are running there, ok."
       true "$0: INFO: end"
       exit 0
    fi
 done
 
-true "INFO: Checking if there are any processes still running in file_system_object: '$file_system_object'"
+true "INFO: Checking if there are any processes still running in file_system_object: '${file_system_object}'"
 
 ## Print the PIDs of every process still using '$real_path': chrooted into
 ## it, cwd inside it, executing a binary from it, holding any open file
 ## descriptor under it, or mmap-ing a file under it.
 ##
-## Detection is /proc-based and dependency-free. The previous implementation
-## ran a single 'lsof -- <dir>', which matches a directory ARGUMENT by that
-## one inode only: a process whose open files merely live UNDER the
-## directory (a lingering chroot daemon's log file, socket, cwd in a
-## subdirectory, ...) was missed, and a missing 'lsof' binary degraded into
-## a silent "no pids" verdict ('2>/dev/null' plus '|| true' swallowed the
-## command-not-found). Scanning '/proc/<pid>/{root,cwd,exe,fd/*}' via
-## 'readlink' catches everything 'lsof' caught for this use case plus the
-## under-the-tree cases; the '/proc/<pid>/maps' grep covers mmap-only users.
+## Detection is /proc-based and dependency-free, deliberately not 'lsof':
+## 'lsof -- <dir>' matches a directory ARGUMENT by that one inode only, so a
+## process whose open files merely live UNDER the tree (a lingering chroot
+## daemon's log file, socket, cwd in a subdirectory, ...) goes unnoticed, and
+## an absent 'lsof' binary degrades into a silent "no pids" verdict. Scanning
+## '/proc/<pid>/{root,cwd,exe,fd/*}' via 'readlink' covers both the direct and
+## the under-the-tree cases; the '/proc/<pid>/maps' grep covers mmap-only
+## users.
 ## The kernel keeps these link targets current across a rename of the tree
 ## (pbuilder's move of the cowbuilder work directory onto 'base.cow'), so a
 ## prefix comparison against the canonical path stays correct even after
@@ -155,23 +169,23 @@ pids_using_path() {
 pids="$(pids_using_path)"
 
 if [ "${pids:-}" = "" ]; then
-   true "INFO: Okay, no pids still running in '$file_system_object', no need to kill any."
+   true "INFO: Okay, no pids still running in '${file_system_object}', no need to kill any."
 else
-   printf '%s\n' "INFO: Okay, the following pids are still running inside '$file_system_object', which will now be killed."
+   printf '%s\n' "INFO: Okay, the following pids are still running inside '${file_system_object}', which will now be killed."
 
    ## Debugging.
    ## Overwrite with '|| true' to avoid race condition if these processes already
    ## terminated themselves.
    ## Word-splitting of '$pids' is intentional (one PID per line).
    # shellcheck disable=SC2086
-   ps -p $pids || printf '%s\n' "WARNING: Command 'ps -p $pids' exited non-zero." >&2
+   ps -p ${pids} || printf '%s\n' "WARNING: Command 'ps -p ${pids}' exited non-zero." >&2
 
    ## SIGTERM first: a daemon such as 'VBoxSVC' shuts down cleanly on it
    ## (flushes state, removes its sockets), whereas SIGKILL guarantees stale
    ## runtime litter. Escalate only if something is still alive after the
    ## grace period.
    # shellcheck disable=SC2086
-   kill -s TERM -- $pids || printf '%s\n' "WARNING: Command 'kill -s TERM -- $pids' exited non-zero." >&2
+   kill -s TERM -- ${pids} || printf '%s\n' "WARNING: Command 'kill -s TERM -- ${pids}' exited non-zero." >&2
 
    grace_seconds_left=5
    pids="$(pids_using_path)"
@@ -182,9 +196,9 @@ else
    done
 
    if [ ! "${pids}" = "" ]; then
-      printf '%s\n' "WARNING: The following pids survived SIGTERM and the grace period, sending SIGKILL: $pids" >&2
+      printf '%s\n' "WARNING: The following pids survived SIGTERM and the grace period, sending SIGKILL: ${pids}" >&2
       # shellcheck disable=SC2086
-      kill -s KILL -- $pids || printf '%s\n' "WARNING: Command 'kill -s KILL -- $pids' exited non-zero." >&2
+      kill -s KILL -- ${pids} || printf '%s\n' "WARNING: Command 'kill -s KILL -- ${pids}' exited non-zero." >&2
       ## Killing processes is not instant; give the kernel a moment before
       ## callers proceed to unmount / delete the tree.
       sleep 3

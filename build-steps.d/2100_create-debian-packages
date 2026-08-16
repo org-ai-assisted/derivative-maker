@@ -31,7 +31,7 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
@@ -44,18 +44,18 @@ source variables
 ## opt-in --skip-published-packages path calls into it, but source it
 ## unconditionally (no conditional imports): it just defines functions, and the
 ## helper always ships with the developer-meta-files submodule.
-source "$dist_developer_meta_files_folder/usr/libexec/developer-meta-files/reprepro-freshness.bsh"
+source "${dist_developer_meta_files_folder}/usr/libexec/developer-meta-files/reprepro-freshness.bsh"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 
 download_tpo_packages() {
    ## https://forums.whonix.org/t/tor-integration-in-whonix/10593/2
    available_architectures_for_download_only_list="amd64 arm64"
-   dist_build_special_packages_chroot_script="$dist_source_help_steps_folder/repo_download_chroot_script"
-   repo_signing_key="$source_code_folder_dist/packages/kicksecure/anon-shared-build-apt-sources-tpo/usr/share/anon-shared-build-apt-sources-tpo/tpoarchive-keys.d/torprojectarchive.asc"
-   repo_sources_list="$dist_build_sources_list_torproject"
-   temp_newer_packages="$binary_build_folder_dist/temp_packages_tpo"
+   dist_build_special_packages_chroot_script="${dist_source_help_steps_folder}/repo_download_chroot_script"
+   repo_signing_key="${source_code_folder_dist}/packages/kicksecure/anon-shared-build-apt-sources-tpo/usr/share/anon-shared-build-apt-sources-tpo/tpoarchive-keys.d/torprojectarchive.asc"
+   repo_sources_list="${dist_build_sources_list_torproject}"
+   temp_newer_packages="${binary_build_folder_dist}/temp_packages_tpo"
    export apt_target_release="none"
    export download_source_package="true"
 
@@ -87,11 +87,11 @@ download_virtualbox_packages_virtualbox_org() {
    ## Creating '--target virtualbox' on platforms other than amd64 such as arm64 would fail anyhow since
    ## nobody is providing packages for these platforms. At time of writing, nobody reported trying that either.
    available_architectures_for_download_only_list="amd64"
-   dist_build_special_packages_chroot_script="$dist_source_help_steps_folder/repo_download_chroot_script"
-   repo_signing_key="$source_code_folder_dist/build_sources/oracle_vbox_2016.asc"
+   dist_build_special_packages_chroot_script="${dist_source_help_steps_folder}/repo_download_chroot_script"
+   repo_signing_key="${source_code_folder_dist}/build_sources/oracle_vbox_2016.asc"
    ## TODO: repo_sources_list - low priority - currently not needed
    repo_sources_list=""
-   temp_newer_packages="$binary_build_folder_dist/temp_packages_virtualbox_org"
+   temp_newer_packages="${binary_build_folder_dist}/temp_packages_virtualbox_org"
    export apt_target_release="none"
    ## Not available from that repository but from Debian directly.
    export download_source_package="false"
@@ -107,10 +107,10 @@ download_packages_from_debian_sid() {
    ## github.com/grml/grml-debootstrap/issues/37
 
    available_architectures_for_download_only_list="all"
-   dist_build_special_packages_chroot_script="$dist_source_help_steps_folder/repo_download_chroot_script"
+   dist_build_special_packages_chroot_script="${dist_source_help_steps_folder}/repo_download_chroot_script"
    repo_signing_key="none"
-   repo_sources_list="$dist_build_sources_list_debian_sid"
-   temp_newer_packages="$binary_build_folder_dist/temp_packages_debian_sid"
+   repo_sources_list="${dist_build_sources_list_debian_sid}"
+   temp_newer_packages="${binary_build_folder_dist}/temp_packages_debian_sid"
    export apt_target_release="sid"
    export download_source_package="true"
 
@@ -189,10 +189,10 @@ download_packages_from_debian_sid() {
 # shellcheck disable=SC2317
 download_packages_from_debian_forky_backports() {
    available_architectures_for_download_only_list="all"
-   dist_build_special_packages_chroot_script="$dist_source_help_steps_folder/repo_download_chroot_script"
+   dist_build_special_packages_chroot_script="${dist_source_help_steps_folder}/repo_download_chroot_script"
    repo_signing_key="none"
-   repo_sources_list="$dist_build_sources_list_debian_forky_backports"
-   temp_newer_packages="$binary_build_folder_dist/temp_packages_debian_forky_backports"
+   repo_sources_list="${dist_build_sources_list_debian_forky_backports}"
+   temp_newer_packages="${binary_build_folder_dist}/temp_packages_debian_forky_backports"
    export apt_target_release="forky-backports"
    export download_source_package="false"
 
@@ -223,31 +223,31 @@ get_newer_packages_from_third_party_repositories() {
       exit 1
    fi
 
-   $SUDO_TO_ROOT safe-rm --recursive --force -- "$temp_newer_packages"
-   mkdir --parents -- "$temp_newer_packages"
+   ${SUDO_TO_ROOT} safe-rm --one-file-system --recursive --force -- "${temp_newer_packages}"
+   mkdir --parents -- "${temp_newer_packages}"
 
-   for dist_build_multiarch_package_item in $make_cross_build_platform_list ; do
+   for dist_build_multiarch_package_item in ${make_cross_build_platform_list} ; do
       export dist_build_multiarch_package_item
 
       architecture_available=""
-      for available_architectures_for_download_only_item in $available_architectures_for_download_only_list ; do
-         if [ "all" = "$available_architectures_for_download_only_item" ]; then
-            true "${cyan}INFO: available_architectures_for_download_only_item: '$available_architectures_for_download_only_item'${reset}"
+      for available_architectures_for_download_only_item in ${available_architectures_for_download_only_list} ; do
+         if [ "all" = "${available_architectures_for_download_only_item}" ]; then
+            true "${cyan}INFO: available_architectures_for_download_only_item: '${available_architectures_for_download_only_item}'${reset}"
             architecture_available="true"
             continue
          fi
-         if [ "${dist_build_multiarch_package_item:-}" = "$available_architectures_for_download_only_item" ]; then
-            true "${cyan}INFO: available_architectures_for_download_only_item: '$available_architectures_for_download_only_item'${reset}"
+         if [ "${dist_build_multiarch_package_item:-}" = "${available_architectures_for_download_only_item}" ]; then
+            true "${cyan}INFO: available_architectures_for_download_only_item: '${available_architectures_for_download_only_item}'${reset}"
             architecture_available="true"
             continue
          fi
       done
       if [ ! "${architecture_available:-}" = "true" ]; then
          true "${red}${bold}INFO: Skipping,
-download newer_package_list: ${under}$newer_package_list${eunder}
-for platform: ${under}$dist_build_multiarch_package_item${eunder}
-because dist_build_multiarch_package_item: $dist_build_multiarch_package_item
-is not included in available_architectures_for_download_only_list: $available_architectures_for_download_only_list${reset}"
+download newer_package_list: ${under}${newer_package_list}${eunder}
+for platform: ${under}${dist_build_multiarch_package_item}${eunder}
+because dist_build_multiarch_package_item: ${dist_build_multiarch_package_item}
+is not included in available_architectures_for_download_only_list: ${available_architectures_for_download_only_list}${reset}"
          return 0
       fi
 
@@ -258,33 +258,33 @@ is not included in available_architectures_for_download_only_list: $available_ar
          ## base_folder
          set_cowbuilder_folders
 
-         $SUDO_TO_ROOT test -d "${base_folder}"
-         $SUDO_TO_ROOT "$dist_source_help_steps_folder/umount_kill.sh" "${base_folder}"
+         ${SUDO_TO_ROOT} test -d "${base_folder}"
+         ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" -- "${base_folder}"
          if_no_pbuilder_base_folder=""
       else
-         base_folder="$binary_build_folder_dist/no-pbuilder/base"
+         base_folder="${binary_build_folder_dist}/no-pbuilder/base"
          ## Not needed. For completeness sake. Just in case.
-         cow_folder="$binary_build_folder_dist/no-pbuilder/cow"
+         cow_folder="${binary_build_folder_dist}/no-pbuilder/cow"
          if_no_pbuilder_base_folder="${base_folder}"
       fi
       export if_no_pbuilder_base_folder
 
-      $SUDO_TO_ROOT mkdir --parents -- "${base_folder}/var/cache/derivative-maker/temporary-repository"
+      ${SUDO_TO_ROOT} mkdir --parents -- "${base_folder}/var/cache/derivative-maker/temporary-repository"
 
       if [ "${repo_signing_key:-}" = "none" ]; then
-         $SUDO_TO_ROOT safe-rm -f -- "${base_folder}/var/cache/derivative-maker/temporary-repository/repo_signing_key.asc"
+         ${SUDO_TO_ROOT} safe-rm -f -- "${base_folder}/var/cache/derivative-maker/temporary-repository/repo_signing_key.asc"
       else
-         $SUDO_TO_ROOT cp -- "$repo_signing_key" "${base_folder}/var/cache/derivative-maker/temporary-repository/repo_signing_key.asc"
+         ${SUDO_TO_ROOT} cp -- "${repo_signing_key}" "${base_folder}/var/cache/derivative-maker/temporary-repository/repo_signing_key.asc"
       fi
 
       if [ "${repo_sources_list:-}" = "none" ]; then
-         $SUDO_TO_ROOT safe-rm -f -- "${base_folder}/var/cache/derivative-maker/temporary-repository/newer.sources"
+         ${SUDO_TO_ROOT} safe-rm -f -- "${base_folder}/var/cache/derivative-maker/temporary-repository/newer.sources"
       else
-         $SUDO_TO_ROOT cp -- "$repo_sources_list" "${base_folder}/var/cache/derivative-maker/temporary-repository/newer.sources"
+         ${SUDO_TO_ROOT} cp -- "${repo_sources_list}" "${base_folder}/var/cache/derivative-maker/temporary-repository/newer.sources"
       fi
 
       local benchmark_time_start benchmark_took_time
-      benchmark_time_start="$SECONDS"
+      benchmark_time_start="${SECONDS}"
       local dist_build_download_script_exit_code
       dist_build_download_script_exit_code=0
 
@@ -296,44 +296,44 @@ is not included in available_architectures_for_download_only_list: $available_ar
          ## '${UNSHARE_PID_NS:-}': private PID namespace, see 'help-steps/pre'
          ## (also for its placement after the 'VAR=val' words).
          # shellcheck disable=SC2086
-         $SUDO_TO_ROOT \
+         ${SUDO_TO_ROOT} \
             --preserve-env \
                ${COWBUILDER_PREFIX:-} \
-               newer_package_list="$newer_package_list" \
-               temp_newer_packages="$temp_newer_packages" \
+               newer_package_list="${newer_package_list}" \
+               temp_newer_packages="${temp_newer_packages}" \
                   ${UNSHARE_PID_NS:-} \
                   cowbuilder \
-                     --host-arch "$host_architecture" \
-                     --architecture "$dist_build_target_arch" \
-                     --configfile "$dist_build_pbuilder_config_file" \
-                     --execute "$dist_build_special_packages_chroot_script" \
+                     --host-arch "${host_architecture}" \
+                     --architecture "${dist_build_target_arch}" \
+                     --configfile "${dist_build_pbuilder_config_file}" \
+                     --execute "${dist_build_special_packages_chroot_script}" \
                      --basepath "${base_folder}" \
-                     --buildplace "$cow_folder" \
-                     --bindmounts "$temp_newer_packages" \
+                     --buildplace "${cow_folder}" \
+                     --bindmounts "${temp_newer_packages}" \
                      || { dist_build_download_script_exit_code="$?" ; true; };
 
             if [ -d "${base_folder}" ]; then
-               $SUDO_TO_ROOT "$dist_source_help_steps_folder/umount_kill.sh" "${base_folder}"
+               ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" -- "${base_folder}"
             fi
       else
          export newer_package_list
          export temp_newer_packages
-         $SUDO_TO_ROOT "$dist_build_special_packages_chroot_script" || { dist_build_download_script_exit_code="$?" ; true; };
+         ${SUDO_TO_ROOT} "${dist_build_special_packages_chroot_script}" || { dist_build_download_script_exit_code="$?" ; true; };
 
          ## XXX
          ## help-steps/repo_download_chroot_script messes up APT downloaded sources
          ## $SUDO_TO_ROOT is intentionally word-split (may be 'sudo --...').
          # shellcheck disable=SC2086
-         retry_run --tries 4 --delay 15 -- $SUDO_TO_ROOT apt-get "${DIST_APTGETOPT[@]}" update
+         retry_run --tries 4 --delay 15 -- ${SUDO_TO_ROOT} apt-get "${DIST_APTGETOPT[@]}" update
       fi
 
-      $SUDO_TO_ROOT chown --recursive "$user_name:$user_name" "$temp_newer_packages"
+      ${SUDO_TO_ROOT} chown --recursive "${user_name}:${user_name}" "${temp_newer_packages}"
 
-      benchmark_took_time="$(benchmark_since "$benchmark_time_start")"
-      true "${cyan}INFO: Done with function ${under}${FUNCNAME[0]}${eunder} (benchmark: $benchmark_took_time) ${reset}"
+      benchmark_took_time="$(benchmark_since "${benchmark_time_start}")"
+      true "${cyan}INFO: Done with function ${under}${FUNCNAME[0]}${eunder} (benchmark: ${benchmark_took_time}) ${reset}"
 
       if [ ! "${dist_build_download_script_exit_code:-}" = "0" ]; then
-         return "$dist_build_download_script_exit_code"
+         return "${dist_build_download_script_exit_code}"
       fi
    done
 
@@ -354,22 +354,22 @@ reprepro_add_newer_packages_from_third_party_repositories() {
 
    local file_name package_absolute_path file_name_only
 
-   for file_name in "$temp_newer_packages/"*".deb" ; do
-      package_absolute_path="$(readlink -f "$file_name")"
+   for file_name in "${temp_newer_packages}/"*".deb" ; do
+      package_absolute_path="$(readlink -f "${file_name}")"
       file_name_only="${package_absolute_path##*/}"
       package=${file_name_only%%_*}
 
-      "$dist_developer_meta_files_folder/usr/bin/dm-reprepro-wrapper" remove "$dist_build_apt_codename" "$package" || true
-      "$dist_developer_meta_files_folder/usr/bin/dm-reprepro-wrapper" removesrc "$dist_build_apt_codename" "$package" || true
+      "${dist_developer_meta_files_folder}/usr/bin/dm-reprepro-wrapper" remove "${dist_build_apt_codename}" "${package}" || true
+      "${dist_developer_meta_files_folder}/usr/bin/dm-reprepro-wrapper" removesrc "${dist_build_apt_codename}" "${package}" || true
    done
 
-   for file_name in "$temp_newer_packages/"*".dsc" ; do
-      package_absolute_path="$(readlink -f "$file_name")"
+   for file_name in "${temp_newer_packages}/"*".dsc" ; do
+      package_absolute_path="$(readlink -f "${file_name}")"
       file_name_only="${package_absolute_path##*/}"
       package=${file_name_only%%_*}
 
-      "$dist_developer_meta_files_folder/usr/bin/dm-reprepro-wrapper" remove "$dist_build_apt_codename" "$package" || true
-      "$dist_developer_meta_files_folder/usr/bin/dm-reprepro-wrapper" removesrc "$dist_build_apt_codename" "$package" || true
+      "${dist_developer_meta_files_folder}/usr/bin/dm-reprepro-wrapper" remove "${dist_build_apt_codename}" "${package}" || true
+      "${dist_developer_meta_files_folder}/usr/bin/dm-reprepro-wrapper" removesrc "${dist_build_apt_codename}" "${package}" || true
    done
 
    ## nullglob is OFF in this path: reprepro_add_newer... runs from the download_*
@@ -377,16 +377,16 @@ reprepro_add_newer_packages_from_third_party_repositories() {
    ## so an unmatched glob stays literal. Skip it (a set may have only .deb or only
    ## .dsc) -- the includedeb/includedsc below have no '|| true', unlike the remove
    ## loops, so a literal-glob path would fail the build under errexit.
-   for file_name in "$temp_newer_packages/"*".deb" ; do
-      [ -e "$file_name" ] || continue
-      package_absolute_path="$(readlink -f "$file_name")"
-      "$dist_developer_meta_files_folder/usr/bin/dm-reprepro-wrapper" includedeb "$dist_build_apt_codename" "$package_absolute_path"
+   for file_name in "${temp_newer_packages}/"*".deb" ; do
+      [ -e "${file_name}" ] || continue
+      package_absolute_path="$(readlink -f "${file_name}")"
+      "${dist_developer_meta_files_folder}/usr/bin/dm-reprepro-wrapper" includedeb "${dist_build_apt_codename}" "${package_absolute_path}"
    done
 
-   for file_name in "$temp_newer_packages/"*".dsc" ; do
-      [ -e "$file_name" ] || continue
-      package_absolute_path="$(readlink -f "$file_name")"
-      "$dist_developer_meta_files_folder/usr/bin/dm-reprepro-wrapper" includedsc "$dist_build_apt_codename" "$package_absolute_path"
+   for file_name in "${temp_newer_packages}/"*".dsc" ; do
+      [ -e "${file_name}" ] || continue
+      package_absolute_path="$(readlink -f "${file_name}")"
+      "${dist_developer_meta_files_folder}/usr/bin/dm-reprepro-wrapper" includedsc "${dist_build_apt_codename}" "${package_absolute_path}"
    done
 
    true "${cyan}${BASH_SOURCE[0]} INFO: Added newer packages from third-party repository to reprepro. ${reset}"
@@ -399,12 +399,12 @@ create_derivative_distribution_debian_packages() {
    printf '%s\n' "" | wc -l >/dev/null
 
    local number_folders_total
-   number_folders_total="$(find "$source_code_folder_dist/packages" -mindepth 2 -maxdepth 2 -type d -printf '\n' | wc -l)" || true
+   number_folders_total="$(find "${source_code_folder_dist}/packages" -mindepth 2 -maxdepth 2 -type d -printf '\n' | wc -l)" || true
 
    shopt -s nullglob
    shopt -s dotglob
 
-   local genmkfile_bin="$source_code_folder_dist/packages/kicksecure/genmkfile/usr/bin/genmkfile"
+   local genmkfile_bin="${source_code_folder_dist}/packages/kicksecure/genmkfile/usr/bin/genmkfile"
 
    ## --rebuild-packages: force-rebuild the named SOURCE packages (space-separated)
    ## without a debian/changelog bump. The two cases below are self-documenting.
@@ -416,10 +416,10 @@ create_derivative_distribution_debian_packages() {
          ## they read as unpublished and rebuild.
          true "${cyan}INFO: --rebuild-packages + --skip-published-packages: force-rebuilding by deleting from the local repo.${reset}"
          local rebuild_pkg_item
-         for rebuild_pkg_item in $dist_build_rebuild_packages ; do
-            true "${cyan}INFO: force-rebuild: deleting stale '$rebuild_pkg_item' from the local repo.${reset}"
-            "$dist_developer_meta_files_folder/usr/bin/dm-reprepro-wrapper" remove "$dist_build_apt_codename" "$rebuild_pkg_item" || true
-            "$dist_developer_meta_files_folder/usr/bin/dm-reprepro-wrapper" removesrc "$dist_build_apt_codename" "$rebuild_pkg_item" || true
+         for rebuild_pkg_item in ${dist_build_rebuild_packages} ; do
+            true "${cyan}INFO: force-rebuild: deleting stale '${rebuild_pkg_item}' from the local repo.${reset}"
+            "${dist_developer_meta_files_folder}/usr/bin/dm-reprepro-wrapper" remove "${dist_build_apt_codename}" "${rebuild_pkg_item}" || true
+            "${dist_developer_meta_files_folder}/usr/bin/dm-reprepro-wrapper" removesrc "${dist_build_apt_codename}" "${rebuild_pkg_item}" || true
          done
       else
          ## Without --skip-published-packages a normal build rebuilds every package anyway,
@@ -432,70 +432,76 @@ create_derivative_distribution_debian_packages() {
    ## debian/control directly (no 'pushd') so the list can then be driven in parallel.
    local derivative_name_item item base_name control_file
    local -a package_build_list=()
-   for derivative_name_item in $derivative_name_list ; do
-      for item in $pkg_list ; do
-         item="$source_code_folder_dist/packages/$derivative_name_item/$item"
-         if [ ! -d "$item" ]; then
-            true "INFO: Not a folder: $item"
+   for derivative_name_item in ${derivative_name_list} ; do
+      for item in ${pkg_list} ; do
+         item="${source_code_folder_dist}/packages/${derivative_name_item}/${item}"
+         if [ ! -d "${item}" ]; then
+            true "INFO: Not a folder: ${item}"
             continue
          fi
-         control_file="$item/debian/control"
-         if [ ! -f "$control_file" ]; then
-            true "INFO: no debian/control, skipping: $item"
+         control_file="${item}/debian/control"
+         if [ ! -f "${control_file}" ]; then
+            true "INFO: no debian/control, skipping: ${item}"
             continue
          fi
          base_name="${item##*/}"
          ## 'Architecture:' currently in ./packages/$derivative_name_item/ folder: all / any /
          ## amd64 / linux-amd64.
-         if grep --invert-match -- "#" "$control_file" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "all" ; then
-            true "DEBUG: $base_name Architecture: all"
-         elif grep --invert-match -- "#" "$control_file" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "any" ; then
-            true "DEBUG: $base_name Architecture: any"
-         elif grep --invert-match -- "#" "$control_file" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "amd64" ; then
+         if grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "all" ; then
+            true "DEBUG: ${base_name} Architecture: all"
+         elif grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "any" ; then
+            true "DEBUG: ${base_name} Architecture: any"
+         elif grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "amd64" ; then
             if [ ! "${dist_build_target_arch:-}" = "amd64" ]; then
-               true "${cyan}INFO: Skipping platform 'amd64' specific package $base_name as expected.${reset}"
+               true "${cyan}INFO: Skipping platform 'amd64' specific package ${base_name} as expected.${reset}"
                continue
             fi
-         elif grep --invert-match -- "#" "$control_file" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "linux-amd64" ; then
+         elif grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "linux-amd64" ; then
             if [ ! "${dist_build_target_arch:-}" = "amd64" ]; then
-               true "${cyan}INFO: Skipping platform 'linux-amd64' specific package $base_name as expected.${reset}"
+               true "${cyan}INFO: Skipping platform 'linux-amd64' specific package ${base_name} as expected.${reset}"
                continue
             fi
          else
-            grep -- "Architecture:" "$control_file" || true
-            error "unknown Architecture: in $control_file"
+            grep -- "Architecture:" "${control_file}" || true
+            error "unknown Architecture: in ${control_file}"
          fi
          ## Fast local iteration (opt-in): skip a package already published in the
          ## local reprepro repo at its current changelog version. Off by default,
          ## so editing a package without bumping debian/changelog is not silently
          ## skipped. Bump the changelog (or unset the flag) to force a rebuild.
          if [ "${dist_build_skip_published_packages:-}" = "true" ] \
-            && ! dm_package_needs_rebuild "$item" "$dist_build_apt_codename" "$derivative_name_item"; then
-            true "${cyan}INFO: Skipping up-to-date package $base_name (already published).${reset}"
+            && ! dm_package_needs_rebuild "${item}" "${dist_build_apt_codename}" "${derivative_name_item}"; then
+            true "${cyan}INFO: Skipping up-to-date package ${base_name} (already published).${reset}"
             continue
          fi
-         package_build_list+=("$item")
+         package_build_list+=("${item}")
       done
    done
 
    local total_to_build="${#package_build_list[@]}"
    true "${cyan}INFO: ${total_to_build} derivative package(s) to build (of ${number_folders_total} folders).${reset}"
-   if [ "$total_to_build" -lt 1 ]; then
+   if [ "${total_to_build}" -lt 1 ]; then
       true "${cyan}${BASH_SOURCE[0]} INFO: Created Derivative Debian Packages. ${reset}"
       return 0
    fi
 
-   ## Concurrency: parallel package builds are OPT-IN via 'dist_build_package_jobs=N' (serial by
-   ## default). Parallelism REQUIRES the genmkfile 'make_cow_suffix' support (each worker its own
-   ## 'cow.cow_<arch>.<slot>' snapshot; the read-only 'base.cow_<arch>' is shared safely). Until the
-   ## genmkfile submodule pointer is bumped to a commit carrying that support, leaving the default
-   ## serial keeps builds correct (a bumped-but-unsupported genmkfile would make N workers share one
-   ## 'cow.cow_<arch>' and collide). Only meaningful with cowbuilder (isolated per-build chroot);
-   ## without it, builds share the host apt/dpkg lock, so stay serial. Package builds are independent
-   ## (no derivative package build-depends on a sibling) so no ordering is needed; 'reprepro' (shared,
-   ## locked DB) is deferred to Phase 3. To enable, e.g. 'dist_build_package_jobs=4'; cap ~nproc-2.
+   ## Concurrency: parallel package builds are opt-in via '--package-jobs N' /
+   ## 'dist_build_package_jobs=N' (serial by default). Package builds are independent (no
+   ## derivative package build-depends on a sibling) so no ordering is needed; 'reprepro'
+   ## (shared, locked DB) is deferred to Phase 3.
+   ##
+   ## The request is SAFE to pass unconditionally: every precondition is verified here and
+   ## an unmet one falls back to serial with a reason, rather than being a caveat the
+   ## caller has to know. Falling back is announced, never silent -- a request that was
+   ## quietly reduced is indistinguishable from one that was honoured.
+   ##   - cowbuilder gives each build its own chroot; without it builds share the host
+   ##     apt/dpkg lock and must stay serial.
+   ##   - genmkfile's 'make_cow_suffix' gives each worker its own
+   ##     'cow.cow_<arch>.<slot>' snapshot (the read-only 'base.cow_<arch>' is shared
+   ##     safely). Without it N workers would share ONE 'cow.cow_<arch>' and corrupt each
+   ##     other, so a genmkfile predating that support must run serial.
    local max_jobs=1
-   if [ "${make_use_cowbuilder:-}" = "true" ] && [ -n "${dist_build_package_jobs:-}" ]; then
+   if [ -n "${dist_build_package_jobs:-}" ]; then
       ## Reject a non-positive-integer job count: 0 / negative / non-numeric creates no slots, and
       ## the free-slot loop below would then spin forever on 'wait -n' with no children to reap.
       case "${dist_build_package_jobs}" in
@@ -503,7 +509,22 @@ create_derivative_distribution_debian_packages() {
             error "dist_build_package_jobs must be a positive integer (got: '${dist_build_package_jobs}')."
             ;;
       esac
-      max_jobs="$dist_build_package_jobs"
+      if [ ! "${make_use_cowbuilder:-}" = "true" ]; then
+         true "${cyan}INFO: --package-jobs=${dist_build_package_jobs} requested, but cowbuilder is not in use; building serially.${reset}"
+      elif ! grep --quiet --fixed-strings -- 'make_cow_suffix' \
+         "${source_code_folder_dist}/packages/kicksecure/genmkfile/usr/share/genmkfile/make-helper-one.bsh"; then
+         true "${cyan}INFO: --package-jobs=${dist_build_package_jobs} requested, but this genmkfile has no 'make_cow_suffix' support (workers would share one cow snapshot); building serially.${reset}"
+      else
+         max_jobs="${dist_build_package_jobs}"
+         ## Never allocate more slots than there are packages. Every free-slot scan
+         ## walks the whole slot array, so surplus slots are pure overhead, and a
+         ## mistyped '--package-jobs 100000' would allocate and rescan 100000 dead
+         ## slots before the first package starts building.
+         if [ "${total_to_build}" -gt 0 ] && [ "${max_jobs}" -gt "${total_to_build}" ]; then
+            true "${cyan}INFO: --package-jobs=${max_jobs} exceeds the ${total_to_build} package(s) to build; using ${total_to_build}.${reset}"
+            max_jobs="${total_to_build}"
+         fi
+      fi
    fi
    true "${cyan}INFO: building packages with up to ${max_jobs} parallel job(s).${reset}"
 
@@ -511,21 +532,21 @@ create_derivative_distribution_debian_packages() {
    ## name to the fail flag on failure; the pool never lets two workers share a cow slot.
    local pkg_fail_flag
    pkg_fail_flag="$(mktemp)"
-   safe-rm --force -- "$pkg_fail_flag"
+   safe-rm --force -- "${pkg_fail_flag}"
 
    build_one_derivative_package() {
       local pkgdir="$1" slot="$2" name
       name="${pkgdir##*/}"
       if ! (
-         cd -- "$pkgdir" || exit 1
+         cd -- "${pkgdir}" || exit 1
          export make_cow_suffix=".${slot}"
-         "$genmkfile_bin" deb-cleanup
+         "${genmkfile_bin}" deb-cleanup
          if [ "${make_use_cowbuilder:-}" = "false" ]; then
-            "$genmkfile_bin" deb-build-dep
+            "${genmkfile_bin}" deb-build-dep
          fi
-         "$genmkfile_bin" deb-pkg
+         "${genmkfile_bin}" deb-pkg
       ); then
-         printf '%s\n' "$name" >> "$pkg_fail_flag"
+         printf '%s\n' "${name}" >> "${pkg_fail_flag}"
       fi
    }
 
@@ -536,25 +557,25 @@ create_derivative_distribution_debian_packages() {
    done
    for item in "${package_build_list[@]}"; do
       slot=-1
-      while [ "$slot" -lt 0 ]; do
+      while [ "${slot}" -lt 0 ]; do
          for (( i=0; i<max_jobs; i++ )); do
             if [ "${slot_pid[i]}" -eq 0 ]; then
-               slot="$i"
+               slot="${i}"
                break
             fi
             if ! kill -0 "${slot_pid[i]}" 2>/dev/null ; then
                wait "${slot_pid[i]}" 2>/dev/null || true
-               slot="$i"
+               slot="${i}"
                break
             fi
          done
-         if [ "$slot" -lt 0 ]; then
+         if [ "${slot}" -lt 0 ]; then
             wait -n 2>/dev/null || true
          fi
       done
       launched="$(( launched + 1 ))"
       true "${cyan}INFO: [slot ${slot}] building (${launched}/${total_to_build}): ${item##*/} ${reset}"
-      build_one_derivative_package "$item" "$slot" &
+      build_one_derivative_package "${item}" "${slot}" &
       slot_pid[slot]="$!"
    done
    for (( i=0; i<max_jobs; i++ )); do
@@ -562,13 +583,13 @@ create_derivative_distribution_debian_packages() {
          wait "${slot_pid[i]}" 2>/dev/null || true
       fi
    done
-   if [ -f "$pkg_fail_flag" ]; then
+   if [ -f "${pkg_fail_flag}" ]; then
       local failed_packages
-      failed_packages="$(tr '\n' ' ' < "$pkg_fail_flag")"
-      safe-rm --force -- "$pkg_fail_flag"
+      failed_packages="$(tr '\n' ' ' < "${pkg_fail_flag}")"
+      safe-rm --force -- "${pkg_fail_flag}"
       error "Derivative package build(s) failed: ${failed_packages}"
    fi
-   safe-rm --force -- "$pkg_fail_flag"
+   safe-rm --force -- "${pkg_fail_flag}"
 
    ## Phase 3: publish serially into the shared, locked reprepro database: remove any stale copy,
    ## then add the freshly built package. Order does not matter (independent packages; runtime
@@ -576,17 +597,17 @@ create_derivative_distribution_debian_packages() {
    local reprepro_current=0
    for item in "${package_build_list[@]}"; do
       reprepro_current="$(( reprepro_current + 1 ))"
-      pushd "$item" >/dev/null
+      pushd "${item}" >/dev/null
       true "${cyan}INFO: reprepro (${reprepro_current}/${total_to_build}): ${item##*/} ${reset}"
-      "$genmkfile_bin" reprepro-remove
-      "$genmkfile_bin" reprepro-add
+      "${genmkfile_bin}" reprepro-remove
+      "${genmkfile_bin}" reprepro-add
       ## Record the source content hash so the next --skip-published-packages build
       ## skips this package unless its source changes again (auto-detected, no
       ## package name or changelog bump needed). See reprepro-freshness.bsh.
       dm_source_hash_record \
-         "$(dm_source_hash_manifest_path "$dist_build_apt_codename")" \
-         "$(dpkg-parsechangelog --show-field Source --file "$item/debian/changelog")" \
-         "$(dm_package_source_hash "$item")"
+         "$(dm_source_hash_manifest_path "${dist_build_apt_codename}")" \
+         "$(dpkg-parsechangelog --show-field Source --file "${item}/debian/changelog")" \
+         "$(dm_package_source_hash "${item}")"
       popd >/dev/null
    done
 
@@ -598,11 +619,11 @@ create-debian-packages() {
       error "Variable dist_build_apt_codename is empty!"
    fi
    true "${cyan}${BASH_SOURCE[0]} INFO: Going to update ${under}${dist_build_apt_codename}${eunder} APT repository... ${reset}"
-   true "make_cross_build_platform_list: ${under}$make_cross_build_platform_list${eunder}"
+   true "make_cross_build_platform_list: ${under}${make_cross_build_platform_list}${eunder}"
    #sleep 3
 
    if [ ! "${FUNCTION:-}" = "" ]; then
-      $FUNCTION
+      ${FUNCTION}
       return 0
    fi
 
@@ -632,7 +653,7 @@ main() {
    if [ "${dist_build_flavor:-}" = "whonix-custom-workstation" ]; then
       true "${cyan}INFO: Skipping creation of packages for custom workstation.${reset}"
    elif [ "${build_remote_derivative_pkgs:-}" = "true" ]; then
-      true "${cyan}INFO: build_remote_derivative_pkgs is set to $build_remote_derivative_pkgs, skipping creation of packages.${reset}"
+      true "${cyan}INFO: build_remote_derivative_pkgs is set to ${build_remote_derivative_pkgs}, skipping creation of packages.${reset}"
    else
       build_run_function create-debian-packages "$@"
    fi

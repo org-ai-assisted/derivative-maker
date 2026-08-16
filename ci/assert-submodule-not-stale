@@ -1,0 +1,254 @@
+#!/bin/bash
+
+## Copyright (C) 2026 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## See the file COPYING for copying conditions.
+
+## AI-Assisted
+
+## Fail with a NAMED error when a submodule pin trails the branch it is being
+## tested against.
+##
+## A lane that runs a tool OUT OF a submodule executes the PINNED copy. When
+## that pin lags, the lane fails wherever the old tool happens to break --
+## never at the pin. Two real cases cost a full build cycle each before anyone
+## reached the pin:
+##
+##   - the compare lane died on "expected exactly one *.qcow2 under build-a,
+##     found 0", because the pinned comparator predated
+##     artifact_glob="*.qcow2.libvirt.xz". It reads like a reproducibility
+##     failure and is not one (that tool exits 2 for not-found, 1 for differ).
+##   - a step died on "has.sh: No such file or directory", which was an old
+##     installed tool, not a missing file.
+##
+## Reporting the LAG itself turns both into one obvious message.
+##
+## Usage:
+##   ci/assert-submodule-not-stale <submodule-path> [<upstream-ref>]
+##   ci/assert-submodule-not-stale --all [--report-only]
+##
+## <upstream-ref> defaults to the submodule's own origin/HEAD default branch.
+##
+## '--all' enumerates every submodule from .gitmodules instead of naming them
+## here: a hardcoded list answers only for the paths someone remembered to add,
+## and reads like full coverage. Each is checked and reported on its own line.
+##
+## '--report-only' still checks and still prints, but exits 0 regardless. Most
+## dm submodules pin a deliberately older, tested revision, so a trailing pin
+## there is a fact worth surfacing, not a build failure. Use the single-path
+## form -- without --report-only -- for the submodules a lane actually RUNS
+## TOOLS out of; those are the ones where lag breaks the lane.
+##
+## Exit, single-path form:
+##   0 pin is current or ahead | 1 pin STRICTLY TRAILS | 2 usage/lookup error.
+## Exit, --all:
+##   0 every pin verified and none trails | 1 at least one trails |
+##   2 at least one could NOT be verified. An unverifiable pin is reported as an
+##     error, never as current -- a check that did not run is not a pass.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+
+usage() {
+   printf '%s\n' "usage: ${0##*/} <submodule-path> [<upstream-ref>]" \
+      "       ${0##*/} --all [--report-only]" >&2
+   exit 2
+}
+
+## Check ONE submodule. Prints its verdict; returns 0 current/ahead,
+## 1 trails, 2 could not be verified.
+check_one_submodule() {
+   local submodule_path="$1" upstream_ref="$2"
+   local pinned_sha upstream_sha behind_count upstream_candidate
+   local remote_refreshed verdict_qualifier ancestor_rc
+
+   if [ ! -d "${submodule_path}" ]; then
+      printf '%s\n' "${0##*/}: '${submodule_path}' is not a directory -- run 'git submodule update --init' first." >&2
+      return 2
+   fi
+
+   ## The gitlink recorded by the SUPERPROJECT is the pin; the submodule's own
+   ## checked-out HEAD can differ (a lane may check out a fork branch on top).
+   pinned_sha=""
+   pinned_sha="$(git ls-tree HEAD -- "${submodule_path}" | { read -r _ object_type object_sha _ ; [ "${object_type}" = "commit" ] && printf '%s' "${object_sha}" ; } )" || true
+   if [ -z "${pinned_sha}" ]; then
+      printf '%s\n' "${0##*/}: no gitlink recorded for '${submodule_path}' in HEAD." >&2
+      return 2
+   fi
+
+   if [ -z "${upstream_ref}" ]; then
+      ## Ask the submodule's own remote what its default branch is, rather than
+      ## assuming 'master': a wrong guess would silently compare against nothing.
+      ##
+      ## 'actions/checkout' does not create 'refs/remotes/origin/HEAD', so the
+      ## fallbacks matter in CI. They are TRIED, not assumed -- a repo whose
+      ## default branch is neither is reported as unverifiable rather than
+      ## compared against a branch that does not exist.
+      upstream_ref="$(git -C "${submodule_path}" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)"
+      if [ -z "${upstream_ref}" ]; then
+         for upstream_candidate in origin/master origin/main; do
+            if git -C "${submodule_path}" rev-parse --verify --quiet "${upstream_candidate}^{commit}" >/dev/null; then
+               upstream_ref="${upstream_candidate}"
+               break
+            fi
+         done
+      fi
+      if [ -z "${upstream_ref}" ]; then
+         printf '%s\n' "${0##*/}: no default branch found for '${submodule_path}' (no origin/HEAD, origin/master or origin/main) -- cannot verify freshness." >&2
+         return 2
+      fi
+   fi
+
+   ## Refresh BEFORE comparing, not only when the pin is unreachable. A
+   ## remote-tracking ref that has not moved since the last clone makes an
+   ## outdated pin read as current -- a false clean verdict, which is worse than
+   ## no verdict. A failure here is not fatal (the checkout may be offline), but
+   ## it is carried into the verdict so a 'current' is never reported as if the
+   ## remote had been consulted.
+   remote_refreshed=true
+   git -C "${submodule_path}" fetch --quiet 2>/dev/null || remote_refreshed=false
+
+   ## The pin must be REACHABLE before it can be compared; a shallow submodule
+   ## clone often lacks it even after the fetch above. Deepen rather than report
+   ## a false verdict.
+   if ! git -C "${submodule_path}" cat-file -e "${pinned_sha}^{commit}" 2>/dev/null; then
+      git -C "${submodule_path}" fetch --quiet --unshallow 2>/dev/null || true
+   fi
+   if ! git -C "${submodule_path}" cat-file -e "${pinned_sha}^{commit}" 2>/dev/null; then
+      printf '%s\n' "${0##*/}: pinned commit ${pinned_sha} is not present in '${submodule_path}' -- cannot verify freshness, refusing to report it as current." >&2
+      return 2
+   fi
+   if ! git -C "${submodule_path}" rev-parse --verify --quiet "${upstream_ref}^{commit}" >/dev/null; then
+      printf '%s\n' "${0##*/}: upstream ref '${upstream_ref}' not found in '${submodule_path}' -- cannot verify freshness." >&2
+      return 2
+   fi
+
+   upstream_sha="$(git -C "${submodule_path}" rev-parse "${upstream_ref}^{commit}")"
+
+   verdict_qualifier=""
+   if [ "${remote_refreshed}" = "false" ]; then
+      verdict_qualifier=" [remote NOT refreshed; compared against the local tracking ref]"
+   fi
+
+   if [ "${pinned_sha}" = "${upstream_sha}" ]; then
+      printf '%s\n' "${0##*/}: '${submodule_path}' pin is current (${pinned_sha})${verdict_qualifier}."
+      return 0
+   fi
+
+   ## STRICT ancestor == the pin is simply behind. A pin that is NOT an ancestor
+   ## has diverged or is ahead, which is a deliberate state (a coordinated fork
+   ## branch), not lag -- do not fail those.
+   ## 'merge-base --is-ancestor' exits 0 for ancestor, 1 for NOT ancestor, and
+   ## >1 for an ERROR. Grouping every non-zero as "diverged or ahead" turns a git
+   ## failure into an accepted pin, which contradicts the rule that an
+   ## unverifiable pin is never reported as current.
+   ancestor_rc=0
+   git -C "${submodule_path}" merge-base --is-ancestor "${pinned_sha}" "${upstream_sha}" || ancestor_rc="$?"
+   if [ "${ancestor_rc}" -gt 1 ]; then
+      printf '%s\n' "${0##*/}: 'git merge-base --is-ancestor' failed (${ancestor_rc}) in '${submodule_path}' -- cannot verify freshness." >&2
+      return 2
+   fi
+   if [ "${ancestor_rc}" -eq 0 ]; then
+      behind_count="$(git -C "${submodule_path}" rev-list --count "${pinned_sha}..${upstream_sha}")"
+      printf '%s\n' "${0##*/}: ERROR: '${submodule_path}' pin TRAILS ${upstream_ref} by ${behind_count} commit(s)." >&2
+      printf '%s\n' "  pinned:   ${pinned_sha}" >&2
+      printf '%s\n' "  upstream: ${upstream_sha} (${upstream_ref})" >&2
+      printf '%s\n' "  A lane running a tool out of this submodule executes the PINNED copy, so it will" >&2
+      printf '%s\n' "  fail wherever that older tool breaks rather than here. Bump the gitlink on the 'ai'" >&2
+      printf '%s\n' "  branch (NEVER on master):" >&2
+      printf '%s\n' "    git update-index --cacheinfo 160000,${upstream_sha},${submodule_path}" >&2
+      return 1
+   fi
+
+   printf '%s\n' "${0##*/}: '${submodule_path}' pin ${pinned_sha} is not an ancestor of ${upstream_ref} (diverged or ahead) -- deliberate, not lag${verdict_qualifier}."
+   return 0
+}
+
+## Every submodule the SUPERPROJECT records, read from .gitmodules rather than
+## listed here, so a submodule added later is covered without an edit.
+check_all_submodules() {
+   local report_only="$1"
+   local submodule_path submodule_rc
+   local -a submodule_path_list=()
+   local trailing_count=0 unverified_count=0 current_count=0
+
+   if [ ! -r .gitmodules ]; then
+      printf '%s\n' "${0##*/}: no .gitmodules in '${PWD}' -- run from the superproject root." >&2
+      return 2
+   fi
+
+   mapfile -t submodule_path_list < <(
+      git config --file .gitmodules --get-regexp '^submodule\..*\.path$' \
+         | cut --delimiter=' ' --fields=2- \
+         | LC_ALL=C sort
+   )
+   if [ "${#submodule_path_list[@]}" -eq 0 ]; then
+      printf '%s\n' "${0##*/}: .gitmodules records no submodule paths -- refusing to report full coverage of nothing." >&2
+      return 2
+   fi
+
+   for submodule_path in "${submodule_path_list[@]}"; do
+      submodule_rc=0
+      check_one_submodule "${submodule_path}" "" || submodule_rc="$?"
+      case "${submodule_rc}" in
+         0)
+            current_count=$(( current_count + 1 ))
+            ;;
+         1)
+            trailing_count=$(( trailing_count + 1 ))
+            ;;
+         *)
+            unverified_count=$(( unverified_count + 1 ))
+            ;;
+      esac
+   done
+
+   ## Always state all three counts. "N trailing" alone reads as full coverage
+   ## even when a dozen were never verified.
+   printf '%s\n' "${0##*/}: ${#submodule_path_list[@]} submodule(s): ${current_count} current or ahead, ${trailing_count} trailing, ${unverified_count} NOT verified."
+
+   if [ "${report_only}" = "true" ]; then
+      printf '%s\n' "${0##*/}: --report-only, so this is not a failure."
+      return 0
+   fi
+   if [ "${unverified_count}" -gt 0 ]; then
+      return 2
+   fi
+   if [ "${trailing_count}" -gt 0 ]; then
+      return 1
+   fi
+   return 0
+}
+
+exit_code=0
+
+case "${1:-}" in
+   --all)
+      shift
+      report_only=false
+      case "${1:-}" in
+         --report-only)
+            report_only=true
+            shift
+            ;;
+         '')
+            ;;
+         *)
+            usage
+            ;;
+      esac
+      [ "$#" -eq 0 ] || usage
+      check_all_submodules "${report_only}" || exit_code="$?"
+      exit "${exit_code}"
+      ;;
+   ''|-*)
+      usage
+      ;;
+esac
+
+[ "$#" -le 2 ] || usage
+check_one_submodule "$1" "${2:-}" || exit_code="$?"
+exit "${exit_code}"

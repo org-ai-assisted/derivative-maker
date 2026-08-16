@@ -14,18 +14,18 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-source "$MYDIR/pre"
-source "$MYDIR/variables"
+source "${MYDIR}/pre"
+source "${MYDIR}/variables"
 
 main() {
-   $SUDO_TO_ROOT rm --force "$dist_sources_list_temp_initial_deb_sources_list"
-   $SUDO_TO_ROOT rm --force "$CHROOT_FOLDER/$dist_sources_list_temp_build_folder/build_sources.sources"
-   $SUDO_TO_ROOT rm --force "$CHROOT_FOLDER/$dist_sources_list_temp_build_folder/qubes-builder.sources"
+   ${SUDO_TO_ROOT} rm --force "${dist_sources_list_temp_initial_deb_sources_list}"
+   ${SUDO_TO_ROOT} rm --force "${CHROOT_FOLDER}/${dist_sources_list_temp_build_folder}/build_sources.sources"
+   ${SUDO_TO_ROOT} rm --force "${CHROOT_FOLDER}/${dist_sources_list_temp_build_folder}/qubes-builder.sources"
 
    ## apt_target_key_derivative exists only when using:
    ## build_remote_derivative_pkgs=true / --remote-derivative-packages true
    if [ ! "${apt_target_key_derivative:-}" = "" ]; then
-      $SUDO_TO_ROOT rm --force "$CHROOT_FOLDER/$apt_target_key_derivative"
+      ${SUDO_TO_ROOT} rm --force "${CHROOT_FOLDER}/${apt_target_key_derivative}"
    fi
 
    ## "$CHROOT_FOLDER/$DEB_INSTALL_FOLDER" gets unmounted in help-steps/unchroot script.

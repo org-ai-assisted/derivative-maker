@@ -77,7 +77,7 @@ while (($#)); do
     -*)
       bad_opt="$1"
       shift
-      exit_with_error "unexpected option: '$bad_opt'"
+      exit_with_error "unexpected option: '${bad_opt}'"
       ;;
     *)
       break
@@ -98,13 +98,13 @@ shift
 [ -n "${DEBEMAIL-}" ] || exit_with_error "DEBEMAIL is not set or empty"
 
 cmd=(
-  "$sq_bin"
+  "${sq_bin}"
   sign
   --cleartext
-  --signer-email "$DEBEMAIL"
-  --output "$output"
+  --signer-email "${DEBEMAIL}"
+  --output "${output}"
   --
-  "$input"
+  "${input}"
 )
 
 printf '%s\n' "$0: INFO: ${cmd[*]}"

@@ -19,14 +19,14 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
 source pre
 source variables
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 
 if [ "${dist_build_skip_local_dependencies:-}" = "true" ]; then
@@ -35,10 +35,10 @@ if [ "${dist_build_skip_local_dependencies:-}" = "true" ]; then
 fi
 
 update_apt_database() {
-   $SUDO_TO_ROOT \
+   ${SUDO_TO_ROOT} \
       apt-get \
          "${DIST_APTGETOPT[@]}" \
-         -o Dir::Etc::sourcelist="$dist_build_sources_list_primary" \
+         -o Dir::Etc::sourcelist="${dist_build_sources_list_primary}" \
          -o Dir::Etc::sourceparts="-" \
          update
 }
@@ -46,7 +46,7 @@ update_apt_database() {
 local_dependencies() {
    ## developer-meta-files provides dm-reprepro-wrapper
 
-   pushd "$source_code_folder_dist/packages/kicksecure/developer-meta-files/"
+   pushd "${source_code_folder_dist}/packages/kicksecure/developer-meta-files/"
 
    ## Use full path to genmkfile so it does not need to be installed.
    ## This saves a bit build time and allows the bootstrap issue of building genmkfile using genmkfile.
@@ -54,34 +54,34 @@ local_dependencies() {
    local DIST_APTGETOPT_OLD
    DIST_APTGETOPT_OLD=( "${DIST_APTGETOPT[@]}" )
    DIST_APTGETOPT+=(
-      -o Dir::Etc::sourcelist="$dist_build_sources_list_primary"
+      -o Dir::Etc::sourcelist="${dist_build_sources_list_primary}"
       -o Dir::Etc::sourceparts="-"
    )
    DIST_APTGETOPT_SERIALIZED="$(printf '%s\n' "${DIST_APTGETOPT[@]}")"
 
-   "$source_code_folder_dist/packages/kicksecure/genmkfile/usr/bin/genmkfile" deb-cleanup
+   "${source_code_folder_dist}/packages/kicksecure/genmkfile/usr/bin/genmkfile" deb-cleanup
 
    if [ "${make_use_cowbuilder:-}" = "false" ]; then
-      "$source_code_folder_dist/packages/kicksecure/genmkfile/usr/bin/genmkfile" deb-build-dep
+      "${source_code_folder_dist}/packages/kicksecure/genmkfile/usr/bin/genmkfile" deb-build-dep
    fi
 
    if [ "${make_use_cowbuilder:-}" = "true" ]; then
       ## TODO: not using set_cowbuilder_folders because...
       ##       ${host_architecture} versus ${dist_build_multiarch_package_item}
-      cow_folder="$cowbuilder_cache_dir/cow.cow_${host_architecture}"
-      base_folder="$cowbuilder_cache_dir/base.cow_${host_architecture}"
-      if ! test -d "$cow_folder" ; then
+      cow_folder="${cowbuilder_cache_dir}/cow.cow_${host_architecture}"
+      base_folder="${cowbuilder_cache_dir}/base.cow_${host_architecture}"
+      if ! test -d "${cow_folder}" ; then
          error "cow_folder does not exist. Did you run 1130_cowbuilder-setup?"
       fi
-      if ! test -d "$base_folder" ; then
+      if ! test -d "${base_folder}" ; then
          error "base_folder does not exist. Did you run 1130_cowbuilder-setup?"
       fi
    fi
 
    ## Environment variables make_use_lintian, make_use_cowbuilder, dist_build_apt_codename if set are expected to be passed.
-   "$source_code_folder_dist/packages/kicksecure/genmkfile/usr/bin/genmkfile" deb-pkg
+   "${source_code_folder_dist}/packages/kicksecure/genmkfile/usr/bin/genmkfile" deb-pkg
 
-   "$source_code_folder_dist/packages/kicksecure/genmkfile/usr/bin/genmkfile" deb-install
+   "${source_code_folder_dist}/packages/kicksecure/genmkfile/usr/bin/genmkfile" deb-install
 
    DIST_APTGETOPT=( "${DIST_APTGETOPT_OLD[@]}" )
    DIST_APTGETOPT_SERIALIZED="$(printf '%s\n' "${DIST_APTGETOPT[@]}")"
@@ -107,7 +107,7 @@ live-build_installation() {
    ## but isn't horrible either. Preserving which files are staged and
    ## which ones are not is probably difficult.
 
-   pushd "$source_code_folder_dist/live-build"
+   pushd "${source_code_folder_dist}/live-build"
 
    ## Do not proceed if the working tree is unclean.
    ## provided by: help-steps/pre
@@ -142,11 +142,11 @@ live-build_installation() {
    local DIST_APTGETOPT_OLD
    DIST_APTGETOPT_OLD=( "${DIST_APTGETOPT[@]}" )
    DIST_APTGETOPT+=(
-      -o Dir::Etc::sourcelist="$dist_build_sources_list_primary"
+      -o Dir::Etc::sourcelist="${dist_build_sources_list_primary}"
       -o Dir::Etc::sourceparts="-"
    )
    DIST_APTGETOPT_SERIALIZED="$(printf '%s\n' "${DIST_APTGETOPT[@]}")"
-   make_use_lintian=false "$source_code_folder_dist/packages/kicksecure/genmkfile/usr/bin/genmkfile" deb-icup
+   make_use_lintian=false "${source_code_folder_dist}/packages/kicksecure/genmkfile/usr/bin/genmkfile" deb-icup
    DIST_APTGETOPT=( "${DIST_APTGETOPT_OLD[@]}" )
    DIST_APTGETOPT_SERIALIZED="$(printf '%s\n' "${DIST_APTGETOPT[@]}")"
 
@@ -191,16 +191,16 @@ virtualbox_windows_installer_download() {
    ## - VirtualBox installer (example file name: VirtualBox-7.0.18-162988-Win.exe)
    ## reason: Larger than 100 MB and can therefore not be added to git.
 
-   mkdir --parents "$binary_build_folder_dist/virtualbox-windows-installer-binary"
+   mkdir --parents "${binary_build_folder_dist}/virtualbox-windows-installer-binary"
    ## dm-virtualbox-installer-exe-verify-windows requires being in the folder.
-   pushd "$binary_build_folder_dist/virtualbox-windows-installer-binary" >/dev/null
+   pushd "${binary_build_folder_dist}/virtualbox-windows-installer-binary" >/dev/null
 
-   cp --verbose "$source_code_folder_dist/windows/virtualbox/download.txt" "$binary_build_folder_dist/virtualbox-windows-installer-binary/"
-   cp --verbose "$source_code_folder_dist/windows/virtualbox/SHA256SUMS" "$binary_build_folder_dist/virtualbox-windows-installer-binary/"
+   cp --verbose -- "${source_code_folder_dist}/windows/virtualbox/download.txt" "${binary_build_folder_dist}/virtualbox-windows-installer-binary/"
+   cp --verbose -- "${source_code_folder_dist}/windows/virtualbox/SHA256SUMS" "${binary_build_folder_dist}/virtualbox-windows-installer-binary/"
 
-   curl_download_target_url=$(cat -- "$source_code_folder_dist/windows/virtualbox/download.txt")
+   curl_download_target_url=$(cat -- "${source_code_folder_dist}/windows/virtualbox/download.txt")
    ## Exact filename is required for SHA256SUMS verification.
-   versioned_virtualbox_file_name=$(basename "$curl_download_target_url")
+   versioned_virtualbox_file_name=$(basename "${curl_download_target_url}")
 
    ## XXX: Not easy due to dependencies.
    #CURL_PRGRS="$source_code_folder_dist/packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/curl-prgrs"
@@ -221,27 +221,27 @@ virtualbox_windows_installer_download() {
    #CURL_OPTS="--verbose"
    curl_download_max_time="3600"
 
-   CURL_OUT_FILE="$binary_build_folder_dist/virtualbox-windows-installer-binary/$versioned_virtualbox_file_name"
+   CURL_OUT_FILE="${binary_build_folder_dist}/virtualbox-windows-installer-binary/${versioned_virtualbox_file_name}"
 
-   $CURL_PRGRS \
+   ${CURL_PRGRS} \
       ${CURL_RESUME:-} \
       --fail \
       ${CURL_PROXY:-} \
-      $CURL_FORCE_SSL \
+      ${CURL_FORCE_SSL} \
       --retry-connrefused \
       --retry 10 \
       --retry-delay 60 \
-      --max-time "$curl_download_max_time" \
+      --max-time "${curl_download_max_time}" \
       --location \
       ${CURL_OPTS:-} \
-      --output "$CURL_OUT_FILE" \
-      "$curl_download_target_url"
+      --output "${CURL_OUT_FILE}" \
+      "${curl_download_target_url}"
 
    ## provided by package: developer-meta-files
    ## Would also notice if multiple VirtualBox-*-Win.exe files are inside the virtualbox-windows-installer-binary folder.
    dm-virtualbox-installer-exe-verify-windows
 
-   CURL_OUT_FILE="$binary_build_folder_dist/virtualbox-windows-installer-binary/vc_redist.x64.exe"
+   CURL_OUT_FILE="${binary_build_folder_dist}/virtualbox-windows-installer-binary/vc_redist.x64.exe"
 
    ## Unstable link.
    #vc_redist_target_url="https://aka.ms/vs/17/release/vc_redist.x64.exe"
@@ -254,24 +254,24 @@ virtualbox_windows_installer_download() {
    ## https://web.archive.org/web/20241113122717/https://download.visualstudio.microsoft.com/download/pr/c7dac50a-e3e8-40f6-bbb2-9cc4e3dfcabe/1821577409C35B2B9505AC833E246376CC68A8262972100444010B57226F0940/VC_redist.x64.exe
    vc_redist_target_url="https://download.visualstudio.microsoft.com/download/pr/c7dac50a-e3e8-40f6-bbb2-9cc4e3dfcabe/1821577409C35B2B9505AC833E246376CC68A8262972100444010B57226F0940/VC_redist.x64.exe"
 
-   curl_download_target_url="$vc_redist_target_url"
+   curl_download_target_url="${vc_redist_target_url}"
 
    ## Microsoft only supports tlsv1.2 at time of writing.
    CURL_FORCE_SSL="--tlsv1.2 --proto =https"
 
-   $CURL_PRGRS \
+   ${CURL_PRGRS} \
       ${CURL_RESUME:-} \
       --fail \
       ${CURL_PROXY:-} \
-      $CURL_FORCE_SSL \
+      ${CURL_FORCE_SSL} \
       --retry-connrefused \
       --retry 10 \
       --retry-delay 60 \
-      --max-time "$curl_download_max_time" \
+      --max-time "${curl_download_max_time}" \
       --location \
       ${CURL_OPTS:-} \
-      --output "$CURL_OUT_FILE" \
-      "$curl_download_target_url"
+      --output "${CURL_OUT_FILE}" \
+      "${curl_download_target_url}"
 
    dm-virtualbox-installer-vc_redist-verify-windows
 

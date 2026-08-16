@@ -23,7 +23,11 @@
 ## --freshness   passed through to the build (default 'frozen': pins the Debian
 ##               snapshot, without which two builds diverge on package versions).
 ## --output-dir  where the two images + report are collected (default a fresh
-##               directory beside the repo). Needs a few GB free.
+##               directory beside the repo). The collected images are ~0.5 GB each,
+##               but the BUILD needs far more transient room on the same
+##               filesystem: 4350_reimage-raw-reproducible zero-fills the image's
+##               free space, which allocates the sparse raw, so a qcow2 run peaks
+##               around 32 GB before dropping back. Budget ~40 GB free.
 ##
 ## The two builds run SEQUENTIALLY, never concurrently: two full image builds at
 ## once exhaust RAM/disk on a modest host. The verdict is NOT re-implemented here:
@@ -95,14 +99,14 @@ while [ "$#" -gt 0 ]; do
    esac
 done
 
-case "$target" in
+case "${target}" in
    iso)
       artifact_glob="*.iso"
-      [ -n "$flavor" ] || flavor="kicksecure-lxqt"
+      [ -n "${flavor}" ] || flavor="kicksecure-lxqt"
       ;;
    virtualbox)
       artifact_glob="*.ova"
-      [ -n "$flavor" ] || flavor="kicksecure-cli"
+      [ -n "${flavor}" ] || flavor="kicksecure-cli"
       ;;
    qcow2)
       ## The shipped, released artifact is the compressed '.qcow2.libvirt.xz' (the
@@ -110,7 +114,7 @@ case "$target" in
       ## not the bare pre-release '.qcow2'. If a build stops before release packaging
       ## it will emit no '.xz' and build_one reports it -- run the packaging step.
       artifact_glob="*.qcow2.libvirt.xz"
-      [ -n "$flavor" ] || flavor="kicksecure-cli"
+      [ -n "${flavor}" ] || flavor="kicksecure-cli"
       ;;
    *)
       printf '%s\n' "${0##*/}: unknown or missing --target (want iso|virtualbox|qcow2)" >&2
@@ -118,35 +122,100 @@ case "$target" in
       ;;
 esac
 
-if [ -z "$arch" ]; then
+if [ -z "${arch}" ]; then
    printf '%s\n' "${0##*/}: --arch is required (e.g. amd64)." >&2
    usage
 fi
 
-if [ -z "$output_dir" ]; then
-   output_dir="$( mktemp --directory --tmpdir="${source_code_folder_dist%/*}" reproducible-build-twice.XXXXXX )"
-fi
-mkdir --parents -- "$output_dir"
-report="$output_dir/report.txt"
+## The build writes its images to '$HOME/derivative-binary' (docker-run bind-mounts the
+## host's binary volume there; help-steps/variables derives the same path from HOMEVAR),
+## NOT to a directory inside the source tree.
+[ -n "${binary_build_folder_dist:-}" ] || binary_build_folder_dist="${HOME}/derivative-binary"
 
-## Remove a prior build's image tree so 'find' below sees only the current build's
-## output. Left deliberately narrow: it clears only the emitted-binary directory.
+## Collect into the binary volume: it is the only bind-mounted, writable location that
+## outlives the '--rm' build container.
+if [ -z "${output_dir}" ]; then
+   output_dir="$( mktemp --directory --tmpdir="${binary_build_folder_dist}" reproducible-build-twice.XXXXXX )"
+fi
+mkdir --parents -- "${output_dir}"
+report="${output_dir}/report.txt"
+
+## Pin the image version for BOTH builds, from the pre-sign HEAD of this one tree.
+## A per-build capture would be wrong here: sign-and-tag amends and tags HEAD, so a
+## later build would derive the generated tag as its version and differ for a
+## non-defect reason.
+pushd -- "${source_code_folder_dist}" >/dev/null
+## Mirrors help-steps/variables' derivation, because the paths built from it below
+## must name the directory the BUILD writes:
+##   --exclude  skips sign-tag-head's ephemeral '<tag>_<commit>_<key>' signing tags,
+##              so re-running on this checkout does not derive the version from the
+##              previous run's tag.
+##   the strip  removes the release-channel suffix, exactly as variables does before
+##              deriving 'dist_binary_build_folder'. Without it this searches
+##              '<binary>/18.2.2.0-developers-only-161-g<sha>' while the build wrote
+##              '<binary>/18.2.2.0-161-g<sha>', and reports 'produced no <glob>'
+##              only AFTER a full build has already run.
+dist_build_version="$( git describe --always --abbrev=1000000000 --exclude '*_*_*' )"
+dist_build_version="${dist_build_version//-developers-only/}"
+dist_build_version="${dist_build_version//-testers-only/}"
+dist_build_version="${dist_build_version//-stable/}"
+## dm-build-official does NOT sign, and the build's sq-git check rejects an unsigned
+## HEAD, so mint an ephemeral key and sign+tag HEAD here -- BEFORE either build and
+## after the version is pinned.
+##
+## Once for BOTH builds, deliberately. The signing key never reaches the image, so
+## varying it between the two builds tests nothing this lane is for. The CI lane
+## already covers key-independence for free: its two build jobs run on separate
+## runners, each minting its own ephemeral key, and still produce bit-identical
+## images.
+##
+## 'sign-and-tag' amends HEAD, which rewrites the COMMIT but not the TREE, so signing
+## per build would NOT hand build b a different tree. It would, however, need a
+## per-build keystore ('signing-key-create' reuses an existing key for DEBEMAIL,
+## which the docker-run --key-mount persists) and a reset to the pre-sign commit
+## between builds (build b's 'sign-tag-head' would otherwise abort on build a's tag
+## being signed by a key its new policy does not authorize). Not worth that for a
+## variable the image does not carry.
+## Opt in to signing: sign-and-tag defaults off, but this harness reproduces the
+## redistributable build (dm-build-official-one sets dist_build_redistributable=true,
+## which git_sanity_test requires be signed), so the tree must be signed here.
+export dist_build_sign_and_tag=true
+./help-steps/signing-key-create
+./help-steps/sign-and-tag
+popd >/dev/null
+export dist_build_version
+
+## Remove this build's emitted-image directory so 'find' below sees only the current
+## build's output. Scoped to the per-version directory: its siblings under
+## '$binary_build_folder_dist' are the cowbuilder base, the local apt repo and the
+## package caches, which a build legitimately reuses and must not lose.
 clean_binary() {
-   safe-rm --recursive --force -- "$source_code_folder_dist/derivative-binary/"* 2>/dev/null || true
+   safe-rm --recursive --force -- "${binary_build_folder_dist}/${dist_build_version}" 2>/dev/null || true
 }
 
 ## Run one build and collect its artifact into $output_dir/<tag>/.
 build_one() {
-   local tag="$1" dest="$output_dir/$2" build_rc found
+   local tag="$1" dest="${output_dir}/$2" build_rc found
    printf '%s\n' "=== build ${tag}: ${flavor} ${target} ${arch} (freshness=${freshness}) ==="
    clean_binary
    build_rc=0
    ## pushd/popd rather than a '( cd && ... )' subshell: scopes the cd without a
    ## subshell (and dodges the errexit-in-conditional-subshell footgun).
-   pushd -- "$source_code_folder_dist" >/dev/null
-   ./ci/build --arch "$arch" --target "$target" --flavor "$flavor" --freshness "$freshness" || build_rc="$?"
+   pushd -- "${source_code_folder_dist}" >/dev/null
+   ## The SAME entrypoint CI drives, with the same env shape, so a local verdict
+   ## transfers: a separate build path diverges (different flags, no shared-base
+   ## role) and turns build-path drift into phantom non-reproducibility.
+   ## CI=true is what mocks the upload -- without it dm-prepare-release's rsync is
+   ## LIVE, and a local reproducibility check must never publish. It also skips the
+   ## ~/.ssh requirement. It does NOT force a dry run: parse-cmd only injects
+   ## build_dry_run for a CROSS-build, and dist_build_target_arch is set here.
+   CI=true \
+   dist_build_target_arch="${arch}" \
+   flavors_list="${flavor}" \
+   dist_build_multi_target_list="${target}" \
+   ./help-steps/dm-build-official --freshness "${freshness}" || build_rc="$?"
    popd >/dev/null
-   if [ "$build_rc" -ne 0 ]; then
+   if [ "${build_rc}" -ne 0 ]; then
       printf '%s\n' "${0##*/}: build ${tag} failed (exit ${build_rc})" >&2
       exit 3
    fi
@@ -154,19 +223,26 @@ build_one() {
    ## pipe after one line, which would SIGPIPE find/sort (exit 141 under pipefail +
    ## inherit_errexit) once their output exceeds the pipe buffer, breaking the exit
    ## contract with no diagnostic.
-   found="$( find "$source_code_folder_dist/derivative-binary" -type f -name "$artifact_glob" | LC_ALL=C sort )"
-   found="${found%%$'\n'*}"
-   if [ -z "$found" ]; then
+   ## A build that wrote nothing leaves no version directory at all, and 'find' on a
+   ## missing path fails -- under errexit that exits 1, which this script's own
+   ## contract documents as "images differ", and the message below never prints. An
+   ## absent directory and an empty one mean the same thing here: no artifact.
+   found=""
+   if [ -d "${binary_build_folder_dist}/${dist_build_version}" ]; then
+      found="$( find "${binary_build_folder_dist}/${dist_build_version}" -type f -name "${artifact_glob}" | LC_ALL=C sort )"
+      found="${found%%$'\n'*}"
+   fi
+   if [ -z "${found}" ]; then
       printf '%s\n' "${0##*/}: build ${tag} produced no ${artifact_glob}" >&2
       exit 3
    fi
    ## Start from a clean $dest: a rerun into the same --output-dir with a different --flavor
    ## must not leave a stale artifact that the compare's 'find | sort | first' could pick over
    ## the newly built one. $dest is a dedicated per-tag subdir ($output_dir/a|b), safe to wipe.
-   safe-rm --recursive --force -- "$dest"
-   mkdir --parents -- "$dest"
-   cp -- "$found" "$dest/"
-   printf '%s\n' "  collected: $dest/${found##*/}"
+   safe-rm --recursive --force -- "${dest}"
+   mkdir --parents -- "${dest}"
+   cp -- "${found}" "${dest}/"
+   printf '%s\n' "  collected: ${dest}/${found##*/}"
 }
 
 build_one a a
@@ -177,7 +253,7 @@ build_one b b
 ## exactly one artifact of $target under each dir, so the two build outputs collected
 ## into a/ and b/ are compared bit-for-bit. Its exit maps onto ours: 0 identical
 ## (reproducible), 1 differ, 2 setup / artifact-not-found.
-compare_bin="$source_code_folder_dist/packages/kicksecure/developer-meta-files/usr/bin/dm-reproducible-compare-artifacts"
+compare_bin="${source_code_folder_dist}/packages/kicksecure/developer-meta-files/usr/bin/dm-reproducible-compare-artifacts"
 compare_rc=0
-"$compare_bin" --target "$target" --dir-a "$output_dir/a" --dir-b "$output_dir/b" --output "$report" || compare_rc="$?"
-exit "$compare_rc"
+"${compare_bin}" --target "${target}" --dir-a "${output_dir}/a" --dir-b "${output_dir}/b" --output "${report}" || compare_rc="$?"
+exit "${compare_rc}"

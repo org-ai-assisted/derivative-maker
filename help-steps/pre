@@ -50,7 +50,7 @@ true "${BASH_SOURCE[0]} INFO: begin"
 HELPER_SCRIPTS_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/../packages/kicksecure/helper-scripts"
 export HELPER_SCRIPTS_PATH
 
-test -d "$HELPER_SCRIPTS_PATH"
+test -d "${HELPER_SCRIPTS_PATH}"
 if ! test -e "${HELPER_SCRIPTS_PATH}/.git"; then
    error "Folder '${HELPER_SCRIPTS_PATH}/.git' does not exist! Need to run...?
 
@@ -187,12 +187,12 @@ build_run_function() {
 
 error() {
    output_cmd_set
-   $output_cmd "${blue}############################################################${reset}"
-   $output_cmd "${bold}${under}ERROR:${eunder}${reset}"
-   $output_cmd "          ${bold}\$0:${reset} ${under}$0${eunder}"
-   $output_cmd "${bold}\${BASH_SOURCE[0]}:${reset} ${under}${BASH_SOURCE[0]}${eunder}${reset}"
-   $output_cmd "      ${bold}${red}message:${reset} ${under}$*${reset}"
-   $output_cmd "${blue}############################################################${reset}"
+   ${output_cmd} "${blue}############################################################${reset}"
+   ${output_cmd} "${bold}${under}ERROR:${eunder}${reset}"
+   ${output_cmd} "          ${bold}\$0:${reset} ${under}$0${eunder}"
+   ${output_cmd} "${bold}\${BASH_SOURCE[0]}:${reset} ${under}${BASH_SOURCE[0]}${eunder}${reset}"
+   ${output_cmd} "      ${bold}${red}message:${reset} ${under}$*${reset}"
+   ${output_cmd} "${blue}############################################################${reset}"
    error_reason="${bold}message:${reset} $*
 "
    ## 'fatal_error_no_retry' is INTENTIONALLY not defined as a command. Calling a
@@ -219,58 +219,58 @@ source "$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )/retry-run"
 ## their result to stdout; callers capture into a local variable.
 
 exception_handler_shell() {
-   $output_cmd "${cyan}${bold}INFO: Opening interactive shell...${reset}"
-   $output_cmd "${cyan}${bold}INFO: When you have finished, please enter \"exit 0\" to \
+   ${output_cmd} "${cyan}${bold}INFO: Opening interactive shell...${reset}"
+   ${output_cmd} "${cyan}${bold}INFO: When you have finished, please enter \"exit 0\" to \
 continue (Recommended against!) or \"exit 1\" to cleanup and exit. (Recommended.)${reset}"
    interactive_chroot_shell_bash_exit_code="0"
    chroot_run /bin/bash || { interactive_chroot_shell_bash_exit_code="${PIPESTATUS[0]}" ; true; };
    if [ "${interactive_chroot_shell_bash_exit_code:-}" = "0" ]; then
-      $output_cmd "${cyan}${bold}INFO: Interactive shell terminated with \
-exit code $interactive_chroot_shell_bash_exit_code, will ignore this error and continue...${reset}"
+      ${output_cmd} "${cyan}${bold}INFO: Interactive shell terminated with \
+exit code ${interactive_chroot_shell_bash_exit_code}, will ignore this error and continue...${reset}"
       ignore_error="true"
    else
-      $output_cmd "${cyan}${bold}INFO: Interactive shell terminated with \
-exit code $interactive_chroot_shell_bash_exit_code, cleanup and exit as requested...${reset}"
+      ${output_cmd} "${cyan}${bold}INFO: Interactive shell terminated with \
+exit code ${interactive_chroot_shell_bash_exit_code}, cleanup and exit as requested...${reset}"
       ignore_error="false"
    fi
 }
 
 exception_handler_retry() {
    if [ ! "${dist_build_dispatch_before_retry:-}" = "" ]; then
-      $output_cmd "${cyan}${bold}INFO: dispatch before retry (--retry-before)...: $dist_build_dispatch_before_retry ${reset}"
+      ${output_cmd} "${cyan}${bold}INFO: dispatch before retry (--retry-before)...: ${dist_build_dispatch_before_retry} ${reset}"
       dist_build_dispatch_before_retry_exit_code="0"
-      eval $dist_build_dispatch_before_retry || { dist_build_dispatch_before_retry_exit_code="$?" ; true; };
+      eval ${dist_build_dispatch_before_retry} || { dist_build_dispatch_before_retry_exit_code="$?" ; true; };
       if [ "${dist_build_dispatch_before_retry_exit_code:-}" = "0" ]; then
-         $output_cmd "${cyan}${bold}INFO: dispatch before retry (--retry-before) exit code was 0, ok. ${reset}"
+         ${output_cmd} "${cyan}${bold}INFO: dispatch before retry (--retry-before) exit code was 0, ok. ${reset}"
       else
-         $output_cmd "${red}${bold}INFO: dispatch before retry (--retry-before) non-zero exit code: $dist_build_dispatch_before_retry_exit_code ${reset}"
+         ${output_cmd} "${red}${bold}INFO: dispatch before retry (--retry-before) non-zero exit code: ${dist_build_dispatch_before_retry_exit_code} ${reset}"
       fi
    else
-      $output_cmd "INFO: Skipping dist_build_dispatch_before_retry (--retry-before), because empty, ok."
+      ${output_cmd} "INFO: Skipping dist_build_dispatch_before_retry (--retry-before), because empty, ok."
    fi
 
-   $output_cmd "${cyan}${bold}INFO: Retrying last_failed_bash_command...: $last_failed_bash_command ${reset}"
+   ${output_cmd} "${cyan}${bold}INFO: Retrying last_failed_bash_command...: ${last_failed_bash_command} ${reset}"
    retry_last_failed_bash_command_exit_code="0"
-   $last_failed_bash_command || { retry_last_failed_bash_command_exit_code="$?" ; true; };
+   ${last_failed_bash_command} || { retry_last_failed_bash_command_exit_code="$?" ; true; };
    if [ "${retry_last_failed_bash_command_exit_code:-}" = "0" ]; then
-      $output_cmd "${cyan}${bold}INFO: Retry succeeded. exit code of last_failed_bash_command: $retry_last_failed_bash_command_exit_code ${reset}"
+      ${output_cmd} "${cyan}${bold}INFO: Retry succeeded. exit code of last_failed_bash_command: ${retry_last_failed_bash_command_exit_code} ${reset}"
       unset dist_build_auto_retry_counter
    else
-      $output_cmd "${red}${bold}INFO: Retry failed. exit code of last_failed_bash_command: $retry_last_failed_bash_command_exit_code ${reset}"
-      last_failed_exit_code="$retry_last_failed_bash_command_exit_code"
+      ${output_cmd} "${red}${bold}INFO: Retry failed. exit code of last_failed_bash_command: ${retry_last_failed_bash_command_exit_code} ${reset}"
+      last_failed_exit_code="${retry_last_failed_bash_command_exit_code}"
    fi
 
    if [ ! "${dist_build_dispatch_after_retry:-}" = "" ]; then
-      $output_cmd "${cyan}${bold}INFO: dispatch after retry (--retry-after)...: $dist_build_dispatch_after_retry ${reset}"
+      ${output_cmd} "${cyan}${bold}INFO: dispatch after retry (--retry-after)...: ${dist_build_dispatch_after_retry} ${reset}"
       dist_build_dispatch_after_retry_exit_code="0"
-      eval $dist_build_dispatch_after_retry || { dist_build_dispatch_after_retry_exit_code="$?" ; true; };
+      eval ${dist_build_dispatch_after_retry} || { dist_build_dispatch_after_retry_exit_code="$?" ; true; };
       if [ "${dist_build_dispatch_after_retry_exit_code:-}" = "0" ]; then
-         $output_cmd "${cyan}${bold}INFO: dispatch after retry (--retry-after) exit code was 0, ok. ${reset}"
+         ${output_cmd} "${cyan}${bold}INFO: dispatch after retry (--retry-after) exit code was 0, ok. ${reset}"
       else
-         $output_cmd "${red}${bold}INFO: dispatch after retry (--retry-after) non-zero exit code: $dist_build_dispatch_after_retry_exit_code ${reset}"
+         ${output_cmd} "${red}${bold}INFO: dispatch after retry (--retry-after) non-zero exit code: ${dist_build_dispatch_after_retry_exit_code} ${reset}"
       fi
    else
-      $output_cmd "INFO: Skipping dist_build_dispatch_after_retry (--retry-after), because empty, ok."
+      ${output_cmd} "INFO: Skipping dist_build_dispatch_after_retry (--retry-after), because empty, ok."
    fi
 
    if [ "${retry_last_failed_bash_command_exit_code:-}" = "0" ]; then
@@ -289,9 +289,9 @@ exception_handler_process_shared() {
    fi
    trap_signal_type_last="$1"
    dist_build_error_counter="$(( dist_build_error_counter + 1 ))"
-   benchmark_took_time="$(benchmark_format "$SECONDS")"
+   benchmark_took_time="$(benchmark_format "${SECONDS}")"
    local first
-   read -r first _ <<< "$last_failed_bash_command" || true
+   read -r first _ <<< "${last_failed_bash_command}" || true
 
    ## process_backtrace and function_trace print their result to
    ## stdout; capture into a local before referencing in the report.
@@ -299,9 +299,9 @@ exception_handler_process_shared() {
    process_backtrace_result="$(process_backtrace)"
    function_trace_result="$(function_trace)"
    output_cmd_set
-   $output_cmd "
+   ${output_cmd} "
 ${cyan}${bold}############################################################${reset}
-${red}${bold}ERROR detected in script!: ${under}$last_script${eunder}${reset}
+${red}${bold}ERROR detected in script!: ${under}${last_script}${eunder}${reset}
 
 ${blue}${bold}#####${reset}
 ${blue}${bold}User Help Message 2/2:${reset}
@@ -314,19 +314,19 @@ In many instances, providing a longer segment above this box or the entire log m
 ${blue}${bold}#####${reset}
 
 dist_build_version: ${under}${dist_build_version:-}${eunder}
-dist_build_error_counter: $dist_build_error_counter
-benchmark: $benchmark_took_time
-last_failed_exit_code: $last_failed_exit_code
-trap_signal_type_previous: $trap_signal_type_previous
-trap_signal_type_last    : $trap_signal_type_last
+dist_build_error_counter: ${dist_build_error_counter}
+benchmark: ${benchmark_took_time}
+last_failed_exit_code: ${last_failed_exit_code}
+trap_signal_type_previous: ${trap_signal_type_previous}
+trap_signal_type_last    : ${trap_signal_type_last}
 
 ${bold}process_backtrace_result${reset}:
-$process_backtrace_result
+${process_backtrace_result}
 
 ${bold}function_trace_result${reset}:
-$function_trace_result
+${function_trace_result}
 
-${error_reason:-}${red}${bold}last_failed_bash_command${reset}: ${bold}$last_failed_bash_command${reset}
+${error_reason:-}${red}${bold}last_failed_bash_command${reset}: ${bold}${last_failed_bash_command}${reset}
 ${cyan}${bold}############################################################${reset}
 "
 
@@ -346,15 +346,15 @@ ${cyan}${bold}############################################################${rese
       [ -n "${dist_build_auto_retry:-}" ] || dist_build_auto_retry="2"
       [ -n "${dist_build_wait_auto_retry:-}" ] || dist_build_wait_auto_retry="5"
       if [ "${first:-}" = "fatal_error_no_retry" ]; then
-         $output_cmd 'INFO: No auto retry: last_failed_bash_command is the deliberate-error sentinel "fatal_error_no_retry" (see error() -- an intentionally undefined command).'
-      elif [ "${dist_build_auto_retry_counter:-0}" -gt "$dist_build_auto_retry" ]; then
-         $output_cmd "${cyan}${bold}INFO: Auto retried (--retry-max) already $dist_build_auto_retry times. No more auto retry. ${reset}"
+         ${output_cmd} 'INFO: No auto retry: last_failed_bash_command is the deliberate-error sentinel "fatal_error_no_retry" (see error() -- an intentionally undefined command).'
+      elif [ "${dist_build_auto_retry_counter:-0}" -gt "${dist_build_auto_retry}" ]; then
+         ${output_cmd} "${cyan}${bold}INFO: Auto retried (--retry-max) already ${dist_build_auto_retry} times. No more auto retry. ${reset}"
       else
-         $output_cmd "${cyan}${bold}INFO: Auto retry attempt number: $dist_build_auto_retry_counter. Max retry attempts: $dist_build_auto_retry (--retry-max). Auto retry... ${reset}"
-         dist_build_auto_retry_counter="$(( $dist_build_auto_retry_counter + 1 ))"
+         ${output_cmd} "${cyan}${bold}INFO: Auto retry attempt number: ${dist_build_auto_retry_counter}. Max retry attempts: ${dist_build_auto_retry} (--retry-max). Auto retry... ${reset}"
+         dist_build_auto_retry_counter="$(( ${dist_build_auto_retry_counter} + 1 ))"
          if [ ! "${dist_build_wait_auto_retry:-}" = "0" ]; then
-            $output_cmd "${cyan}${bold}INFO: Waiting (--retry-wait) $dist_build_wait_auto_retry seconds before auto retry... ${reset}"
-            sleep "$dist_build_wait_auto_retry" &
+            ${output_cmd} "${cyan}${bold}INFO: Waiting (--retry-wait) ${dist_build_wait_auto_retry} seconds before auto retry... ${reset}"
+            sleep "${dist_build_wait_auto_retry}" &
             wait "$!"
          fi
          ignore_error="true"
@@ -363,7 +363,7 @@ ${cyan}${bold}############################################################${rese
          return 0
       fi
    else
-      $output_cmd "INFO: dist_build_auto_retry set to $dist_build_auto_retry (--retry-max). No auto retry."
+      ${output_cmd} "INFO: dist_build_auto_retry set to ${dist_build_auto_retry} (--retry-max). No auto retry."
    fi
    unset dist_build_auto_retry_counter
 
@@ -375,12 +375,12 @@ ${cyan}${bold}############################################################${rese
       ## Only ERR-family signal types reach this function (see note above),
       ## so no separate "non ERR signal" branch is needed here.
       if [ "${dist_build_interactive}" = "false" ]; then
-         $output_cmd "INFO: using non-interactive error handler."
+         ${output_cmd} "INFO: using non-interactive error handler."
          break
       else
          if [ -t "0" ] && [ -t "1" ]; then
-            $output_cmd "INFO: stdin and stdout connected to terminal, using interactive error handler."
-            $output_cmd "\
+            ${output_cmd} "INFO: stdin and stdout connected to terminal, using interactive error handler."
+            ${output_cmd} "\
 ${red}${bold}ERROR: An issue in ${under}$0${eunder} has been detected!${reset}
 
 ${blue}${bold}#####${reset}
@@ -406,7 +406,7 @@ ${blue}${bold}#####${reset}"
 
             read -r -p "Answer? " answer
          else
-            $output_cmd "INFO: stdin or stdout not connected to terminal, using non-interactive error handler."
+            ${output_cmd} "INFO: stdin or stdout not connected to terminal, using non-interactive error handler."
             break
          fi
       fi
@@ -426,7 +426,7 @@ ${blue}${bold}#####${reset}"
          ignore_error="false"
          break
       else
-         $output_cmd "${red}${bold}${under}ERROR: Invalid answer!${reset}"
+         ${output_cmd} "${red}${bold}${under}ERROR: Invalid answer!${reset}"
          continue
       fi
    done
@@ -449,11 +449,11 @@ exception_handler_maybe_exit() {
       rm --force "/run/package_manager_lock"
    fi
    if [ "${ignore_error:-}" = "true" ]; then
-      $output_cmd "INFO: dist_build_interactive: ${dist_build_interactive}"
+      ${output_cmd} "INFO: dist_build_interactive: ${dist_build_interactive}"
       if [ "${dist_build_interactive}" = "false" ]; then
-         $output_cmd "INFO: using non-interactive error handler."
+         ${output_cmd} "INFO: using non-interactive error handler."
       else
-         $output_cmd "${red}${bold}You have chosen to ignore this error. Your build may be unstable!
+         ${output_cmd} "${red}${bold}You have chosen to ignore this error. Your build may be unstable!
 This is recommended against unless you know what you are doing. Do not report
 bugs, that are a result of this! Please press enter to continue. ${reset}"
       fi
@@ -461,61 +461,107 @@ bugs, that are a result of this! Please press enter to continue. ${reset}"
       ## INT/TERM are handled by exception_handler_signal and never reach
       ## this function, so only ERR unwinds here.
       trap - EXIT
-      $output_cmd "${red}${bold}INFO: Now exiting from $last_script (because error was detected, see above) with exit code ${under}1${eunder}.${reset}"
+      ${output_cmd} "${red}${bold}INFO: Now exiting from ${last_script} (because error was detected, see above) with exit code ${under}1${eunder}.${reset}"
       exit 1
    fi
 }
 
 exception_handler_general() {
    last_failed_exit_code="$?"
-   last_failed_bash_command="$BASH_COMMAND"
+   last_failed_bash_command="${BASH_COMMAND}"
    output_cmd_set
-   $output_cmd "${cyan}INFO: Middle of function ${FUNCNAME[0]} of $0.${reset}"
+   ${output_cmd} "${cyan}INFO: Middle of function ${FUNCNAME[0]} of $0.${reset}"
    ## $1 contains trap signal type.
    exception_handler_process_shared "$1"
    exception_handler_maybe_exit "$1"
-   $output_cmd "${cyan}INFO: End of function ${FUNCNAME[0]} of $0.${reset}"
+   ${output_cmd} "${cyan}INFO: End of function ${FUNCNAME[0]} of $0.${reset}"
+}
+
+## The cleanup steps for one variant. Single definition, run by BOTH the ERR
+## handlers and exception_handler_signal, so the two paths cannot drift.
+##
+## $1 = cleanup kind: general | unchroot_unmount | unmount | unmount_lb
+## $2 = 'true' to continue past a failing step. The signal path is already on
+##      its way out, so a failing cleanup step there must not mask the signal;
+##      the ERR path lets the failure propagate.
+exception_handler_cleanup_run() {
+   local cleanup_kind tolerate_failure cleanup_step cleanup_step_list
+
+   cleanup_kind="$1"
+   tolerate_failure="$2"
+   cleanup_step_list=()
+
+   case "${cleanup_kind}" in
+      unchroot_unmount)
+         cleanup_step_list=(
+            remove-local-temp-apt-repo
+            unchroot-raw
+            unprevent-daemons-from-starting
+            unmount-raw
+         )
+         ;;
+      unmount)
+         cleanup_step_list=( unmount-raw )
+         ;;
+      unmount_lb)
+         ## Unmount the host /dev, /sys, /proc bind-mounts a mid-step abort
+         ## leaves behind under the live-build tree; see 'help-steps/unmount-lb'.
+         cleanup_step_list=( unmount-lb )
+         ;;
+      general | *)
+         ## No cleanup for the general variant.
+         return 0
+         ;;
+   esac
+
+   for cleanup_step in "${cleanup_step_list[@]}"; do
+      if [ "${tolerate_failure}" = "true" ]; then
+         "${dist_source_help_steps_folder}/${cleanup_step}" "${args[@]}" || true
+      else
+         ## Explicit rather than leaning on errexit: a trap handler can be
+         ## reached from a context where errexit is disarmed (any '||'-guarded
+         ## caller), and there the loop would run on past a failed step.
+         "${dist_source_help_steps_folder}/${cleanup_step}" "${args[@]}" || return "$?"
+      fi
+   done
+}
+
+## Shared ERR-handler body. The per-kind wrappers below exist because
+## '$?' and '$BASH_COMMAND' must be captured before anything else runs, and
+## because exception_handler_setup derives the signal cleanup kind from the
+## handler's NAME.
+##
+## $1 = cleanup kind, $2 = trap signal type
+exception_handler_variant() {
+   local cleanup_kind signal_type
+
+   cleanup_kind="$1"
+   signal_type="$2"
+
+   output_cmd_set
+   exception_handler_process_shared "${signal_type}"
+   if [ "${ignore_error:-}" = "false" ]; then
+      exception_handler_cleanup_run "${cleanup_kind}" "false"
+   fi
+   exception_handler_maybe_exit "${signal_type}"
 }
 
 exception_handler_unchroot_unmount() {
    last_failed_exit_code="$?"
-   last_failed_bash_command="$BASH_COMMAND"
-   output_cmd_set
-   ## $1 contains trap signal type.
-   exception_handler_process_shared "$1"
-   if [ "${ignore_error:-}" = "false" ]; then
-      "$dist_source_help_steps_folder"/remove-local-temp-apt-repo "${args[@]}"
-      "$dist_source_help_steps_folder"/unchroot-raw "${args[@]}"
-      "$dist_source_help_steps_folder"/unprevent-daemons-from-starting "${args[@]}"
-      "$dist_source_help_steps_folder"/unmount-raw "${args[@]}"
-   fi
-   exception_handler_maybe_exit "$1"
+   last_failed_bash_command="${BASH_COMMAND}"
+   exception_handler_variant unchroot_unmount "$1"
 }
 
 exception_handler_unmount() {
    last_failed_exit_code="$?"
-   last_failed_bash_command="$BASH_COMMAND"
-   output_cmd_set
-   ## $1 contains trap signal type.
-   exception_handler_process_shared "$1"
-   if [ "${ignore_error:-}" = "false" ]; then
-      "$dist_source_help_steps_folder"/unmount-raw "${args[@]}"
-   fi
-   exception_handler_maybe_exit "$1"
+   last_failed_bash_command="${BASH_COMMAND}"
+   exception_handler_variant unmount "$1"
 }
 
 exception_handler_unmount_lb() {
    last_failed_exit_code="$?"
-   last_failed_bash_command="$BASH_COMMAND"
-   output_cmd_set
-   ## $1 contains trap signal type.
-   exception_handler_process_shared "$1"
-   if [ "${ignore_error:-}" = "false" ]; then
-      ## Unmount the host /dev, /sys, /proc bind-mounts a mid-step abort
-      ## leaves behind under the live-build tree; see 'help-steps/unmount-lb'.
-      "$dist_source_help_steps_folder"/unmount-lb "${args[@]}"
-   fi
-   exception_handler_maybe_exit "$1"
+   last_failed_bash_command="${BASH_COMMAND}"
+   exception_handler_variant unmount_lb "$1"
 }
 
 ## Simple signal (INT/TERM) handler. Unlike the ERR path this does not
@@ -525,17 +571,14 @@ exception_handler_unmount_lb() {
 ## interactive-menu machinery.
 ##
 ## $1 = signal name (INT or TERM)
-## $2 = cleanup kind, derived from the ERR handler name by exception_handler_setup:
-##        general          -> no cleanup
-##        unchroot_unmount -> remove-local-temp-apt-repo, unchroot-raw,
-##                            unprevent-daemons-from-starting, unmount-raw
-##        unmount          -> unmount-raw
-##        unmount_lb       -> unmount-lb
+## $2 = cleanup kind, derived from the ERR handler name by
+##      exception_handler_setup; the steps per kind are in
+##      exception_handler_cleanup_run.
 exception_handler_signal() {
    local signal kind signum exit_code
    signal="$1"
    kind="$2"
-   case "$signal" in
+   case "${signal}" in
       INT)
          signum=2
          ;;
@@ -548,31 +591,17 @@ exception_handler_signal() {
    esac
    exit_code="$(( 128 + signum ))"
    output_cmd_set
-   $output_cmd "${cyan}${bold}############################################################${reset}"
-   $output_cmd "${red}${bold}INFO: Signal $signal received in ${under}$0${eunder}. Running cleanup (kind: $kind)...${reset}"
-   case "$kind" in
-      unchroot_unmount)
-         "$dist_source_help_steps_folder"/remove-local-temp-apt-repo "${args[@]}" || true
-         "$dist_source_help_steps_folder"/unchroot-raw "${args[@]}" || true
-         "$dist_source_help_steps_folder"/unprevent-daemons-from-starting "${args[@]}" || true
-         "$dist_source_help_steps_folder"/unmount-raw "${args[@]}" || true
-         ;;
-      unmount)
-         "$dist_source_help_steps_folder"/unmount-raw "${args[@]}" || true
-         ;;
-      unmount_lb)
-         "$dist_source_help_steps_folder"/unmount-lb "${args[@]}" || true
-         ;;
-      general|*)
-         ## No cleanup for the general variant.
-         ;;
-   esac
-   $output_cmd "${red}${bold}INFO: Exiting $0 due to signal $signal with exit code $exit_code.${reset}"
-   $output_cmd "${cyan}${bold}############################################################${reset}"
+   ${output_cmd} "${cyan}${bold}############################################################${reset}"
+   ${output_cmd} "${red}${bold}INFO: Signal ${signal} received in ${under}$0${eunder}. Running cleanup (kind: ${kind})...${reset}"
+   ## 'true': already exiting, so a failing cleanup step must not mask the
+   ## signal.
+   exception_handler_cleanup_run "${kind}" "true"
+   ${output_cmd} "${red}${bold}INFO: Exiting $0 due to signal ${signal} with exit code ${exit_code}.${reset}"
+   ${output_cmd} "${cyan}${bold}############################################################${reset}"
    ## Remove the EXIT trap so exithandler's generic "non-zero exit code"
    ## summary does not overwrite the signal-specific message above.
    trap - EXIT
-   exit "$exit_code"
+   exit "${exit_code}"
 }
 
 ## Thanks to:
@@ -591,10 +620,10 @@ exception_handler_setup() {
       ## than the value at trap-fire time.
       if [ "${signal:-}" = "ERR" ]; then
          # shellcheck disable=SC2064
-         trap "$handler $signal" "$signal"
+         trap "${handler} ${signal}" "${signal}"
       else
          # shellcheck disable=SC2064
-         trap "exception_handler_signal $signal $kind" "$signal"
+         trap "exception_handler_signal ${signal} ${kind}" "${signal}"
       fi
    done
 }
@@ -630,20 +659,20 @@ SECONDS=0
 exithandler() {
    local exit_code=$?
    local elapsed
-   elapsed="$(benchmark_format "$SECONDS")"
+   elapsed="$(benchmark_format "${SECONDS}")"
    output_cmd_set
-   if [ "$exit_code" = "0" ]; then
-      $output_cmd "${bold}INFO: Script ${under}$0${eunder} completed.${reset} Exit Code: ${under}$exit_code${eunder}. Errors Detected: ${under}$dist_build_error_counter${eunder}. Execution Time: $elapsed${reset}"
+   if [ "${exit_code}" = "0" ]; then
+      ${output_cmd} "${bold}INFO: Script ${under}$0${eunder} completed.${reset} Exit Code: ${under}${exit_code}${eunder}. Errors Detected: ${under}${dist_build_error_counter}${eunder}. Execution Time: ${elapsed}${reset}"
    else
-      $output_cmd "${bold}${red}ERROR: Exiting ${under}$0${eunder} with non-zero exit code ${under}$exit_code${eunder}. Errors Detected: ${under}$dist_build_error_counter${eunder}. Execution Time: $elapsed${reset}."
+      ${output_cmd} "${bold}${red}ERROR: Exiting ${under}$0${eunder} with non-zero exit code ${under}${exit_code}${eunder}. Errors Detected: ${under}${dist_build_error_counter}${eunder}. Execution Time: ${elapsed}${reset}."
    fi
-   exit "$exit_code"
+   exit "${exit_code}"
 }
 
 trap "exithandler" EXIT
 
 root_check() {
-   if [ "$EUID" = "0" ]; then
+   if [ "${EUID}" = "0" ]; then
       ## Escape hatch for environments where we legitimately run as root
       ## (e.g. CI runners, containers without a non-root user). Opt in by
       ## exporting 'dist_build_allow_root=true' before sourcing pre. This
@@ -653,29 +682,29 @@ root_check() {
          true "INFO: root_check: running as root but dist_build_allow_root=true, allowing."
          return 0
       fi
-      $output_cmd "${red}${bold}ERROR: This must NOT be run as root (sudo)!${reset}"
-      $output_cmd "${red}${bold}       Export 'dist_build_allow_root=true' to override (CI / container use only).${reset}"
+      ${output_cmd} "${red}${bold}ERROR: This must NOT be run as root (sudo)!${reset}"
+      ${output_cmd} "${red}${bold}       Export 'dist_build_allow_root=true' to override (CI / container use only).${reset}"
       exit 1
    fi
    true "INFO: Script running as non-root, ok."
    ## Not using 'sudo --non-interactive --validate' because that caused an
-   ## error on an ansible server "sudo: a password is required". Potential bug in sudo?
+   ## error on some CI hosts "sudo: a password is required". Potential bug in sudo?
    ## https://forums.whonix.org/t/derivative-maker-automated-ci-builder/14468/14
    true "INFO: Running 'sudo --non-interactive -- test -d /usr' to test if sudo password entry prompt is needed..."
    if sudo --non-interactive -- test -d /usr ; then
       true "INFO: sudo password already previously cached (entered) or this system has passwordless sudo, ok."
    else
-      $output_cmd "INFO: Going to run 'sudo --validate' to prompt for password..."
-      $output_cmd "${bold}INFO: Please enter sudo password.${reset}"
+      ${output_cmd} "INFO: Going to run 'sudo --validate' to prompt for password..."
+      ${output_cmd} "${bold}INFO: Please enter sudo password.${reset}"
       ## sudo password prompt
       ## overwrite with '|| true' so sudo prompts only once (with the sudo default allowed retries).
       ## Avoiding the built-in auto retry in this script. Validation happens below.
       sudo --validate || true
-      $output_cmd "INFO: Running 'sudo --non-interactive -- test -d /usr' to test if sudo password prompt succeeded..."
+      ${output_cmd} "INFO: Running 'sudo --non-interactive -- test -d /usr' to test if sudo password prompt succeeded..."
       if sudo --non-interactive -- test -d /usr ; then
-         $output_cmd "INFO: sudo password prompt success."
+         ${output_cmd} "INFO: sudo password prompt success."
       else
-         $output_cmd "${red}${bold}ERROR: sudo password prompt entry failure!${reset}"
+         ${output_cmd} "${red}${bold}ERROR: sudo password prompt entry failure!${reset}"
          error "sudo password prompt entry failure"
       fi
    fi
@@ -684,10 +713,10 @@ root_check() {
    local sudo_test_output
    sudo_test_output="$(sudo --non-interactive -- test -d /usr 2>&1)" || true
    if [ ! "${sudo_test_output:-}" = "" ]; then
-      $output_cmd "${red}${bold}ERROR: Unexpected non-empty sudo command output!${reset}"
-      $output_cmd "${red}${bold}ERROR: General system sudo issue. Most likely unrelated to this derivative-maker. Please manually run 'sudo --non-interactive -- test -d /usr' and fix your system issue.${reset}"
-      $output_cmd "${red}${bold}sudo_test_output:${reset}"
-      $output_cmd "${red}${bold}$sudo_test_output${reset}"
+      ${output_cmd} "${red}${bold}ERROR: Unexpected non-empty sudo command output!${reset}"
+      ${output_cmd} "${red}${bold}ERROR: General system sudo issue. Most likely unrelated to this derivative-maker. Please manually run 'sudo --non-interactive -- test -d /usr' and fix your system issue.${reset}"
+      ${output_cmd} "${red}${bold}sudo_test_output:${reset}"
+      ${output_cmd} "${red}${bold}${sudo_test_output}${reset}"
       error "sudo command output is non-empty!"
       return 0
    fi

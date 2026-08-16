@@ -23,14 +23,14 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
 source pre
 source variables
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 
 if [ "${dist_build_skip_cowbuilder_setup:-}" = "true" ]; then
@@ -42,7 +42,7 @@ source_date_epoch_test() {
    if [ "${SOURCE_DATE_EPOCH:-}" = "" ]; then
       error "SOURCE_DATE_EPOCH is still unset!"
    fi
-   true "INFO: SOURCE_DATE_EPOCH: $SOURCE_DATE_EPOCH"
+   true "INFO: SOURCE_DATE_EPOCH: ${SOURCE_DATE_EPOCH}"
 }
 
 cowbuilder_setup() {
@@ -57,7 +57,7 @@ cowbuilder_setup() {
 cowbuilder_setup_do() {
    true "${bold}${green}INFO${reset}: Setting up cowbuilder..."
 
-   dist_build_sources_list_primary_contents="$(cat -- "$dist_build_sources_list_primary")"
+   dist_build_sources_list_primary_contents="$(cat -- "${dist_build_sources_list_primary}")"
    export dist_build_sources_list_primary_contents
 
    if [ "${dist_build_unsafe_io:-}" = "true" ]; then
@@ -67,29 +67,29 @@ cowbuilder_setup_do() {
    if [ "${dist_build_unsafe_io:-}" = "true" ]; then
       if [ "${DOCKER:-}" = "true" ]; then
          ## https://forums.whonix.org/t/docker-container-that-builds-whonix-images/17494/21
-         true "INFO: Skip re-mounting '$cowbuilder_cache_dir' as tmpfs because DOCKER=true, ok."
+         true "INFO: Skip re-mounting '${cowbuilder_cache_dir}' as tmpfs because DOCKER=true, ok."
       else
          ## Create the mount point first: a relocated (non-default)
          ## '$cowbuilder_cache_dir' may not exist yet, and 'mount' fails on a
          ## missing target. Harmless for the default '/var/cache/pbuilder'
          ## (already created by the 'pbuilder' package).
-         $SUDO_TO_ROOT mkdir --parents -- "$cowbuilder_cache_dir"
-         if $SUDO_TO_ROOT mount | grep -- "$cowbuilder_cache_dir" | grep -- tmpfs ; then
-            true "INFO: '$cowbuilder_cache_dir' already tmpfs."
+         ${SUDO_TO_ROOT} mkdir --parents -- "${cowbuilder_cache_dir}"
+         if ${SUDO_TO_ROOT} mount | grep -- "${cowbuilder_cache_dir}" | grep -- tmpfs ; then
+            true "INFO: '${cowbuilder_cache_dir}' already tmpfs."
          else
             ## RAM-proportional cap ('size=50%') rather than a hardcoded 2G: base.cow (~1G) plus a
             ## cow snapshot for a larger flavor (e.g. kicksecure-lxqt) can exceed 2G and fail with
             ## ENOSPC on the tmpfs. tmpfs consumes only the RAM actually written, so 50% adds
             ## headroom without reserving memory and scales across build hosts.
-            $SUDO_TO_ROOT mount -t tmpfs -o size=50% none "$cowbuilder_cache_dir"
+            ${SUDO_TO_ROOT} mount -t tmpfs -o size=50% none "${cowbuilder_cache_dir}"
          fi
       fi
    fi
 
    ## Debugging.
-   $SUDO_TO_ROOT cat -- "$dist_build_pbuilder_config_file"
+   ${SUDO_TO_ROOT} cat -- "${dist_build_pbuilder_config_file}"
 
-   make_cross_build_platform_list_including_host_architecture+=" $make_cross_build_platform_list "
+   make_cross_build_platform_list_including_host_architecture+=" ${make_cross_build_platform_list} "
 
    ## VirtualBox on Linux ships an amd64 build only; there is no VirtualBox for
    ## Linux/arm64 (ARM64 VirtualBox exists solely on macOS). So an '--arch arm64
@@ -105,13 +105,13 @@ cowbuilder_setup_do() {
    fi
 
    true "INFO: Also adding host_architecture to variable make_cross_build_platform_list_including_host_architecture, so local dependencies can be built."
-   make_cross_build_platform_list_including_host_architecture+=" $host_architecture "
+   make_cross_build_platform_list_including_host_architecture+=" ${host_architecture} "
 
    true "INFO: Removing potential duplicates in variable make_cross_build_platform_list_including_host_architecture."
-   make_cross_build_platform_list_including_host_architecture=$(printf "%s\n" "$make_cross_build_platform_list_including_host_architecture" | tr ' ' '\n' | sort | uniq | tr '\n' ' ')
+   make_cross_build_platform_list_including_host_architecture=$(printf "%s\n" "${make_cross_build_platform_list_including_host_architecture}" | tr ' ' '\n' | sort | uniq | tr '\n' ' ')
 
-   for dist_build_multiarch_package_item in $make_cross_build_platform_list_including_host_architecture ; do
-      true "dist_build_multiarch_package_item: $dist_build_multiarch_package_item"
+   for dist_build_multiarch_package_item in ${make_cross_build_platform_list_including_host_architecture} ; do
+      true "dist_build_multiarch_package_item: ${dist_build_multiarch_package_item}"
       export dist_build_multiarch_package_item
 
       ## Foreign-architecture chroot: qemu-user emulation and setuid.
@@ -140,7 +140,7 @@ cowbuilder_setup_do() {
          qemu_emulation_machine="$(dist_build_arch_to_qemu_machine "${dist_build_multiarch_package_item}")" || true
          if [ -n "${qemu_emulation_machine}" ]; then
             true "${cyan}INFO: Foreign-architecture chroot '${dist_build_multiarch_package_item}' on host '${host_architecture}' runs under qemu-user emulation; ensuring the qemu binfmt handler carries the 'C' (credentials) flag so setuid (sudo) works inside it.${reset}"
-            $SUDO_TO_ROOT "$dist_source_help_steps_folder/binfmt-credential-setup" "qemu-${qemu_emulation_machine}"
+            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/binfmt-credential-setup" "qemu-${qemu_emulation_machine}"
          else
             true "${cyan}INFO: No qemu machine mapping for architecture '${dist_build_multiarch_package_item}'; skipping binfmt credentials setup.${reset}"
          fi
@@ -164,14 +164,14 @@ cowbuilder_setup_do() {
       ## mount (bind + remount 'dev,suid') so the chroot behaves like a normal build fs.
       ## No-op where the base fs already permits both, so CI is unaffected. The bind mount
       ## is torn down with the ephemeral build container.
-      $SUDO_TO_ROOT mkdir --parents -- "$cowbuilder_cache_dir"
+      ${SUDO_TO_ROOT} mkdir --parents -- "${cowbuilder_cache_dir}"
       local cowbuilder_base_mount_options
-      cowbuilder_base_mount_options="$($SUDO_TO_ROOT findmnt --noheadings --output OPTIONS --target "$cowbuilder_cache_dir")"
+      cowbuilder_base_mount_options="$(${SUDO_TO_ROOT} findmnt --noheadings --output OPTIONS --target "${cowbuilder_cache_dir}")"
       case ",${cowbuilder_base_mount_options}," in
          *,nodev,*|*,nosuid,*)
-            true "${cyan}INFO: cowbuilder base filesystem '$cowbuilder_cache_dir' is mounted 'nodev'/'nosuid'; clearing so the chroot has working device nodes and setuid.${reset}"
-            $SUDO_TO_ROOT mount --bind -- "$cowbuilder_cache_dir" "$cowbuilder_cache_dir"
-            $SUDO_TO_ROOT mount -o remount,bind,dev,suid "$cowbuilder_cache_dir"
+            true "${cyan}INFO: cowbuilder base filesystem '${cowbuilder_cache_dir}' is mounted 'nodev'/'nosuid'; clearing so the chroot has working device nodes and setuid.${reset}"
+            ${SUDO_TO_ROOT} mount --bind -- "${cowbuilder_cache_dir}" "${cowbuilder_cache_dir}"
+            ${SUDO_TO_ROOT} mount -o remount,bind,dev,suid "${cowbuilder_cache_dir}"
             ;;
       esac
 
@@ -191,28 +191,35 @@ cowbuilder_setup_do() {
       ## '/dev/ptmx' to be a real character device; otherwise rebuild.
       local cowbuilder_base_reusable
       cowbuilder_base_reusable=false
-      if [ "${dist_build_reuse_cowbuilder_base:-}" = "true" ] && [ -d "$base_folder" ]; then
-         if $SUDO_TO_ROOT test -c "$base_folder/dev/ptmx"; then
+      if [ "${dist_build_reuse_cowbuilder_base:-}" = "true" ] && [ -d "${base_folder}" ]; then
+         if ${SUDO_TO_ROOT} test -c "${base_folder}/dev/ptmx"; then
             cowbuilder_base_reusable=true
          else
-            true "${cyan}INFO: --reuse-cowbuilder-base: existing base '$base_folder' is broken (no '/dev/ptmx' character device); rebuilding.${reset}"
+            true "${cyan}INFO: --reuse-cowbuilder-base: existing base '${base_folder}' is broken (no '/dev/ptmx' character device); rebuilding.${reset}"
          fi
       fi
 
-      if [ "$cowbuilder_base_reusable" = "true" ]; then
-         true "${cyan}INFO: --reuse-cowbuilder-base: reusing existing cowbuilder base '$base_folder'.${reset}"
+      if [ "${cowbuilder_base_reusable}" = "true" ]; then
+         true "${cyan}INFO: --reuse-cowbuilder-base: reusing existing cowbuilder base '${base_folder}'.${reset}"
       else
-         if [ "${dist_build_reuse_cowbuilder_base:-}" = "true" ] && [ ! -d "$base_folder" ]; then
-            true "${cyan}INFO: --reuse-cowbuilder-base requested but no base at '$base_folder'; building a fresh one.${reset}"
+         if [ "${dist_build_reuse_cowbuilder_base:-}" = "true" ] && [ ! -d "${base_folder}" ]; then
+            true "${cyan}INFO: --reuse-cowbuilder-base requested but no base at '${base_folder}'; building a fresh one.${reset}"
          fi
          ## '$cowbuilder_cache_dir' (the parent of '$base_folder') already exists here:
          ## created above before the nodev remount. Under '--reuse-cowbuilder-base' it is
          ## relocated to '$binary_build_folder_dist/pbuilder' (see help-steps/variables),
          ## which -- unlike the pbuilder package's pre-created '/var/cache/pbuilder' -- does
          ## not exist until then; cowbuilder fails ("Could not create basepath") without it.
-         if [ -d "$base_folder" ]; then
-            $SUDO_TO_ROOT "$dist_source_help_steps_folder/umount_kill.sh" "$base_folder"
-            $SUDO_TO_ROOT safe-rm --recursive --force -- "$base_folder"
+         if [ -d "${base_folder}" ]; then
+            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" -- "${base_folder}"
+            ## Fail CLOSED before the recursive delete: unmount-tree exits
+            ## non-zero while anything is still mounted under the tree, so the
+            ## delete cannot follow a leftover bind mount out of it.
+            ## '--one-file-system' is the structural backstop the kernel
+            ## enforces regardless (it does NOT cover a bind mount from the
+            ## same filesystem, hence both).
+            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/unmount-tree" -- "${base_folder}"
+            ${SUDO_TO_ROOT} safe-rm --one-file-system --recursive --force -- "${base_folder}"
          fi
 
          local cowbuilder_exit_code
@@ -229,35 +236,35 @@ cowbuilder_setup_do() {
          ## LD_PRELOAD) finds libeatmydata inside the chroot. No-op when LD_PRELOAD is unset.
          ##
          ## Duplicate --extrapackages to prevent removal by pbuilder.
-         $SUDO_TO_ROOT \
+         ${SUDO_TO_ROOT} \
             ${COWBUILDER_PREFIX:-} \
                ${UNSHARE_PID_NS:-} \
                env --unset=LD_PRELOAD \
                cowbuilder \
-                  --architecture "$dist_build_multiarch_package_item" \
-                  --configfile "$dist_build_pbuilder_config_file" \
+                  --architecture "${dist_build_multiarch_package_item}" \
+                  --configfile "${dist_build_pbuilder_config_file}" \
                   --create \
-                  --basepath "$base_folder" \
-                  --buildplace "$cow_folder" \
-                  --distribution "$dist_build_apt_stable_release" \
-                  --mirror "$dist_build_apt_sources_mirror" \
-                  --debootstrap "$dist_source_help_steps_folder/mmdebstrap" \
-                  --hookdir "$dist_source_help_steps_folder/pbuilder-hooks" \
+                  --basepath "${base_folder}" \
+                  --buildplace "${cow_folder}" \
+                  --distribution "${dist_build_apt_stable_release}" \
+                  --mirror "${dist_build_apt_sources_mirror}" \
+                  --debootstrap "${dist_source_help_steps_folder}/mmdebstrap" \
+                  --hookdir "${dist_source_help_steps_folder}/pbuilder-hooks" \
                   --extrapackages "sudo devscripts debhelper strip-nondeterminism fakeroot apt-transport-tor eatmydata aptitude cowdancer fasttrack-archive-keyring adduser sq qemu-utils safe-rm" \
                   || { cowbuilder_exit_code="$?" ; true; };
 
-         if [ -d "$base_folder" ]; then
-            $SUDO_TO_ROOT "$dist_source_help_steps_folder/umount_kill.sh" "$base_folder"
+         if [ -d "${base_folder}" ]; then
+            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" -- "${base_folder}"
          fi
 
          if [ ! "${cowbuilder_exit_code:-}" = "0" ]; then
-            return "$cowbuilder_exit_code"
+            return "${cowbuilder_exit_code}"
          fi
       fi
 
       true "INFO: Disable needless initramfs builds inside cowbuilder chroot (not supposed to get booted)."
-      $SUDO_TO_ROOT mkdir --parents -- "$base_folder/etc/dracut.conf.d"
-      $SUDO_TO_ROOT -- cp --verbose -- "$source_dracut_disable_config_snippet" "$base_folder/etc/dracut.conf.d"
+      ${SUDO_TO_ROOT} mkdir --parents -- "${base_folder}/etc/dracut.conf.d"
+      ${SUDO_TO_ROOT} -- cp --verbose -- "${source_dracut_disable_config_snippet}" "${base_folder}/etc/dracut.conf.d"
 
       ## help-steps/pbuilder-hooks/G10sources_list_restore.bsh should have restored it already.
       ## `pbuilder` component `/usr/lib/pbuilder/pbuilder-createbuildenv`
@@ -271,14 +278,14 @@ cowbuilder_setup_do() {
       #$SUDO_TO_ROOT diff -- "$dist_build_sources_list_primary" "$base_folder/etc/apt/sources.list.d/derivative.sources"
       #$SUDO_TO_ROOT cp -- "$dist_build_sources_list_primary" "$base_folder/etc/apt/sources.list.d/derivative.sources"
 
-      $SUDO_TO_ROOT mkdir --parents -- "$base_folder/home/$user_name"
-      $SUDO_TO_ROOT cp -- "$dist_build_pbuilder_config_file" "$base_folder/home/$user_name/pbuilder_config_file"
+      ${SUDO_TO_ROOT} mkdir --parents -- "${base_folder}/home/${user_name}"
+      ${SUDO_TO_ROOT} cp -- "${dist_build_pbuilder_config_file}" "${base_folder}/home/${user_name}/pbuilder_config_file"
       ## retry_run helper so the in-chroot pbuilder-chroot-script-* can wrap
       ## their apt calls too (they cannot source help-steps/pre).
-      $SUDO_TO_ROOT cp -- "$dist_source_help_steps_folder/retry-run" "$base_folder/home/$user_name/retry-run"
+      ${SUDO_TO_ROOT} cp -- "${dist_source_help_steps_folder}/retry-run" "${base_folder}/home/${user_name}/retry-run"
 
       ## virtualbox-installer / dist-installer-cli
-      dist_installer_cli_file_name="$(basename -- "$binary_image_installer_dist_source")"
+      dist_installer_cli_file_name="$(basename -- "${binary_image_installer_dist_source}")"
       ## example dist_installer_cli_file_name:
       ## dist-installer-cli-standalone
 
@@ -286,12 +293,12 @@ cowbuilder_setup_do() {
       ## Might not be required for all platforms but depending on '"$dist_build_virtualbox" = "true"'
       ## might cause issues with reproducibility. Has no effect if not used.
       ## Copy unconditionally for simplicity.
-      $SUDO_TO_ROOT cp -- "$binary_image_installer_dist_source" "$base_folder/usr/bin/$dist_installer_cli_file_name"
-      $SUDO_TO_ROOT chmod o+rx -- "$base_folder/usr/bin/$dist_installer_cli_file_name"
-      $SUDO_TO_ROOT chown --recursive -- "$user_name:$user_name" "$base_folder/home/$user_name"
+      ${SUDO_TO_ROOT} cp -- "${binary_image_installer_dist_source}" "${base_folder}/usr/bin/${dist_installer_cli_file_name}"
+      ${SUDO_TO_ROOT} chmod o+rx -- "${base_folder}/usr/bin/${dist_installer_cli_file_name}"
+      ${SUDO_TO_ROOT} chown --recursive -- "${user_name}:${user_name}" "${base_folder}/home/${user_name}"
 
       cowbuilder_script_list=()
-      cowbuilder_script_list+=("$dist_build_pbuilder_main_chroot_script")
+      cowbuilder_script_list+=("${dist_build_pbuilder_main_chroot_script}")
 
       if [ "${dist_build_virtualbox:-}" = "true" ]; then
          ## Install VirtualBox inside the chroot using 'dist-installer-cli'.
@@ -302,31 +309,31 @@ cowbuilder_setup_do() {
          ## - When '--target virtualbox --arch arm64' (for Mac M1/M2 .ova
          ##   output), an amd64 chroot is explicitly added above; the
          ##   arm64 .vdi is wrapped into an .ova using amd64 'VBoxManage'.
-         if [ "$dist_build_multiarch_package_item" = "amd64" ]; then
-            cowbuilder_script_list+=("$dist_build_pbuilder_virtualbox_chroot_script")
+         if [ "${dist_build_multiarch_package_item}" = "amd64" ]; then
+            cowbuilder_script_list+=("${dist_build_pbuilder_virtualbox_chroot_script}")
          else
-            true "INFO: Skipping VirtualBox install in '$dist_build_multiarch_package_item' chroot; VirtualBox is installed into the amd64 chroot only."
+            true "INFO: Skipping VirtualBox install in '${dist_build_multiarch_package_item}' chroot; VirtualBox is installed into the amd64 chroot only."
          fi
       fi
 
       for cowbuilder_execute_script in "${cowbuilder_script_list[@]}"; do
          cowbuilder_exit_code=0
-         $SUDO_TO_ROOT \
+         ${SUDO_TO_ROOT} \
             ${COWBUILDER_PREFIX:-} \
                ${UNSHARE_PID_NS:-} \
                cowbuilder \
-                  --architecture "$dist_build_multiarch_package_item" \
-                  --configfile "$dist_build_pbuilder_config_file" \
+                  --architecture "${dist_build_multiarch_package_item}" \
+                  --configfile "${dist_build_pbuilder_config_file}" \
                   --execute \
-                  --basepath "$base_folder" \
-                  --buildplace "$cow_folder" \
+                  --basepath "${base_folder}" \
+                  --buildplace "${cow_folder}" \
                   --save-after-login \
                   -- \
-                  "$cowbuilder_execute_script" \
+                  "${cowbuilder_execute_script}" \
                   || { cowbuilder_exit_code="$?" ; true; };
 
-         if [ -d "$base_folder" ]; then
-            $SUDO_TO_ROOT "$dist_source_help_steps_folder/umount_kill.sh" "$base_folder"
+         if [ -d "${base_folder}" ]; then
+            ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" -- "${base_folder}"
          fi
 
          if [ ! "${cowbuilder_exit_code:-}" = "0" ]; then
@@ -335,7 +342,7 @@ cowbuilder_setup_do() {
       done
 
       if [ ! "${cowbuilder_exit_code:-}" = "0" ]; then
-         return "$cowbuilder_exit_code"
+         return "${cowbuilder_exit_code}"
       fi
    done
 

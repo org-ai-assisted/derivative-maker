@@ -37,20 +37,20 @@ true "INFO: Currently running cowbuilder VirtualBox chroot script."
 ## /usr/share/doc/pbuilder/examples/D10tmp
 ## https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=725434;msg=45
 if [ -n "${TMP:-}" ]; then
-   [ -d "$TMP" ] || mkdir -p -- "$TMP" || true
-   chmod 1777 -- "$TMP" || true
+   [ -d "${TMP}" ] || mkdir -p -- "${TMP}" || true
+   chmod 1777 -- "${TMP}" || true
 fi
 if [ -n "${TMPDIR:-}" ]; then
-   [ -d "$TMPDIR" ] || mkdir -p -- "$TMPDIR" || true
-   chmod 1777 -- "$TMPDIR" || true
+   [ -d "${TMPDIR}" ] || mkdir -p -- "${TMPDIR}" || true
+   chmod 1777 -- "${TMPDIR}" || true
 fi
 
 #declare -p | awk '{print $3}' | sort
 
 ## Debugging.
-cat -- "/home/$user_name/pbuilder_config_file"
+cat -- "/home/${user_name}/pbuilder_config_file"
 
-source "/home/$user_name/pbuilder_config_file"
+source "/home/${user_name}/pbuilder_config_file"
 
 ## virtualbox-installer / dist-installer-cli refuses to run as 'root'.
 ## Hence run virtualbox-installer / dist-installer-cli under account 'dm-vbox-temp'.
@@ -58,15 +58,15 @@ source "/home/$user_name/pbuilder_config_file"
 ## {{ code duplication
 ##    - prepare-build-machine
 ##    - pbuilder-chroot-script-virtualbox
-adduser --system --group --home "$HOMEVAR_VBOX_TEMP" -- "dm-vbox-temp" || true
-mkdir --parents -- "$HOMEVAR_VBOX_TEMP"
-chown --recursive -- "dm-vbox-temp:dm-vbox-temp" "$HOMEVAR_VBOX_TEMP"
+adduser --system --group --home "${HOMEVAR_VBOX_TEMP}" -- "dm-vbox-temp" || true
+mkdir --parents -- "${HOMEVAR_VBOX_TEMP}"
+chown --recursive -- "dm-vbox-temp:dm-vbox-temp" "${HOMEVAR_VBOX_TEMP}"
 ## Debugging.
 groups -- "dm-vbox-temp" || true
-ls -la -- "$HOMEVAR_VBOX_TEMP"
+ls -la -- "${HOMEVAR_VBOX_TEMP}"
 ## Sanity test.
 test -d "/"
-ls -la -- "$HOMEVAR_VBOX_TEMP"
+ls -la -- "${HOMEVAR_VBOX_TEMP}"
 ## }}
 
 chown --recursive -- "dm-vbox-temp" "/home/dm-vbox-temp"
@@ -90,11 +90,11 @@ sudo --non-interactive -u "dm-vbox-temp" -- ls -la /usr/bin/dist-installer-cli-s
 
 printf '%s\n' "DIST_APTGETOPT_SERIALIZED:"
 printf '%s\n' "--------------------"
-printf '%s\n' "$DIST_APTGETOPT_SERIALIZED"
+printf '%s\n' "${DIST_APTGETOPT_SERIALIZED}"
 printf '%s\n' "--------------------"
 
 ## Not yet needed but useful as a sanity test.
-mapfile -t DIST_APTGETOPT <<< "$DIST_APTGETOPT_SERIALIZED"
+mapfile -t DIST_APTGETOPT <<< "${DIST_APTGETOPT_SERIALIZED}"
 printf "%s\n" "DIST_APTGETOPT: ${DIST_APTGETOPT[*]}"
 
 ## NOTE: Code duplication in build-step prepare-build-machine
@@ -135,7 +135,7 @@ success="true"
 ## the related aarch64 'sq' panic that qemu 10.2.0 fixes -- this workaround is
 ## not removable by upgrading the build host's qemu.
 ## https://github.com/org-ai-assisted/qemu-x86_64-aes-gcm-miscompile-ppc64el
-if ! sudo --non-interactive -u "dm-vbox-temp" OPENSSL_ia32cap=0 DIST_APTGETOPT_SERIALIZED="$DIST_APTGETOPT_SERIALIZED" bash -x /usr/bin/dist-installer-cli-standalone "${dist_installer_cli_arguments[@]}" ; then
+if ! sudo --non-interactive -u "dm-vbox-temp" OPENSSL_ia32cap=0 DIST_APTGETOPT_SERIALIZED="${DIST_APTGETOPT_SERIALIZED}" bash -x /usr/bin/dist-installer-cli-standalone "${dist_installer_cli_arguments[@]}" ; then
   success=false
 fi
 
@@ -150,7 +150,7 @@ ls -la -- "/home/dm-vbox-temp/dist-installer-cli-download" || true
 #cat -- "/home/dm-vbox-temp/dist-installer-cli-download/logs/$last_run_integer/debug.log"
 #cat -- "/home/dm-vbox-temp/dist-installer-cli-download/logs/$last_run_integer/user.log"
 
-true "INFO: dist-installer-cli-standalone success: $success"
+true "INFO: dist-installer-cli-standalone success: ${success}"
 if [ "${success:-}" = "false" ];then
   error "VirtualBox installer failed inside cowbuilder chroot."
 fi

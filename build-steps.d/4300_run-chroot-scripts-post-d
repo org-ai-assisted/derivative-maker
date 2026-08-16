@@ -13,7 +13,7 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
@@ -27,7 +27,7 @@ hostname_check() {
    ## system temporary file (a copy of the host's /etc/hostname) is bind mounted to the chroot's
    ## /etc/hostname file
    if [ "${dist_build_type_short:-}" = "kicksecure" ]; then
-      one_expected="$dist_build_hostname"
+      one_expected="${dist_build_hostname}"
       two_expected=""
       three_expected=""
       one_actual=$(chroot_run cat -- "/etc/hostname")
@@ -36,14 +36,14 @@ hostname_check() {
    elif [ "${dist_build_type_short:-}" = "whonix" ]; then
       one_expected="host"
       two_expected="host"
-      three_expected="$dist_build_hostname"
+      three_expected="${dist_build_hostname}"
       one_actual=$(chroot_run cat -- "/etc/hostname")
       ## ./packages/whonix/whonix-base-files/etc/hostname.whonix
       two_actual=$(chroot_run cat -- "/etc/hostname.${dist_build_type_short}")
       three_actual=$(chroot_run cat -- "/etc/hostname.${dist_build_type_short}-orig")
    fi
 
-   if [ "${one_actual:-}" != "$one_expected" ] || [ "${two_actual:-}" != "$two_expected" ] || [ "${three_actual:-}" != "$three_expected" ]; then
+   if [ "${one_actual:-}" != "${one_expected}" ] || [ "${two_actual:-}" != "${two_expected}" ] || [ "${three_actual:-}" != "${three_expected}" ]; then
       error "hostname_check failed! See above for variable one_expected etc."
    fi
 
@@ -53,26 +53,26 @@ hostname_check() {
 run-chroot-scripts-post-d() {
    exception_handler_setup "exception_handler_unchroot_unmount" ERR INT TERM
 
-   $SUDO_TO_ROOT sync
+   ${SUDO_TO_ROOT} sync
 
-   "$dist_source_help_steps_folder"/mount-raw "$@"
+   "${dist_source_help_steps_folder}"/mount-raw "$@"
 
-   "$dist_source_help_steps_folder"/prevent-daemons-from-starting "$@"
+   "${dist_source_help_steps_folder}"/prevent-daemons-from-starting "$@"
 
-   "$dist_source_help_steps_folder"/chroot-raw "$@"
+   "${dist_source_help_steps_folder}"/chroot-raw "$@"
 
-   $SUDO_TO_ROOT sync
+   ${SUDO_TO_ROOT} sync
 
    ## Sanity tests.
    chroot_run dir
    chroot_run mount
    chroot_run sync
 
-   "$dist_source_help_steps_folder"/create-local-temp-apt-repo "$@"
+   "${dist_source_help_steps_folder}"/create-local-temp-apt-repo "$@"
 
-   $SUDO_TO_ROOT sync
+   ${SUDO_TO_ROOT} sync
 
-   if [ -d "$CHROOT_FOLDER/usr/libexec/initializer-dist/chroot-scripts-post.d" ]; then
+   if [ -d "${CHROOT_FOLDER}/usr/libexec/initializer-dist/chroot-scripts-post.d" ]; then
       ## Check which chroot scripts we got.
       chroot_run run-parts --verbose --test "/usr/libexec/initializer-dist/chroot-scripts-post.d/"
 
@@ -88,15 +88,15 @@ run-chroot-scripts-post-d() {
 Not running any chroot scripts.${reset}"
    fi
 
-   "$dist_source_help_steps_folder"/remove-local-temp-apt-repo "$@"
+   "${dist_source_help_steps_folder}"/remove-local-temp-apt-repo "$@"
 
-   "$dist_source_help_steps_folder"/unchroot-raw "$@"
+   "${dist_source_help_steps_folder}"/unchroot-raw "$@"
 
    hostname_check
 
-   "$dist_source_help_steps_folder"/unprevent-daemons-from-starting "$@"
+   "${dist_source_help_steps_folder}"/unprevent-daemons-from-starting "$@"
 
-   "$dist_source_help_steps_folder"/unmount-raw "$@"
+   "${dist_source_help_steps_folder}"/unmount-raw "$@"
 
    sync
 }
@@ -122,13 +122,13 @@ main() {
    elif [ "${dist_build_type_long:-}" = "workstation" ]; then
       run-chroot-scripts-post-d "$@"
    elif [ "${dist_build_type_long:-}" = "custom-workstation" ]; then
-      true "${cyan}INFO: Skipping running chroot-post.d scripts for $VMNAME.${reset}"
+      true "${cyan}INFO: Skipping running chroot-post.d scripts for ${VMNAME}.${reset}"
    elif [ "${dist_build_type_long:-}" = "whonix-host" ]; then
       run-chroot-scripts-post-d "$@"
    elif [ "${dist_build_type_short:-}" = "kicksecure" ]; then
       run-chroot-scripts-post-d "$@"
    else
-      error "ERROR: Invalid dist_build_flavor '$dist_build_flavor'. Please report this bug!"
+      error "ERROR: Invalid dist_build_flavor '${dist_build_flavor}'. Please report this bug!"
    fi
 }
 

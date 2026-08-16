@@ -15,7 +15,7 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
@@ -37,13 +37,35 @@ prepare-release(){
    ## to the bind-mounted '$binary_image_ova_file' so it lands on the host.
    ## Signing and upload stay on the host, where the operator's credentials
    ## already are.
-   "$dist_developer_meta_files_folder/usr/bin/dm-prepare-release" "$@"
+   "${dist_developer_meta_files_folder}/usr/bin/dm-prepare-release" "$@"
 
+   true
+}
+
+export-signing-pubkeys(){
+   ## Copy the auto-generated signing PUBLIC keys next to the build output so the
+   ## CI 'repro-checksums' artifact can carry them: the signify '.pub' verifies the
+   ## '.sig' sidecars and the OpenPGP cert verifies the '.asc' sidecars, letting a
+   ## verifier check signatures without the operator's keys. PUBLIC keys ONLY --
+   ## never a secret half. Best-effort: the release already succeeded above, so a
+   ## signing setup that differs must not fail the build here.
+   if [ -z "${binary_build_folder_dist:-}" ] || [ ! -d "${binary_build_folder_dist}" ]; then
+      true "INFO: ${BASH_SOURCE[0]}: no binary_build_folder_dist; skipping public-key export."
+      return 0
+   fi
+   if [ -n "${signify_public_key:-}" ] && [ -r "${signify_public_key:-}" ]; then
+      cp -- "${signify_public_key}" "${binary_build_folder_dist}/derivative-maker-signify.pub" || true
+   fi
+   if [ -n "${DEBEMAIL:-}" ] && has sq; then
+      sq cert export --cert-email "${DEBEMAIL}" \
+         > "${binary_build_folder_dist}/derivative-maker-openpgp.asc" 2>/dev/null || true
+   fi
    true
 }
 
 main() {
    prepare-release "$@"
+   export-signing-pubkeys "$@"
 }
 
 main "$@"

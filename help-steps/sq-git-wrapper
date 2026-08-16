@@ -138,7 +138,7 @@ while (($#)); do
   esac
 done
 
-case "$mode" in
+case "${mode}" in
   verify)
     [ -n "${sigfile:-}" ] || exit_with_error "no signature file supplied"
 
@@ -156,7 +156,7 @@ case "$mode" in
     ## Not using '--signer-email "$DEBEMAIL"':
     ## - Verification will pass if the key is in sq keystore and trusted,
     ##   which is useful for developers 'git verify-commit' or 'git merge'.
-    cmd=( "$sq_bin" verify --signature-file "$sigfile" - )
+    cmd=( "${sq_bin}" verify --signature-file "${sigfile}" - )
 
     log "${cmd[*]}"
 
@@ -164,13 +164,13 @@ case "$mode" in
       printf '%s\n' \
         '[GNUPG:] NEWSIG' \
         '[GNUPG:] GOODSIG UNKNOWN signer-unavailable-via-sq-git-wrapper' \
-        '[GNUPG:] TRUST_FULLY 0' >&"$status_fd"
+        '[GNUPG:] TRUST_FULLY 0' >&"${status_fd}"
       exit 0
     else
       printf '%s\n' \
         '[GNUPG:] NEWSIG' \
-        '[GNUPG:] ERRSIG UNKNOWN 0 0 00 0 1 UNKNOWN' >&"$status_fd"
-      log "ERROR: '$sq_bin' verify failed"
+        '[GNUPG:] ERRSIG UNKNOWN 0 0 00 0 1 UNKNOWN' >&"${status_fd}"
+      log "ERROR: '${sq_bin}' verify failed"
       exit 1
     fi
     ;;
@@ -178,20 +178,20 @@ case "$mode" in
   sign)
     [ -n "${signing_key:-}" ] || exit_with_error "no signing key supplied"
 
-    cmd=( "$sq_bin" sign )
+    cmd=( "${sq_bin}" sign )
 
-    case "$signing_key" in
+    case "${signing_key}" in
       *'<'*'>'*)
-        cmd+=( --signer-userid "$signing_key" )
+        cmd+=( --signer-userid "${signing_key}" )
         ;;
       *@*)
-        cmd+=( --signer-email "$signing_key" )
+        cmd+=( --signer-email "${signing_key}" )
         ;;
       *[[:space:]]*)
-        cmd+=( --signer-userid "$signing_key" )
+        cmd+=( --signer-userid "${signing_key}" )
         ;;
       *)
-        cmd+=( --signer "$signing_key" )
+        cmd+=( --signer "${signing_key}" )
         ;;
     esac
 
@@ -202,11 +202,11 @@ case "$mode" in
 
     if "${cmd[@]}"; then
       ## Git expects GnuPG status on stderr for signing.
-      printf '[GNUPG:] SIG_CREATED D 1 0 00 0 0 0\n' >&"$status_fd"
+      printf '[GNUPG:] SIG_CREATED D 1 0 00 0 0 0\n' >&"${status_fd}"
       exit 0
     else
-      printf '[GNUPG:] FAILURE sign 1\n' >&"$status_fd"
-      log "ERROR: '$sq_bin' sign failed for signer: $signing_key"
+      printf '[GNUPG:] FAILURE sign 1\n' >&"${status_fd}"
+      log "ERROR: '${sq_bin}' sign failed for signer: ${signing_key}"
       exit 1
     fi
     ;;

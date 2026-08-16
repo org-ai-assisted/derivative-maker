@@ -32,9 +32,7 @@ name: Boot Test
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - '**ci**'
+  ## Dispatch-only: dm-ci-dispatch --workflow local-boot-test.yml --ref <ref>
   schedule:
     ## Weekly, Sundays 08:00 UTC (offset from the build lane at 07:00).
     - cron: '0 8 * * 0'
@@ -61,7 +59,11 @@ env:
 jobs:
   build:
     ## Fork-PR guard (rule 3).
-    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
+    ## CI runs only where we enabled it; ANDed with the existing guard.
+    ## Unset variable -> skipped, no runner, run stays green.
+    if: >-
+      vars.CI_ENABLED_ORG_AI_ASSISTED == 'true'
+      && (github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request')
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     strategy:
@@ -74,11 +76,11 @@ jobs:
           ## -> qcow2 disk image (also builds the VirtualBox ova).
           - flavor: kicksecure-debug
             image_kind: qcow2
-            upload_glob: Kicksecure-*.qcow2*
+            upload_glob: "*.qcow2*"
           ## -> live ISO (same package set, live-booted).
           - flavor: kicksecure-debug
             image_kind: iso
-            upload_glob: Kicksecure-*.iso
+            upload_glob: "*.iso"
     steps:
       - name: Checkout repository (no submodules yet)
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -110,7 +112,11 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.dm-docker-image
-          key: ${{ runner.os }}-boot-dmimg-${{ hashFiles('docker/**') }}
+          ## The frozen sources file is part of the key because the image's apt
+          ## is pinned to the timestamp it carries: without it a snapshot bump
+          ## would reuse an image built against the previous snapshot, silently
+          ## restoring the mismatch the pin exists to prevent.
+          key: ${{ runner.os }}-boot-dmimg-${{ hashFiles('docker/**', 'build_sources/frozen-snapshot-timestamp', 'build_sources/debian_stable_frozen_direct_clearnet.sources') }}
 
       - name: Load cached docker image
         if: steps.dmimg-cache.outputs.cache-hit == 'true'
@@ -173,19 +179,20 @@ jobs:
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/cowbuilder-base-cache
-          key: ${{ runner.os }}-boot-cowbase-${{ matrix.flavor }}-${{ env.BOOT_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-boot-cowbase-${{ matrix.flavor }}-${{ env.BOOT_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**', 'help-steps/mmdebstrap', 'help-steps/pbuilder-hooks/**') }}-${{ github.run_id }}
           restore-keys: |
-            ${{ runner.os }}-boot-cowbase-${{ matrix.flavor }}-${{ env.BOOT_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**') }}-
+            ${{ runner.os }}-boot-cowbase-${{ matrix.flavor }}-${{ env.BOOT_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**', 'help-steps/mmdebstrap', 'help-steps/pbuilder-hooks/**') }}-
 
       - name: Unpack cowbuilder base into place (temporary speed-up)
         if: env.BASE_CACHE == 'true'
         run: ./ci/cowbuilder-base-cache unpack
 
       - name: Build ${{ matrix.flavor }} via dm-build-official (${{ env.BOOT_ARCH }})
+        id: dm-build
         ## Build through the official orchestration -- the SAME single build path as
         ## local-build.yml, no duplication. dm-build-official does NOT sign, and the
         ## build's sq-git check rejects an unsigned HEAD, so mint an ephemeral CI key
-        ## and sign+tag HEAD FIRST (mirrors ci/build). All three run in ONE
+        ## and sign+tag HEAD FIRST. All three run in ONE
         ## docker-run so the home-directory state signing-key-create creates persists
         ## into sign-and-tag and the build. rule 4: shell vars from env, no ${{ }}
         ## interpolation into run:.
@@ -202,16 +209,22 @@ jobs:
           ## so the non-iso job builds only the qcow2 and skips the raw->vdi->ova
           ## conversion. Restore 'virtualbox qcow2' below to re-enable vbox.
           MULTI_TARGET_LIST: ${{ matrix.image_kind != 'iso' && 'qcow2' || '' }}
-          ## Pass --reuse-cowbuilder-base only when the base cache is enabled (the
-          ## unpack step above restored a frozen base under a recipe-tracking key);
-          ## 1300_cowbuilder-setup then reuses it if present, else builds a fresh one.
+          ## Reusing a base the cache never restored would hand
+          ## 1300_cowbuilder-setup a stale or absent tree, so the flag is tied to
+          ## BASE_CACHE rather than set unconditionally.
           COWBASE_REUSE_FLAG: ${{ env.BASE_CACHE == 'true' && '--reuse-cowbuilder-base' || '' }}
+          ## '--smbios-reader true' below: this lane's images are the only ones
+          ## that need the GRUB SMBIOS cmdline reader, because dm-qemu selects the
+          ## session and the serial console through it. It is default OFF, so a
+          ## released image carries no reader -- without this flag every boot leg
+          ## would time out with a 0-byte serial log rather than fail loudly.
         run: >-
           ./docker/derivative-maker-docker-run --
-          bash -c "./help-steps/signing-key-create && ./help-steps/sign-and-tag &&
+          bash -c "export dist_build_sign_and_tag=true &&
+          ./help-steps/signing-key-create && ./help-steps/sign-and-tag &&
           env dist_build_target_arch='${ARCH}' flavors_list='${FLAVOR}'
           dist_build_multi_target_list='${MULTI_TARGET_LIST}'
-          ./help-steps/dm-build-official --freshness '${FRESHNESS}' ${COWBASE_REUSE_FLAG}"
+          ./help-steps/dm-build-official --freshness '${FRESHNESS}' --smbios-reader true ${COWBASE_REUSE_FLAG}"
 
       - name: Save docker image to cache
         if: steps.dmimg-cache.outputs.cache-hit != 'true'
@@ -260,12 +273,18 @@ jobs:
           path: ~/approx_cache_mnt
           key: ${{ runner.os }}-boot-aptdl-${{ matrix.flavor }}-${{ env.BOOT_ARCH }}-${{ github.run_id }}
 
+      ## Save ONLY after a successful build. 1300_cowbuilder-setup's reuse health
+      ## check is a single test -- '/dev/ptmx' is a character device -- which a
+      ## partially created base can satisfy, so a base packed from a run that died
+      ## during creation would restore as the newest prefix match and poison every
+      ## later run. Skipping the save on failure costs one cold base; caching a
+      ## broken one costs every subsequent build until someone notices.
       - name: Save cowbuilder base cache (temporary speed-up)
-        if: always() && env.BASE_CACHE == 'true'
+        if: env.BASE_CACHE == 'true' && steps.dm-build.outcome == 'success'
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/cowbuilder-base-cache
-          key: ${{ runner.os }}-boot-cowbase-${{ matrix.flavor }}-${{ env.BOOT_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**') }}-${{ github.run_id }}
+          key: ${{ runner.os }}-boot-cowbase-${{ matrix.flavor }}-${{ env.BOOT_ARCH }}-${{ hashFiles('build-steps.d/1300_cowbuilder-setup', 'build_sources/**', 'help-steps/mmdebstrap', 'help-steps/pbuilder-hooks/**') }}-${{ github.run_id }}
 
       - name: Upload built ${{ matrix.image_kind }} image
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -275,22 +294,30 @@ jobs:
           if-no-files-found: error
           retention-days: 2
 
-      - name: Upload built .ova (virtualbox)
-        ## vbox temporarily disabled (re-enable once stable): the non-iso job no
-        ## longer builds the .ova (MULTI_TARGET_LIST above). Re-enable by setting
-        ## 'if:' back to: matrix.image_kind == 'qcow2' (and restore 'virtualbox
-        ## qcow2' in MULTI_TARGET_LIST + the 'vbox' image_kind in the boot matrix).
-        if: false
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: boot-image-vbox
-          path: /home/runner/binary_mnt/**/Kicksecure-*.ova
-          if-no-files-found: error
-          retention-days: 2
+      ## vbox temporarily disabled (re-enable once stable): the non-iso job no
+      ## longer builds the .ova (MULTI_TARGET_LIST above). Re-enable by
+      ## uncommenting this step with 'if: matrix.image_kind == 'qcow2'' (and
+      ## restoring 'virtualbox qcow2' in MULTI_TARGET_LIST + the 'vbox' image_kind
+      ## in the boot matrix).
+      ##
+      ## Commented out rather than left as 'if: false', which actionlint rejects as
+      ## a constant condition -- the same way the other disabled vbox pieces are.
+      # - name: Upload built .ova (virtualbox)
+      #   if: matrix.image_kind == 'qcow2'
+      #   uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      #   with:
+      #     name: boot-image-vbox
+      #     path: /home/runner/binary_mnt/**/*.ova
+      #     if-no-files-found: error
+      #     retention-days: 2
 
   boot-test:
     needs: build
-    if: github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request'
+    ## CI runs only where we enabled it; ANDed with the existing guard.
+    ## Unset variable -> skipped, no runner, run stays green.
+    if: >-
+      vars.CI_ENABLED_ORG_AI_ASSISTED == 'true'
+      && (github.event.pull_request.head.repo.full_name == github.repository || github.event_name != 'pull_request')
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:

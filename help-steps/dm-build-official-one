@@ -41,20 +41,33 @@ true "INFO: 0: $0"
 
 ## '--show-steps' is an alias for 'TESTING_MODE=1'. Filtered out of the
 ## forwarded arguments because the downstream build steps do not know it.
+##
+## The same pass records whether '--dry-run true' was requested. It has to be
+## read from ARGV here: $build_dry_run is set by 'help-steps/parse-cmd', which
+## runs DOWNSTREAM of this script, so the option alone never reached the
+## '~/.ssh' check below and only an exported CI=true suppressed it -- despite
+## that check documenting dry-run as a reason to skip. '--dry-run' is forwarded
+## unchanged; unlike '--show-steps' the build steps do know it.
 forwarded_args=()
+previous_arg=""
+dry_run_requested=false
 for arg_item in "$@"; do
-  if [ "$arg_item" = "--show-steps" ]; then
+  if [ "${previous_arg}" = "--dry-run" ] && [ "${arg_item}" = "true" ]; then
+    dry_run_requested=true
+  fi
+  previous_arg="${arg_item}"
+  if [ "${arg_item}" = "--show-steps" ]; then
     TESTING_MODE=1
     export TESTING_MODE
   else
-    forwarded_args+=("$arg_item")
+    forwarded_args+=("${arg_item}")
   fi
 done
-set -- ${forwarded_args[@]+"${forwarded_args[@]}"}
+set -- "${forwarded_args[@]}"
 
 if [ "${CI:-}" = "true" ]; then
   true "INFO: Skipping test if folder ~/.ssh exists on CI."
-elif [ "${build_dry_run:-}" = "true" ]; then
+elif [ "${build_dry_run:-}" = "true" ] || [ "${dry_run_requested}" = "true" ]; then
   ## '--dry-run true' is documented (see 'help-steps/parse-cmd') as
   ## "useful for debugging dm-prepare-release"; rsync is mocked
   ## (see 'help-steps/variables' '$rsync_cmd' default for dry-run),
@@ -73,7 +86,7 @@ fi
 ## - Official builds default to Intel/AMD64 at the time of writing.
 build_args=()
 if ! [ "${dist_build_target_arch:-}" = "" ]; then
-  architecture="$dist_build_target_arch"
+  architecture="${dist_build_target_arch}"
 elif [ "${CI:-}" = "true" ]; then
   architecture=arm64
   ## Build the Kicksecure/Whonix derivative packages from source rather than
@@ -85,7 +98,7 @@ elif [ "${CI:-}" = "true" ]; then
 else
   architecture="amd64"
 fi
-build_args+=(--arch "$architecture")
+build_args+=(--arch "${architecture}")
 
 ## Ordered as follows for the following reasons:
 ## - 1) Build '--flavor kicksecure-lxqt' because building ISO, which is newer,
@@ -184,7 +197,7 @@ esac
 flavor_multi_target_args=()
 if [ -n "${dist_build_multi_target_list+x}" ]; then
   for multi_target_item in ${dist_build_multi_target_list}; do
-    flavor_multi_target_args+=("--target" "$multi_target_item")
+    flavor_multi_target_args+=("--target" "${multi_target_item}")
   done
 else
   flavor_multi_target_args=("${multi_target_args[@]}")
@@ -205,7 +218,12 @@ fi
 for flavor_item in "${flavors_list[@]}"; do
   ## Not yet using multi_target_args as the sanity test for Whonix-Gateway ISO would complain that the VMs
   ## have not been built yet.
-  run_cmd ./build-steps.d/*_sanity-tests "${build_args[@]}" --target windows "${multi_target_args[@]}" --flavor "$flavor_item" "$@"
+  ## '--target windows' commented out: see ~/TODO.md "osslsigncode / Windows
+  ## installer target". It pulls in the VirtualBox Windows installer download
+  ## and an Authenticode verify that fetches CRLs over the network at verify
+  ## time, which made an offline build depend on a live external fetch and
+  ## failed CI outright.
+  run_cmd ./build-steps.d/*_sanity-tests "${build_args[@]}" "${multi_target_args[@]}" --flavor "${flavor_item}" "$@"
 done
 
 ############################################################
@@ -250,7 +268,10 @@ done
 ## cowbuilder-setup / local-dependencies, because ISO builds need additional
 ## dependencies (live-build) and '--target windows' triggers the VirtualBox
 ## Windows installer download.
-run_cmd ./build-steps.d/*_prepare-build-machine "${build_args[@]}" --target iso --target windows "${multi_target_args[@]}" --flavor source "$@"
+## '--target windows' commented out here too (same reason as above): this is the
+## call whose '--target windows' actually triggered the VirtualBox installer
+## download and the osslsigncode verify that failed in CI.
+run_cmd ./build-steps.d/*_prepare-build-machine "${build_args[@]}" --target iso "${multi_target_args[@]}" --flavor source "$@"
 run_cmd ./build-steps.d/*_cowbuilder-setup "${build_args[@]}" --target iso --target windows "${multi_target_args[@]}" --flavor source "$@"
 run_cmd ./build-steps.d/*_local-dependencies "${build_args[@]}" --target iso --target windows "${multi_target_args[@]}" --flavor source "$@"
 
@@ -293,7 +314,7 @@ for flavor_item in "${flavors_list[@]}"; do
       ## kicksecure-debug boot-test flavor (a minimal live ISO for fast CI
       ## iteration). Not for Kicksecure CLI. Not yet for Whonix.
       true "INFO: ISO build flavor."
-      run_cmd ./derivative-maker "${build_args[@]}" "${skip_shared_args[@]}" --target iso --flavor "$flavor_item" "$@"
+      run_cmd ./derivative-maker "${build_args[@]}" "${skip_shared_args[@]}" --target iso --flavor "${flavor_item}" "$@"
       ;;
     *)
       true "INFO: Non-ISO build flavor."
@@ -304,7 +325,7 @@ for flavor_item in "${flavors_list[@]}"; do
   ## flavor_multi_target_args / dist_build_multi_target_list above: an ISO-only leg
   ## sets it empty so only the ISO built above is produced).
   if [ "${#flavor_multi_target_args[@]}" -gt 0 ]; then
-    run_cmd ./derivative-maker "${build_args[@]}" "${skip_shared_args[@]}" "${flavor_multi_target_args[@]}" --flavor "$flavor_item" "$@"
+    run_cmd ./derivative-maker "${build_args[@]}" "${skip_shared_args[@]}" "${flavor_multi_target_args[@]}" --flavor "${flavor_item}" "$@"
   else
     true "INFO: dist_build_multi_target_list empty: no multi-target VM image build for ${flavor_item}."
   fi
@@ -326,13 +347,36 @@ fi
 ## Phase 4: source release + image upload.
 ############################################################
 
+## Only the SOURCE release runs dm-prepare-release here, and that is correct, not
+## a gap: 'build-steps.d/5200_prepare-release' already ran it once per flavor and
+## target inside each Phase 3 './derivative-maker' invocation, which is where
+## every per-image '<image>.dm-buildinfo' comes from and where it is signed.
+## './derivative-maker' iterates ALL of build-steps.d, and Phase 3's
+## $skip_shared_args skips only prepare-build-machine, cowbuilder-setup,
+## local-dependencies and published-packages -- never 5200. Adding a per-image
+## dm-prepare-release call here would re-run and re-sign work already done.
+##
+## The source archive is the exception: it is not produced by a per-flavor image
+## build, so its release step has no earlier invocation to rely on.
+##
 ## Same source code for all of the following:
 ## - desktop: LXQt versus CLI
 ## - target: Kicksecure versus Whonix.
 ## - architecture: all
-if flavor_built "kicksecure-lxqt"; then
-  run_cmd dm-prepare-release --target source --flavor "kicksecure-lxqt" "$@"
-  run_cmd dm-upload-images --target source --flavor "kicksecure-lxqt" "$@"
+##
+## The flavor is a variable rather than a literal: the source archive is
+## flavor-independent, but this step only runs 'if flavor_built', so a reduced
+## flavors_list that excludes the hardcoded name silently skipped the source
+## release entirely -- a CI lane built images and published no source. Override
+## with 'dist_build_source_release_flavor' when running a matrix that does not
+## include the default.
+[ -n "${dist_build_source_release_flavor:-}" ] || dist_build_source_release_flavor='kicksecure-lxqt'
+
+if flavor_built "${dist_build_source_release_flavor}"; then
+  run_cmd dm-prepare-release --target source --flavor "${dist_build_source_release_flavor}" "$@"
+  run_cmd dm-upload-images --target source --flavor "${dist_build_source_release_flavor}" "$@"
+else
+  true "INFO: ${BASH_SOURCE[0]}: no source release: dist_build_source_release_flavor='${dist_build_source_release_flavor}' is not in flavors_list."
 fi
 if flavor_built "whonix-workstation-lxqt"; then
   run_cmd dm-upload-images --target source --flavor "whonix-workstation-lxqt" "$@"
@@ -348,7 +392,7 @@ fi
 
 ## Uploading.
 for flavor_item in "${flavors_list[@]}"; do
-  if printf '%s\n' "$flavor_item" | grep -- "gateway" &>/dev/null; then
+  if printf '%s\n' "${flavor_item}" | grep -- "gateway" &>/dev/null; then
     ## Not needed for gateway due to unified images.
     continue
   fi
@@ -356,7 +400,7 @@ for flavor_item in "${flavors_list[@]}"; do
   case "${flavor_item:-}" in
     kicksecure-lxqt)
       true "INFO: ISO build flavor."
-      run_cmd dm-upload-images "${build_args[@]}" --target iso --flavor "$flavor_item" "$@"
+      run_cmd dm-upload-images "${build_args[@]}" --target iso --flavor "${flavor_item}" "$@"
       ;;
     *)
       true "INFO: Non-ISO build flavor."
@@ -367,7 +411,7 @@ for flavor_item in "${flavors_list[@]}"; do
   ## --target to its own destination via the parallel upload-location array), or
   ## skip when its target list is empty (their files were not built above).
   if [ "${#flavor_multi_target_args[@]}" -gt 0 ]; then
-    run_cmd dm-upload-images "${build_args[@]}" "${flavor_multi_target_args[@]}" --flavor "$flavor_item" "$@"
+    run_cmd dm-upload-images "${build_args[@]}" "${flavor_multi_target_args[@]}" --flavor "${flavor_item}" "$@"
   else
     true "INFO: dist_build_multi_target_list empty: no multi-target image upload for ${flavor_item}."
   fi

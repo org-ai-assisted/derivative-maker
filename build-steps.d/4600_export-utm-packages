@@ -16,7 +16,7 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
@@ -28,15 +28,15 @@ export_utm_packages() {
    ## move image file
    ## copy configs
    mkdir --parents "${binary_image_utm_folder}/Data"
-   $SUDO_TO_ROOT chown "$user_name:$user_name" "$binary_image_raw_file"
+   ${SUDO_TO_ROOT} chown "${user_name}:${user_name}" "${binary_image_raw_file}"
    ## copy instead of move the raw image
    ## disadvantage:
    ## - requires more disk space
    ## advantage:
    ## - makes this step idempotent, easier to test and debug
    ## - can CI test dm-prepare-release
-   cp "$binary_image_raw_file" "${binary_image_utm_folder}/Data/${VMNAME}.raw"
-   cp "$source_utm_file" "${binary_image_utm_folder}/config.plist"
+   cp -- "${binary_image_raw_file}" "${binary_image_utm_folder}/Data/${VMNAME}.raw"
+   cp -- "${source_utm_file}" "${binary_image_utm_folder}/config.plist"
 
    ## Fill in correct architecture and target in UTM template files.
    local utm_arch
@@ -48,11 +48,11 @@ export_utm_packages() {
       utm_target="q35"
    fi
 
-   $str_replace_tool "_ARCH_"   "${utm_arch}"   "${binary_image_utm_folder}/config.plist"
-   $str_replace_tool "_TARGET_" "${utm_target}" "${binary_image_utm_folder}/config.plist"
+   ${str_replace_tool} "_ARCH_"   "${utm_arch}"   "${binary_image_utm_folder}/config.plist"
+   ${str_replace_tool} "_TARGET_" "${utm_target}" "${binary_image_utm_folder}/config.plist"
 
    ## Fill in correct flavor for raw image filename and VM name as it appears on UTM.
-   $str_replace_tool "_FLAVOR_" "${VMNAME}" "${binary_image_utm_folder}/config.plist"
+   ${str_replace_tool} "_FLAVOR_" "${VMNAME}" "${binary_image_utm_folder}/config.plist"
 
    ## TODO: This should be moved to dm-prepare-release.
    ##       But good enough to keep it here as long as UTM builds are not redistributed.
@@ -69,7 +69,7 @@ export_utm_packages() {
       --mtime='2015-10-21 00:00Z' \
       --gzip \
       --file="${dist_binary_build_folder}/${VMNAME}.utm.tar.gz" \
-      "$binary_image_utm_folder"
+      "${binary_image_utm_folder}"
 
    ## Safe disk space.
    safe-rm -r -- "${binary_image_utm_folder}"

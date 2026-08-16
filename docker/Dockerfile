@@ -21,10 +21,28 @@ HOME=/home/user
 ARG DM_UID=1000
 ENV DM_UID=${DM_UID}
 
-COPY derivative-maker-docker-setup /usr/bin
-COPY build-data/docker-entrypoint.target /etc/systemd/system
-COPY build-data/docker-entrypoint.service /etc/systemd/system
-COPY build-data/docker-entrypoint-stop.sh /usr/bin
+## Trust store first: the pinned sources below are https, and the slim base image
+## has no ca-certificates (Priority: standard, so not in the base system). Runs
+## against the base image's live sources -- the one unpinned fetch here, explained
+## in the script.
+COPY docker/apt-bootstrap-ca-certificates /usr/bin
+RUN chmod 0755 /usr/bin/apt-bootstrap-ca-certificates \
+    && /usr/bin/apt-bootstrap-ca-certificates
+
+## The frozen sources file the build itself pins, fetched directly rather than
+## through approx. Landed outside apt's default locations on purpose: setup passes
+## '-o Dir::Etc::sourcelist' at it and '-o Dir::Etc::sourceparts=-', so this is the
+## only source apt reads and the base image's own sources need no overwriting.
+COPY build_sources/debian_stable_frozen_direct_clearnet.sources /etc/apt/dm-frozen.sources
+
+## COPY preserves the source file mode, and under a hardened umask (027/007) the
+## checked-out file is 0660, which apt cannot read as another user.
+RUN chmod 0644 /etc/apt/dm-frozen.sources
+
+COPY docker/derivative-maker-docker-setup /usr/bin
+COPY docker/build-data/docker-entrypoint.target /etc/systemd/system
+COPY docker/build-data/docker-entrypoint.service /etc/systemd/system
+COPY docker/build-data/docker-entrypoint-stop.sh /usr/bin
 
 RUN /usr/bin/derivative-maker-docker-setup
 
@@ -38,8 +56,8 @@ LABEL org.opencontainers.image.documentation="https://www.kicksecure.com/wiki/De
 LABEL org.opencontainers.image.version="1.0"
 LABEL org.opencontainers.image.vendor="ENCRYPTED SUPPORT LLC"
 
-COPY entrypoint.sh /usr/bin
-COPY derivative-maker-docker-start /usr/bin
+COPY docker/entrypoint.sh /usr/bin
+COPY docker/derivative-maker-docker-start /usr/bin
 
 ## COPY preserves the source file mode; under a hardened umask (e.g. 027/007)
 ## the checked-out scripts are 0770 (no world-exec), so once COPY'd 0770

@@ -7,6 +7,60 @@
 
 ## Resolve target_home via getent rather than '/home/<user>/' to
 ## avoid baking the OS's home-dir convention into this script.
+##
+## An IMAGE target in addition to the source target, because the release path
+## behaves differently for the two and only the image path is interesting.
+##
+## 'qcow2', not 'raw': parse-cmd marks raw 'dist_build_image_upload_supported=false'
+## and dm-upload-images refuses it ("upload support for this --target is not yet
+## implemented"), so a raw lane dies in Phase 4 by design. qcow2 is upload-supported
+## and is the target the real build lanes use.
+##
+## 'CI=true' on the env prefix, not inherited: 'help-steps/run-as-user' hands off
+## with 'sudo --preserve-env=PATH', which preserves PATH and NOTHING ELSE, so the
+## workflow's 'docker exec --env CI=true' reaches ci/dry-run but NOT the build --
+## where 'help-steps/variables' then defaults it to 'false'. Every CI branch was
+## therefore unexercised by the lane whose job is to gate CI: parse-cmd's
+## real-vs-dry decision for CI builds, dm-build-official's 'derivative-update
+## --update-only', dm-build-official-one's rsync mock, and
+## 5300_free-build-scratch. The env prefix is the supported way across
+## run-as-user; the real lane gets the same value from the container environment.
+##
+## 'dist_build_target_arch=amd64' comes with it: under CI, dm-build-official-one
+## selects arm64 by default, and the runners are amd64. local-build.yml pins the
+## same value for the same reason.
+##
+## The flavor and targets are passed as 'flavors_list' / 'dist_build_multi_target_list',
+## NOT as '--flavor' / '--target'. dm-build-official composes its own
+## '--flavor <item>' per flavor and its own '--target' set, and forwards "$@" on
+## top, so an option given here arrives TWICE and the build dies on
+## "You cannot use --flavor multiple times!". This is also the shape the real CI
+## build lane uses.
+##
+## 'kicksecure-lxqt' is the DEFAULT of dist_build_source_release_flavor, which
+## Phase 4's source release is gated on. A lighter flavor is now possible -- set
+## both flavors_list and dist_build_source_release_flavor together -- but the
+## lane is kept on the combination that has actually been validated end to end.
+## Setting only flavors_list would skip the source release, the step this lane
+## exists to cover; Phase 4 now reports that rather than doing it silently.
+##
+## Not '--flavor source': the flavor selects SHORT_VMNAME, which names the libvirt
+## XML 1600_export-libvirt-xml copies for every raw/qcow2 target. 'source' has no
+## such XML, so that combination dies ~15 minutes in on
+## 'cp: cannot stat .../source.xml'. 1600 now skips a source build outright, so
+## the combination is harmless; the flavor here is chosen so the lane is VALID,
+## not so it dodges a guard.
+## dm-prepare-release records an empty target name for the source archive and so
+## SKIPS the per-image work: the reproducibility buildinfo is emitted only for
+## virtualbox/raw/qcow2/iso. An image target is therefore what makes the real
+## caller exercise dm-reproducible-buildinfo and the sign_and_verify of its output.
+##
+## '--freshness frozen' is mandatory for dm-build-official and is the right value
+## here regardless: it pins the snapshot.debian.org suite, so the lane does not
+## start failing because a live mirror moved.
+##
+## It is cheap: 'help-steps/variables' pins VMSIZE to 1M under --dry-run, so this
+## is a 1 MB image through sha512sum, mktorrent and signing, not 100G.
 
 set -o errexit
 set -o nounset
@@ -19,13 +73,82 @@ target_user=builder
 
 cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../.."
 
-timeout 1200 \
+## 3600, not 1200: the run takes ~35 min -- apt in 1200, the cowbuilder base in
+## 1300, and one real '.deb' built in 1400 -- and a timeout that fires mid-build
+## reads as a lane failure with no diagnosis. NOT the derivative package set:
+## 2100_create-debian-packages returns immediately under --dry-run.
+timeout 3600 \
    ./help-steps/run-as-user --chown "${PWD}" -- \
       "${target_user}" \
-      ./derivative-maker \
+      env CI=true \
+          dist_build_sign_and_tag=true \
+          dist_build_target_arch=amd64 \
+          flavors_list=kicksecure-lxqt dist_build_multi_target_list=qcow2 \
+      ./help-steps/dm-build-official \
          --dry-run true \
          --unsupported-os true \
          --allow-uncommitted true \
          --allow-untagged true \
-         --flavor source \
-         --target source
+         --freshness frozen
+
+## Exit 0 alone is not evidence. Most build steps return early under --dry-run,
+## so a regression that made one MORE step return early would leave this lane
+## green while covering less -- the failure this whole lane exists to prevent.
+## Assert the artifacts the run is supposed to have produced.
+##
+## Resolve it for the TARGET USER, not from this script's environment. The build
+## runs through help-steps/run-as-user, whose 'sudo --preserve-env=PATH' does NOT
+## carry binary_build_folder_dist across, so the build derives its own from the
+## build user's home. Trusting the caller's value here made these assertions
+## inspect a directory the build never writes: an empty mount, reported as
+## "the build exited 0 but produced nothing" when it had in fact produced
+## everything, one directory over.
+##
+## getent rather than '/home/<user>', so the OS's home-dir convention is not
+## baked in.
+target_home="$( getent passwd "${target_user}" | cut -d: -f6 )"
+if [ -z "${target_home}" ]; then
+   printf '%s\n' "${0##*/}: ERROR: no home directory for build user '${target_user}'; cannot locate the build output." >&2
+   exit 1
+fi
+binary_dir="${target_home}/derivative-binary"
+
+assert_produced() {
+   local description="$1" pattern="$2" hit
+
+   hit="$(find "${binary_dir}" -type f -name "${pattern}" -print -quit 2>/dev/null)"
+   if [ -z "${hit}" ]; then
+      printf '%s\n' "${0##*/}: ERROR: ${description}: no '${pattern}' under '${binary_dir}'. The build exited 0 but produced nothing, so this lane verified nothing." >&2
+      exit 1
+   fi
+   printf '%s\n' "${0##*/}: ok: ${description} (${hit})" >&2
+}
+
+## The image target exists so the release path runs for a real image: that is what
+## makes dm-prepare-release invoke dm-reproducible-buildinfo and sign it.
+## '*.qcow2.libvirt.xz', not '*.qcow2*': the loose glob also matches
+## '<image>.qcow2.libvirt.xz.dm-buildinfo', so it was satisfied by the buildinfo
+## file the NEXT assertion checks -- green without an image ever existing.
+assert_produced "qcow2 image built" '*.qcow2.libvirt.xz'
+## '*.qcow2.libvirt.xz.dm-buildinfo', not '*.dm-buildinfo': Phase 3 builds the ISO
+## leg FIRST and dm-prepare-release emits a buildinfo for it too, so the loose
+## glob is satisfied by the ISO's -- green even if the qcow2 leg emitted none.
+assert_produced "reproducibility buildinfo emitted by dm-prepare-release" '*.qcow2.libvirt.xz.dm-buildinfo'
+
+## The buildinfo must carry the pre-sign provenance, not the 'unrecorded' fallback.
+## dm-reproducible-buildinfo reads '${binary_build_folder_dist}/dm-source-state',
+## which sign-and-tag wrote in step 200 BEFORE amending anything, and validates it;
+## 'unrecorded' here means that file was missing or did not validate, so the
+## released record would name the post-amend commit -- which nobody can fetch.
+## That validation lives in the developer-meta-files submodule, so this assertion
+## is only meaningful while the gitlink carries it.
+buildinfo_file="$(find "${binary_dir}" -type f -name '*.qcow2.libvirt.xz.dm-buildinfo' -print -quit)"
+## Both halves: a buildinfo with NO Source-Commit field, or an empty one, is not
+## "recorded provenance" either -- and testing only for the literal 'unrecorded'
+## let it pass and report success.
+if ! grep --quiet --extended-regexp -- '^Source-Commit: [^[:space:]]' "${buildinfo_file}" \
+   || grep --quiet --fixed-strings -- 'Source-Commit: unrecorded' "${buildinfo_file}"; then
+   printf '%s\n' "${0##*/}: ERROR: buildinfo carries no recorded Source-Commit, but sign-and-tag ran in step 200 and should have left a source-state file." >&2
+   exit 1
+fi
+printf '%s\n' "${0##*/}: ok: buildinfo carries recorded provenance." >&2

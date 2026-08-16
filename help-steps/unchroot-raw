@@ -8,34 +8,66 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-source "$MYDIR/pre"
-source "$MYDIR/variables"
+source "${MYDIR}/pre"
+source "${MYDIR}/variables"
 
-error_handler_unchroot-raw() {
+error_handler_unchroot_raw() {
    : echo "
-${red}${bold}BASH_COMMAND${reset}: $BASH_COMMAND
+${red}${bold}BASH_COMMAND${reset}: ${BASH_COMMAND}
 ${red}${bold}ERROR ${BASH_SOURCE[0]}: | caller: $(caller)${reset}
 "
    exit 1
 }
 
+## Bare metal install: '$CHROOT_FOLDER' is EMPTY ('help-steps/variables'), so
+## every path below names the HOST's own file. A tree sweep or a process reaper
+## would therefore act on the running system, and both are skipped in favour of
+## unmounting exactly the paths the build bind-mounted itself: chroot-raw binds
+## etc/{resolv.conf,hosts,hostname}, create-local-temp-apt-repo binds the
+## per-derivative apt repository.
+unmount_install_to_root_binds() {
+   local derivative_name_item
+
+   for derivative_name_item in ${derivative_name_list} ; do
+      "${dist_source_help_steps_folder}/unmount-helper" -- "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}/${derivative_name_item}"
+   done
+
+   ## Also possibly unmount '.backup' file for bare metal builds.
+   "${dist_source_help_steps_folder}/unmount-helper" -- "${CHROOT_FOLDER}/etc/resolv.conf"
+   "${dist_source_help_steps_folder}/unmount-helper" -- "${CHROOT_FOLDER}/etc/hosts"
+   "${dist_source_help_steps_folder}/unmount-helper" -- "${CHROOT_FOLDER}/etc/hostname"
+}
+
 main() {
-   trap "error_handler_unchroot-raw" ERR INT TERM
+   trap error_handler_unchroot_raw ERR INT TERM
 
    sync
 
    if [ "${dist_build_install_to_root:-}" = "true" ]; then
-      true
+      unmount_install_to_root_binds
    else
-      "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER/dev/pts"
-      "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER/dev"
-      "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER/proc"
-      "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER/sys"
+      ## Reap first: a lingering chroot process holds the tree busy (dbus-launch
+      ## when building Non-Qubes-Whonix inside a Qubes Debian template).
+      ${SUDO_TO_ROOT} "${MYDIR}/umount_kill.sh" -- "${CHROOT_FOLDER}"
+
+      ## Then sweep, deepest first, everything mounted UNDER the tree: /dev,
+      ## /dev/pts, /proc and /sys from chroot-raw, the
+      ## etc/{resolv.conf,hosts,hostname} binds, and the per-derivative apt
+      ## repository binds from create-local-temp-apt-repo. One sweep replaces
+      ## the former hardcoded path list, which could only unmount what someone
+      ## remembered to add to it.
+      ##
+      ## Fails CLOSED, deliberately: a mount left under the tree is what lets a
+      ## later recursive delete follow a bind mount out into the host's real
+      ## /dev, so aborting here beats proceeding with stray leftovers.
+      ${SUDO_TO_ROOT} "${MYDIR}/unmount-tree" -- "${CHROOT_FOLDER}"
 
       ## TODO: image should not contain folders /run /sys /proc /dev?
       ## https://github.com/grml/grml-debootstrap/issues/276
@@ -65,29 +97,15 @@ main() {
       #fi
    fi
 
+   ## Now that nothing is mounted there, drop the mount point directories.
    local derivative_name_item
-   for derivative_name_item in $derivative_name_list ; do
-      "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER/$DEB_INSTALL_FOLDER/$derivative_name_item"
-      if test -d "$CHROOT_FOLDER/$DEB_INSTALL_FOLDER/$derivative_name_item" ; then
-         $SUDO_TO_ROOT rmdir --ignore-fail-on-non-empty -- "$CHROOT_FOLDER/$DEB_INSTALL_FOLDER/$derivative_name_item"
+   for derivative_name_item in ${derivative_name_list} ; do
+      if test -d "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}/${derivative_name_item}" ; then
+         ${SUDO_TO_ROOT} rmdir --ignore-fail-on-non-empty -- "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}/${derivative_name_item}"
       fi
    done
-   if test -d "$CHROOT_FOLDER/$DEB_INSTALL_FOLDER" ; then
-      $SUDO_TO_ROOT rmdir --ignore-fail-on-non-empty -- "$CHROOT_FOLDER/$DEB_INSTALL_FOLDER"
-   fi
-
-   ## Also possibly unmount '.backup' file for bare metal builds.
-   "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER"/etc/resolv.conf
-   "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER"/etc/hosts
-   "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER"/etc/hostname
-   "$dist_source_help_steps_folder/unmount-helper" "$CHROOT_FOLDER"/etc/network/interfaces
-
-   if [ "${dist_build_install_to_root:-}" = "true" ]; then
-      ## $CHROOT_FOLDER would be /, not wise to kill all
-      true
-   else
-      ## kill dbus-launch when building Non-Qubes-Whonix inside a Qubes Debian template
-      $SUDO_TO_ROOT "$MYDIR/umount_kill.sh" "$CHROOT_FOLDER"
+   if test -d "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}" ; then
+      ${SUDO_TO_ROOT} rmdir --ignore-fail-on-non-empty -- "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}"
    fi
 
    sync
