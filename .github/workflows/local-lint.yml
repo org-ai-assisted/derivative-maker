@@ -78,7 +78,7 @@ jobs:
         ## Excludes:
         ##   SC2086 - Many call sites intentionally word-split string
         ##     variables containing space-separated option lists
-        ##     ('$apt_unattended_opts', '$pids' in umount_kill.sh,
+        ##     ('$apt_unattended_opts', '$pids' in mount-cleanup,
         ##     'eval $cmd_string' in pre's retry dispatch). Refactoring
         ##     each into arrays is sound but invasive; out of scope.
         ##   SC2317 - False positive in the build-step dispatch pattern:

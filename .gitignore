@@ -29,3 +29,7 @@ docker/logs/
 
 # ignore JetBrains IDE state
 .idea
+
+# ignore generated frozen sources files
+build_sources/debian_stable_frozen_clearnet.sources
+build_sources/debian_stable_frozen_direct_clearnet.sources

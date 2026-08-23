@@ -8,7 +8,7 @@
 ## dist-ai/ci/dist-ai-tests-ci-config.sh.
 
 dist-ai-tests:
-  ## Default stack plus: procps (umount_kill.sh 'ps' kill-report) and
+  ## Default stack plus: procps (mount-cleanup 'ps' kill-report) and
   ## safe-rm (dm-help-steps-tests scratch cleanup).
   apt-packages: "python3 python3-pytest python3-hypothesis procps safe-rm"
 

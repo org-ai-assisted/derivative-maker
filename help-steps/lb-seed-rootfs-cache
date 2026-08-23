@@ -5,6 +5,13 @@
 
 ## AI-Assisted
 
+## FIXME: This script MUST be deleted entirely. We are migrating away from
+## live-build entirely. Do not make any further changes to this script, simply
+## delete it once porting away from live-build is complete.
+
+## WARNING: This script has not been (and will not be) reviewed by a human, as
+## it is slated for removal.
+
 ## Seed a live-build working directory so that 'lb bootstrap' ADOPTS an
 ## externally built root filesystem instead of bootstrapping a new one.
 ##

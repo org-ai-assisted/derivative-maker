@@ -218,16 +218,11 @@ install-packages() {
    ## /etc/default/grub.d/20_dist-base-files.cfg
    ## https://www.kicksecure.com/wiki/Dev/boot#/etc/default/grub.d/20_dist-base-files.cfg
    ## https://www.kicksecure.com/wiki/Grub#/etc/default/grub.d/20_dist-base-files.cfg
-   ## install --mode, not cp: a plain cp carries the SOURCE file's mode into the
-   ## image, and that mode is whatever the builder's umask produced at checkout
-   ## time. git records 100644, but 'git checkout' creates 0666 & ~umask -- 0644
-   ## on a umask-022 CI runner, 0660 on a umask-007 Kicksecure host -- so the
-   ## image's permissions depended on WHO built it. Measured: this exact file
-   ## came out 0644 in CI and 0640 locally for the same commit, and it was one of
-   ## only two remaining differences between the two images.
-   ${SUDO_TO_ROOT} "${cp_reproducible[@]}" "${source_code_folder_dist}/packages/kicksecure/dist-base-files/usr/share/derivative-base-files/20_dist-base-files.cfg" "${CHROOT_FOLDER}/etc/default/grub.d/20_dist-base-files.cfg"
+   ## We use 'install' rather than 'cp' to keep the host's umask applied to
+   ## files in Git from applying to the image being built.
+   ${SUDO_TO_ROOT} install --mode=0644 -- "${source_code_folder_dist}/packages/kicksecure/dist-base-files/usr/share/derivative-base-files/20_dist-base-files.cfg" "${CHROOT_FOLDER}/etc/default/grub.d/20_dist-base-files.cfg"
 
-   ${SUDO_TO_ROOT} "${cp_reproducible_exec[@]}" "${source_code_folder_dist}/packages/kicksecure/helper-scripts/usr/bin/apt-get-noninteractive" "${CHROOT_FOLDER}/usr/bin/apt-get-noninteractive"
+   ${SUDO_TO_ROOT} install --mode=0755 -- "${source_code_folder_dist}/packages/kicksecure/helper-scripts/usr/bin/apt-get-noninteractive" "${CHROOT_FOLDER}/usr/bin/apt-get-noninteractive"
 
    "${dist_source_help_steps_folder}/prevent-daemons-from-starting" "$@"
 
@@ -281,16 +276,17 @@ install-packages() {
    fi
 
    if [ "${dist_build_iso:-}" = "true" ]; then
-      ## ISO builds install their packages HERE (into the shared raw image),
-      ## then 'build-steps.d/*_convert-raw-to-iso' packs the rootfs into an
-      ## ISO. Mark this as a live-build BEFORE any package is installed, so
+      ## Mark this as a live-build BEFORE any package is installed, so
       ## package postinsts take the live path rather than the VM/disk path.
-      ## Notably 'initializer-dist/75_growfs' skips systemd-repart when this
-      ## marker exists (repart does not work on the ISO's MBR layout), and
-      ## dist-base-files / vm-config-dist / vbox-guest-installer / user_create
-      ## all branch on it. The old ISO flow set this before 'lb chroot'
-      ## installed the packages; the install now lives here. The marker is
-      ## removed again by '*_convert-raw-to-iso' before the ISO is finalized.
+      ##
+      ## FIXME: The ISO live build path and the VM/disk path should be
+      ## identical. The only reason they historically weren't is because
+      ## live-build didn't allow the build scripts to inherit the caller's
+      ## environment, and that issue no longer exists here. Therefore, these
+      ## files should not be created, and code paths in package postinsts that
+      ## reference flag files should be removed or converted to environment
+      ## variable checks. (If any conversion is needed, the appropriate
+      ## environment variables should be exported here.)
       ${SUDO_TO_ROOT} -- mkdir --parents -- "${CHROOT_FOLDER}/var/lib/dist-base-files"
       ${SUDO_TO_ROOT} -- touch -- "${CHROOT_FOLDER}/var/lib/dist-base-files/live_build"
       ${SUDO_TO_ROOT} -- mkdir --parents -- "${CHROOT_FOLDER}/var/lib/security-misc"
@@ -460,30 +456,27 @@ ${dist_build_script_skip_package_install}${reset}"
    ## Availability (and usefulness) is architecture specific.
    efi_weak_recommended_packages_list="sbsigntool efibootmgr keyutils shim-signed-common efivar fwupd fwupd-signed"
 
-   for iso_weak_recommended_packages_item in ${efi_weak_recommended_packages_list} ; do
+   for efi_weak_recommended_packages_item in ${efi_weak_recommended_packages_list} ; do
       ## Test if available. Might be unavailable (and unneeded) on some architectures.
-      if chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" ${apt_sourcelist_empty} ${apt_sourceparts} ${apt_unattended_opts} --yes --dry-run install "${iso_weak_recommended_packages_item}" &>/dev/null ; then
-         true "INFO: Yes, adding weak recommended package to the installation list: ${iso_weak_recommended_packages_item}"
-         pkg-add-to-install-list "${iso_weak_recommended_packages_item}"
+      if chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" ${apt_sourcelist_empty} ${apt_sourceparts} ${apt_unattended_opts} --yes --dry-run install "${efi_weak_recommended_packages_item}" &>/dev/null ; then
+         true "INFO: Yes, adding weak recommended package to the installation list: ${efi_weak_recommended_packages_item}"
+         pkg-add-to-install-list "${efi_weak_recommended_packages_item}"
       else
-         true "INFO: No, not adding weak recommended package to the installation list: ${iso_weak_recommended_packages_item}"
+         true "INFO: No, not adding weak recommended package to the installation list: ${efi_weak_recommended_packages_item}"
       fi
    done
 
    if [ "${dist_build_raw:-}" = "true" ]; then
       ## XXX: Superfluous for non-libvirt raw image builds.
       pkg-add-to-install-list spice-vdagent
-      #pkg-add-to-install-list serial-console-enable
    elif [ "${dist_build_qcow2:-}" = "true" ]; then
       pkg-add-to-install-list spice-vdagent
-      #pkg-add-to-install-list serial-console-enable
    else
       true "${cyan}INFO: skipping installation of weak recommended guest additions packages spice-vdagent because not using --target qcow2, ok.${reset}"
    fi
 
    ## '--serial-console-enable true': install the serial-console-enable package
-   ## (GRUB serial terminal config + serial-getty@ttyS0) so the image can be
-   ## driven headless over a serial line. Target-independent.
+   ## so the image can be driven headless over a serial line.
    if [ "${dist_build_serial_console_enable:-}" = "true" ]; then
       true "${cyan}INFO: --serial-console-enable true: adding serial-console-enable.${reset}"
       pkg-add-to-install-list serial-console-enable
@@ -523,15 +516,6 @@ ${dist_build_script_skip_package_install}${reset}"
       done
    fi
 
-   ## ISO-only extras: the live-boot / installer / live-bootloader packages
-   ## the ISO needs on top of the shared VM package set (live-config, calamares,
-   ## grub-live, isomd5sum, memtest86+, the live bootloader variants, ...).
-   ## 'build-steps.d/*_convert-raw-to-iso' then packs this rootfs into an ISO.
-   ## These are added to 'pkg_install_list' and installed together with the VM
-   ## set by 'pkg-list-install' (a single apt transaction). The extras must
-   ## therefore not conflict with the VM set: the deprecated
-   ## 'virtualbox-guest-utils' / '-x11' (which the baremetal-gui meta Breaks)
-   ## are already dropped from the live package list, so no conflict remains.
    if [ "${dist_build_iso:-}" = "true" ]; then
       if [ "${dist_build_iso_extra_packages:-}" = "" ] || [ "${dist_build_iso_extra_packages:-}" = "none" ]; then
          true "${cyan}INFO: variable dist_build_iso_extra_packages is empty, skipping ISO extras.${reset}"
@@ -622,26 +606,12 @@ ${dist_build_script_skip_package_install}${reset}"
    ## which then results in an unbootable system.
 
    ## '--smbios-reader true': let vm-config-dist's etc/grub.d/01_smbios-reader and
-   ## etc/default/grub.d/99_smbios-cmdline.cfg emit the SMBIOS cmdline reader and
-   ## its ${dm_smbios_extra} placeholder. Both are opt-in and default OFF, so a
-   ## released image carries neither. Written BEFORE grub-mkconfig below, which is
-   ## what turns the drop-in into grub.cfg content.
-   ##
-   ## Sorts before 99_smbios-cmdline.cfg, which is where the variable is read and
-   ## exported to the /etc/grub.d helpers; grub-mkconfig sources
-   ## /etc/default/grub.d/*.cfg in glob order.
-   ##
-   ## Removed rather than left behind when disabled: the file must not survive from
-   ## an earlier build in the same build slot.
-   ## Copied from the tree, not generated here: a configuration file that only
-   ## exists as a printf inside a build step cannot be read, reviewed or diffed
-   ## where it lives, and its content silently depends on this script's quoting.
-   ## Same 'install --mode' as 20_dist-base-files.cfg above, for the same
-   ## reproducibility reason.
-   ${SUDO_TO_ROOT} safe-rm --force -- "${CHROOT_FOLDER}/etc/default/grub.d/50_dm-smbios-reader.cfg"
+   ## etc/default/grub.d/99_smbios-cmdline.cfg emit the SMBIOS cmdline reader.
    if [ "${dist_build_smbios_reader:-}" = "true" ]; then
       true "${cyan}INFO: --smbios-reader true: enabling the GRUB SMBIOS cmdline reader.${reset}"
-      ${SUDO_TO_ROOT} "${cp_reproducible[@]}" "${source_code_folder_dist}/packages/kicksecure/vm-config-dist/usr/share/vm-config-dist/50_dm-smbios-reader.cfg" "${CHROOT_FOLDER}/etc/default/grub.d/50_dm-smbios-reader.cfg"
+      ${SUDO_TO_ROOT} install --mode=0644 -- "${source_code_folder_dist}/packages/kicksecure/vm-config-dist/usr/share/vm-config-dist/50_dm-smbios-reader.cfg" "${CHROOT_FOLDER}/etc/default/grub.d/50_dm-smbios-reader.cfg"
+   else
+      ${SUDO_TO_ROOT} safe-rm --force -- "${CHROOT_FOLDER}/etc/default/grub.d/50_dm-smbios-reader.cfg"
    fi
 
    ## Debugging.
@@ -696,12 +666,6 @@ main() {
       true "${bold}${cyan}INFO: dry-run, skipping ${BASH_SOURCE[0]}. ${reset}"
       return 0
    fi
-
-   ## ISO builds now share this step: packages are installed into the same
-   ## base raw image the VM path uses (see 'build-steps.d/*_create-raw-image'),
-   ## then 'build-steps.d/*_convert-raw-to-iso' packs that rootfs into an ISO.
-   ## The ISO-only extras (live-config, calamares, grub-live, the live
-   ## bootloaders, ...) are added via 'dist_build_iso_extra_packages' below.
 
    if [ "${dist_build_flavor:-}" = "whonix-custom-workstation" ]; then
       true "${cyan}INFO: Skipping installing packages for ${VMNAME}.${reset}"

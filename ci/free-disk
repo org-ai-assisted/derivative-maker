@@ -17,6 +17,10 @@
 ## aborts the build -- freeing disk must never turn a green build red. Every
 ## fallible operation is guarded, so strict mode stays on.
 
+## NOTE: This is working around a documented storage limit, which may not be
+## something GitHub permits. Discussion:
+## https://github.com/orgs/community/discussions/205313
+
 set -o errexit
 set -o nounset
 set -o pipefail

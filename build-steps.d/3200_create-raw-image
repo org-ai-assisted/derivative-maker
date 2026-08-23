@@ -204,8 +204,8 @@ create-debian-raw-image() {
    ## Sanity test.
    test -n "${dist_build_hostname}"
 
-   ## '${UNSHARE_PID_NS:-}': private PID namespace, see 'help-steps/pre'
-   ## (also for its placement after the 'VAR=val' words).
+   ## TODO: We need to pass --no-reimage here once our fork of
+   ## grml-debootstrap supports it.
    ##
    ## '$DEBOOTSTRAP_PREFIX', '$UNSHARE_PID_NS' and '$use_vmefi_maybe' are
    ## intentionally unquoted: each holds zero or more words that must split
@@ -248,12 +248,6 @@ main() {
       true "${green}INFO: Skipping ${BASH_SOURCE[0]}, because dist_build_install_to_root is set to true.${reset}"
       return 0
    fi
-
-   ## ISO builds now share this base raw image: the ISO is produced as another
-   ## output format of the same raw image the VM path builds (created here,
-   ## packages installed by 'build-steps.d/*_install-packages', then packed
-   ## into an ISO by 'build-steps.d/*_convert-raw-to-iso'). So this step runs
-   ## for ISO too (identical raw image), rather than being skipped.
 
    if [ "${build_dry_run:-}" = "true" ]; then
       true "${bold}${cyan}INFO: dry-run.${reset}"
