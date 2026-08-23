@@ -1,3 +1,75 @@
+commit 008d14e97526ccfe3095629704e3787b5e158b97
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sun Aug 23 01:51:54 2026 -0400
+
+    .
+
+commit b042cf8fae43de0e3a75cdd406c50bd95cbb767e
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sun Aug 23 01:43:11 2026 -0400
+
+    .
+
+commit 7ecd7ac578d7e8cde1d8bc8657f3f0b8ea449082
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sun Aug 23 01:39:33 2026 -0400
+
+    .
+
+commit 877fd13199ce9367f73e57c1ef3377dda45a6aa4
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sat Aug 22 05:08:18 2026 -0400
+
+    .
+
+commit 39115e6a155f15a349b993a7d81b112b849b623d
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sat Aug 22 05:05:03 2026 -0400
+
+    .
+
+commit 5badba630ef5b5299348fc7a54e5779c388a0a6a
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Aug 21 04:49:03 2026 -0400
+
+    .
+
+commit 9df331e96f70e08f83696ae31a86635e90471a2b
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Aug 21 02:26:07 2026 -0400
+
+    .
+
+commit 6c0e9f33552fcf6c1c301c90614e51ffb43907f8
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Aug 21 02:24:17 2026 -0400
+
+    update
+
+commit d3b38ef1519816504e0f6530ec8652d5324e1655
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Aug 21 02:23:14 2026 -0400
+
+    update VirtualBox download links for Whonix Windows Installer
+
+commit fc11fb39189cba01a1781eb7ce49f027deaf2054
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Aug 21 02:22:42 2026 -0400
+
+    .
+
+commit f05a8569c92042e5481853260a90bad2e89b5254
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Aug 21 02:16:08 2026 -0400
+
+    .
+
+commit 2967b48c950299d04c8d480ab2760db734bdaf87
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 17 05:34:36 2026 +0000
+
+    bumped changelog version
+
 commit afa1e7070b04d478389bccf1ff88dead1239d064
 Author: Patrick Schleizer <adrelanos@whonix.org>
 Date:   Mon Aug 17 01:01:50 2026 -0400
