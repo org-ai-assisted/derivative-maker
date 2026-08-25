@@ -18,6 +18,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -235,11 +236,18 @@ cowbuilder_setup_do() {
          ## '--extrapackages' below, so the later per-package 'cowbuilder --build' (which keeps
          ## LD_PRELOAD) finds libeatmydata inside the chroot. No-op when LD_PRELOAD is unset.
          ##
+         ## 'env --unset=TMPDIR ...': libpam-tmpdir (Kicksecure security-misc) points TMPDIR at a
+         ## per-user path (e.g. '/tmp/user/0') absent inside the chroot this '--create' bootstraps;
+         ## debootstrap inheriting it aborts with an opaque 'debootstrap failed / debootstrap.log
+         ## not present' naming neither cause nor resource (Debian #823651). sudo's env_reset plus
+         ## the PAM stack re-set it, so it must be cleared HERE at the invocation, not in the
+         ## pbuilder configfile (sourced only after the variables are back). No-op without libpam-tmpdir.
+         ##
          ## Duplicate --extrapackages to prevent removal by pbuilder.
          ${SUDO_TO_ROOT} \
             ${COWBUILDER_PREFIX:-} \
                ${UNSHARE_PID_NS:-} \
-               env --unset=LD_PRELOAD \
+               env --unset=LD_PRELOAD --unset=TMPDIR --unset=TMP --unset=TEMPDIR --unset=TEMP \
                cowbuilder \
                   --architecture "${dist_build_multiarch_package_item}" \
                   --configfile "${dist_build_pbuilder_config_file}" \
