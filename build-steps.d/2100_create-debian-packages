@@ -26,6 +26,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -44,7 +45,7 @@ source variables
 ## opt-in --skip-published-packages path calls into it, but source it
 ## unconditionally (no conditional imports): it just defines functions, and the
 ## helper always ships with the developer-meta-files submodule.
-source "${dist_developer_meta_files_folder}/usr/libexec/developer-meta-files/package-build-freshness.bsh"
+source "${dist_developer_meta_files_folder}/usr/libexec/developer-meta-files/reprepro-freshness.bsh"
 
 cd "${MYDIR}"
 cd ..
@@ -446,32 +447,36 @@ create_derivative_distribution_debian_packages() {
          fi
          base_name="${item##*/}"
          ## 'Architecture:' currently in ./packages/$derivative_name_item/ folder: all / any /
-         ## amd64 / linux-amd64.
-         if grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "all" ; then
-            true "DEBUG: ${base_name} Architecture: all"
-         elif grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "any" ; then
-            true "DEBUG: ${base_name} Architecture: any"
-         elif grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "amd64" ; then
-            if [ ! "${dist_build_target_arch:-}" = "amd64" ]; then
-               true "${cyan}INFO: Skipping platform 'amd64' specific package ${base_name} as expected.${reset}"
-               continue
-            fi
-         elif grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "linux-amd64" ; then
-            if [ ! "${dist_build_target_arch:-}" = "amd64" ]; then
-               true "${cyan}INFO: Skipping platform 'linux-amd64' specific package ${base_name} as expected.${reset}"
-               continue
-            fi
-         else
-            grep -- "Architecture:" "${control_file}" || true
-            error "unknown Architecture: in ${control_file}"
-         fi
-         ## Fast local iteration (opt-in): skip a package whose SOURCE CONTENT is
-         ## unchanged since it was last built (a content-hash manifest; a
-         ## debian/changelog bump is part of that content, so it forces a rebuild).
-         ## Off by default. Unset the flag to force a rebuild of everything.
+         ## amd64 / linux-amd64. Capture the non-comment 'Architecture:' line(s) once, then
+         ## match by substring (same order and semantics as the previous grep chain). '*amd64*'
+         ## also matches 'linux-amd64', so both amd64 spellings share the one amd64-only path.
+         architecture_field="$(grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" || true)"
+         case "${architecture_field}" in
+            *all*)
+               true "DEBUG: ${base_name} Architecture: all"
+               ;;
+            *any*)
+               true "DEBUG: ${base_name} Architecture: any"
+               ;;
+            *amd64*)
+               ## Covers both 'amd64' and 'linux-amd64' (the latter contains 'amd64').
+               if [ ! "${dist_build_target_arch:-}" = "amd64" ]; then
+                  true "${cyan}INFO: Skipping platform 'amd64' specific package ${base_name} as expected.${reset}"
+                  continue
+               fi
+               ;;
+            *)
+               grep -- "Architecture:" "${control_file}" || true
+               error "unknown Architecture: in ${control_file}"
+               ;;
+         esac
+         ## Fast local iteration (opt-in): skip a package already published in the
+         ## local reprepro repo at its current changelog version. Off by default,
+         ## so editing a package without bumping debian/changelog is not silently
+         ## skipped. Bump the changelog (or unset the flag) to force a rebuild.
          if [ "${dist_build_skip_published_packages:-}" = "true" ] \
-            && ! dm_package_needs_rebuild "${item}" "${dist_build_apt_codename}"; then
-            true "${cyan}INFO: Skipping up-to-date package ${base_name} (source unchanged).${reset}"
+            && ! dm_package_needs_rebuild "${item}" "${dist_build_apt_codename}" "${derivative_name_item}"; then
+            true "${cyan}INFO: Skipping up-to-date package ${base_name} (already published).${reset}"
             continue
          fi
          package_build_list+=("${item}")
@@ -603,7 +608,7 @@ create_derivative_distribution_debian_packages() {
       "${genmkfile_bin}" reprepro-add
       ## Record the source content hash so the next --skip-published-packages build
       ## skips this package unless its source changes again (auto-detected, no
-      ## package name or changelog bump needed). See package-build-freshness.bsh.
+      ## package name or changelog bump needed). See reprepro-freshness.bsh.
       dm_source_hash_record \
          "$(dm_source_hash_manifest_path "${dist_build_apt_codename}")" \
          "$(dpkg-parsechangelog --show-field Source --file "${item}/debian/changelog")" \
