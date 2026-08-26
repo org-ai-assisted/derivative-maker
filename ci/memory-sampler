@@ -31,10 +31,8 @@ export LC_ALL=C
 
 sample_interval="${1:-30}"
 
-## TODO: This could be more efficient, ideally we would only read /proc/meminfo
-## once per cycle.
 mem_field() {
-   ## kB value of a /proc/meminfo field, or empty.
+   ## kB value of a /proc/meminfo field (read from stdin), or empty.
    local field_name="$1" line
    while IFS= read -r line; do
       case "${line}" in
@@ -47,14 +45,16 @@ mem_field() {
             return 0
             ;;
       esac
-   done < /proc/meminfo
+   done
    printf '%s' ""
 }
 
 while true; do
-   mem_available="$( mem_field MemAvailable )"
-   swap_free="$( mem_field SwapFree )"
-   mem_total="$( mem_field MemTotal )"
+   ## Read /proc/meminfo once per cycle, then extract fields from the snapshot.
+   meminfo="$( cat /proc/meminfo )"
+   mem_available="$( printf '%s\n' "${meminfo}" | mem_field MemAvailable )"
+   swap_free="$( printf '%s\n' "${meminfo}" | mem_field SwapFree )"
+   mem_total="$( printf '%s\n' "${meminfo}" | mem_field MemTotal )"
    ## Largest RSS consumer, so a runaway is named rather than merely implied.
    top_rss="$( ps -eo rss=,comm= --sort=-rss 2>/dev/null | head -n 1 || true )"
    top_rss="${top_rss#"${top_rss%%[![:space:]]*}"}"
