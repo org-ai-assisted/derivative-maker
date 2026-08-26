@@ -103,12 +103,10 @@ env:
   ## copies get the same value, so it cannot skew the a-vs-b comparison -- and
   ## nondeterminism introduced by it is what this lane exists to report.
   ##
-  ## TODO: The only reason to not use all cores is to ensure a system stays
-  ## responsive while building an image. But the CI system doesn't need to be
-  ## responsive, so using less than all available cores wastes resources.
-  ## Consider bumping this up to 4 (or better yet, automatically detect how
-  ## many cores we have and always use that).
-  REPRO_PACKAGE_JOBS: "2"
+  ## CI does not need to stay responsive, so use all runner cores. ubuntu-24.04
+  ## runners have 4 vCPU. Both a/b copies get the same value, so it cannot skew
+  ## the comparison.
+  REPRO_PACKAGE_JOBS: "4"
 
 jobs:
   build:
@@ -364,15 +362,12 @@ jobs:
       ## image. A reproducibility check compares the '.sha512sums' -- a few
       ## hundred bytes -- so downloading the whole 'repro-image' artifact (~1.3 GB)
       ## just to read one hash line is pure waste. This bundle is ~100 KB: the
-      ## per-image '.sha512sums' (+ '.asc'/'.sig'), the image and torrent
-      ## signatures, and the build's auto-generated signing PUBLIC keys
-      ## (5200_prepare-release exports the signify '.pub' and the OpenPGP cert
-      ## next to the images) so a verifier can check the signatures without the
-      ## operator's keys. Public keys only -- never a secret half.
-      ##
-      ## TODO: Maybe don't include the torrent file? It isn't useful for
-      ## verification unless one is downloading an image using BitTorrent
-      ## software, and no one will download a CI image over BitTorrent.
+      ## per-image '.sha512sums' (+ '.asc'/'.sig'), the image signatures, and
+      ## the build's auto-generated signing PUBLIC keys (5200_prepare-release
+      ## exports the signify '.pub' and the OpenPGP cert next to the images) so a
+      ## verifier can check the signatures without the operator's keys. Public
+      ## keys only -- never a secret half. No '.torrent': CI images are not
+      ## distributed over BitTorrent.
       - name: Upload build ${{ matrix.copy }} checksums, signatures and public keys
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -385,7 +380,6 @@ jobs:
             /home/runner/binary_mnt/**/*.sha512sums
             /home/runner/binary_mnt/**/*.asc
             /home/runner/binary_mnt/**/*.sig
-            /home/runner/binary_mnt/**/*.torrent
             /home/runner/binary_mnt/**/*.pub
           if-no-files-found: error
           retention-days: 90

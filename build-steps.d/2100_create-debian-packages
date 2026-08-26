@@ -600,9 +600,6 @@ main() {
       return 0
    fi
 
-   ## TODO: Can this be moved to near the top of the file, like we do in
-   ## 1300_cowbuilder-setup? Alternatively, can we move this kind of code into
-   ## main() for all applicable steps?
    ## '--skip-packages': reuse the whole local package repo from the prior build (debug speed-up).
    if [ "${dist_build_skip_packages:-}" = "true" ]; then
       true "${bold}${cyan}INFO: --skip-packages, reusing the existing local package repo, skipping ${BASH_SOURCE[0]}.${reset}"
