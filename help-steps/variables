@@ -592,9 +592,9 @@ if [ "${dist_build_flavor:-}" = "kicksecure-lxqt" ]; then
    fi
 fi
 
-if [ "${dist_build_flavor:-}" = "kicksecure-debug" ]; then
+if [ "${dist_build_flavor:-}" = "kicksecure-ci-tiny-do-not-use" ]; then
    [ -n "${SHORT_VMNAME:-}" ] || SHORT_VMNAME="Kicksecure"
-   [ -n "${VMNAME:-}" ] || VMNAME="Kicksecure-Debug"
+   [ -n "${VMNAME:-}" ] || VMNAME="Kicksecure-CI-Tiny-Do-Not-Use"
    [ -n "${VMRAM:-}" ] || VMRAM="768"
    [ -n "${VRAM:-}" ] || VRAM="16"
    [ -n "${dist_build_type_short:-}" ] || dist_build_type_short="kicksecure"
@@ -603,11 +603,11 @@ if [ "${dist_build_flavor:-}" = "kicksecure-debug" ]; then
    if [ "${dist_build_type:-}" = "vm" ]; then
       [ -n "${dist_build_host_operating_system:-}" ] || dist_build_host_operating_system="false"
       [ -n "${dist_build_type_long:-}" ] || dist_build_type_long="kicksecure"
-      [ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" kicksecure-debug "
+      [ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" kicksecure-ci-tiny-do-not-use "
    elif [ "${dist_build_type:-}" = "host" ]; then
       [ -n "${dist_build_host_operating_system:-}" ] || dist_build_host_operating_system="true"
       [ -n "${dist_build_type_long:-}" ] || dist_build_type_long="kicksecure-host"
-      [ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" kicksecure-debug "
+      [ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" kicksecure-ci-tiny-do-not-use "
    fi
 fi
 

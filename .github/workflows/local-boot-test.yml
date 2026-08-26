@@ -8,11 +8,11 @@ name: Boot Test
 ## runs 'systemcheck --cli --leak-tests --verbose'. Each boot-test leg's conclusion
 ## IS its pass/fail signal (0 pass, non-zero fail/setup, 77 SKIP).
 ##
-## One build flavor: kicksecure-debug (minimal boot-test image = boot chain +
-## hardening core + systemcheck + user-sysmaint-split). Because it ships
-## user-sysmaint-split, EVERY image kind carries a sysmaint session -- sysmaint is a
-## general Kicksecure feature (GRUB "SYSMAINT Session" entry), not a live-ISO
-## concept. So each kind is booted 'user' AND 'sysmaint':
+## One build flavor: kicksecure-ci-tiny-do-not-use (minimal boot-test image =
+## boot chain + hardening core + systemcheck + user-sysmaint-split). Because it
+## ships user-sysmaint-split, EVERY image kind carries a sysmaint session --
+## sysmaint is a general Kicksecure feature (GRUB "SYSMAINT Session" entry),
+## not a live-ISO concept. So each kind is booted 'user' AND 'sysmaint':
 ##   - qcow2 DISK      (the released disk image).
 ##   - live ISO        (the same packages, live-booted).
 ##   - virtualbox .ova -- TEMPORARILY DISABLED (re-enable once stable; search
@@ -75,9 +75,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          ## kicksecure-debug (minimal boot-test flavor) for FAST iteration:
-          ## the boot chain + hardening core + systemcheck + user-sysmaint-split,
-          ## no GUI/browser/anonymity layer.
+          ## kicksecure-ci-tiny-do-not-use (minimal boot-test flavor) for FAST
+          ## iteration: the boot chain + hardening core + systemcheck +
+          ## user-sysmaint-split, no GUI/browser/anonymity layer.
           ## -> qcow2 disk image (also builds the VirtualBox ova).
           ##
           ## TODO: Why do we build qcow2 and VBox images at the same time but
@@ -85,11 +85,11 @@ jobs:
           ## all builds separately for clarity? If we're going to batch some
           ## builds, can we make the "image_kind" value here less confusing,
           ## i.e. change "qcow2" to "vm"?
-          - flavor: kicksecure-debug
+          - flavor: kicksecure-ci-tiny-do-not-use
             image_kind: qcow2
             upload_glob: "*.qcow2*"
           ## -> live ISO (same package set, live-booted).
-          - flavor: kicksecure-debug
+          - flavor: kicksecure-ci-tiny-do-not-use
             image_kind: iso
             upload_glob: "*.iso"
     steps:
@@ -352,9 +352,10 @@ jobs:
         session:
           - user
           - sysmaint
-        ## No exclusions: kicksecure-debug ships user-sysmaint-split, so every built
-        ## image kind (qcow2 / iso) has a real sysmaint session, selected uniformly
-        ## via dm-qemu's SMBIOS cmdline injection. Both sessions run on all kinds.
+        ## No exclusions: kicksecure-ci-tiny-do-not-use ships user-sysmaint-split,
+        ## so every built image kind (qcow2 / iso) has a real sysmaint session,
+        ## selected uniformly via dm-qemu's SMBIOS cmdline injection. Both sessions
+        ## run on all kinds.
     steps:
       - name: Checkout repository (no submodules yet)
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
