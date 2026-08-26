@@ -20,6 +20,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -530,7 +531,7 @@ normalize_file_modes_in_tree() {
       [ -f "${file_path}" ] || continue
       [ -L "${file_path}" ] && continue
       chmod -- "${target_mode}" "${file_path}" 2>/dev/null || true
-   done < <( git -C "${tree}" ls-files -s -z 2>/dev/null || true )
+   done < <( git -C "${tree}" ls-files --stage -z 2>/dev/null || true )
 }
 
 normalize_symlinks_in_tree() {
@@ -564,9 +565,9 @@ normalize_symlinks_in_tree() {
             continue
             ;;
       esac
-      rm -f -- "${link_path}"
-      ln -s -- "${link_target}" "${link_path}"
-   done < <( git -C "${tree}" ls-files -s -z 2>/dev/null || true )
+      safe-rm --force -- "${link_path}"
+      ln --symbolic -- "${link_target}" "${link_path}"
+   done < <( git -C "${tree}" ls-files --stage -z 2>/dev/null || true )
 }
 
 main() {
