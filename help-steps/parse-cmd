@@ -226,7 +226,7 @@ Advanced Options:
   --kernel [packages]             : Specify kernel packages (e.g., 'linux-image-amd64' or 'none').
   --headers [packages]            : Specify kernel header packages.
   --remote-derivative-packages    : Choose to use remote derivative packages instead of building derivative packages from source code. (default: false).
-  --release [unsupported_option]  : Set release option (unsupported). (trixie|bookworm|xenial|bionic)
+  --release [unsupported_option]  : Set release option (unsupported). (trixie|bookworm)
   --arch [architecture]           : Set architecture (pick one of the following)
     ${architecture_all_list[*]}
     (Note: amd64 also works with most Intel CPUs.)
