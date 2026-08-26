@@ -606,12 +606,26 @@ ${dist_build_script_skip_package_install}${reset}"
    ## which then results in an unbootable system.
 
    ## '--smbios-reader true': let vm-config-dist's etc/grub.d/01_smbios-reader and
-   ## etc/default/grub.d/99_smbios-cmdline.cfg emit the SMBIOS cmdline reader.
+   ## etc/default/grub.d/99_smbios-cmdline.cfg emit the SMBIOS cmdline reader and
+   ## its ${dm_smbios_extra} placeholder. Both are opt-in and default OFF, so a
+   ## released image carries neither. Written BEFORE grub-mkconfig below, which is
+   ## what turns the drop-in into grub.cfg content.
+   ##
+   ## Sorts before 99_smbios-cmdline.cfg, which is where the variable is read and
+   ## exported to the /etc/grub.d helpers; grub-mkconfig sources
+   ## /etc/default/grub.d/*.cfg in glob order.
+   ##
+   ## Removed rather than left behind when disabled: the file must not survive from
+   ## an earlier build in the same build slot.
+   ## Copied from the tree, not generated here: a configuration file that only
+   ## exists as a printf inside a build step cannot be read, reviewed or diffed
+   ## where it lives, and its content silently depends on this script's quoting.
+   ## Same 'install --mode' as 20_dist-base-files.cfg above, for the same
+   ## reproducibility reason.
+   ${SUDO_TO_ROOT} safe-rm --force -- "${CHROOT_FOLDER}/etc/default/grub.d/50_dm-smbios-reader.cfg"
    if [ "${dist_build_smbios_reader:-}" = "true" ]; then
       true "${cyan}INFO: --smbios-reader true: enabling the GRUB SMBIOS cmdline reader.${reset}"
-      ${SUDO_TO_ROOT} install --mode=0644 -- "${source_code_folder_dist}/packages/kicksecure/vm-config-dist/usr/share/vm-config-dist/50_dm-smbios-reader.cfg" "${CHROOT_FOLDER}/etc/default/grub.d/50_dm-smbios-reader.cfg"
-   else
-      ${SUDO_TO_ROOT} safe-rm --force -- "${CHROOT_FOLDER}/etc/default/grub.d/50_dm-smbios-reader.cfg"
+      ${SUDO_TO_ROOT} "${cp_reproducible[@]}" "${source_code_folder_dist}/packages/kicksecure/vm-config-dist/usr/share/vm-config-dist/50_dm-smbios-reader.cfg" "${CHROOT_FOLDER}/etc/default/grub.d/50_dm-smbios-reader.cfg"
    fi
 
    ## Debugging.

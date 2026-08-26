@@ -1372,6 +1372,13 @@ export dist_build_installer_dist
 [ -n "${dist_build_serial_console_enable:-}" ] || dist_build_serial_console_enable="false"
 export dist_build_serial_console_enable
 
+## '--smbios-reader true' ships the GRUB SMBIOS kernel-cmdline reader, for
+## boot-test images only. Default false: the reader turns a firmware-supplied
+## string into kernel command line, and the kernel command line is the part of the
+## boot chain Secure Boot does not authenticate, so a released image must not carry
+## it. Drives GRUB_ENABLE_DM_SMBIOS_READER on the disk path (vm-config-dist
+## etc/grub.d/01_smbios-reader) and the reader + placeholder on the ISO path
+## (3600_convert-raw-to-iso).
 [ -n "${dist_build_smbios_reader:-}" ] || dist_build_smbios_reader="false"
 export dist_build_smbios_reader
 
