@@ -18,14 +18,14 @@ MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 source "${MYDIR}/pre"
 source "${MYDIR}/variables"
 
-exception_handler_unmount-raw() {
+exception_handler_unmount_raw() {
    true "${red}${bold}BASH_COMMAND${reset}: ${BASH_COMMAND}
 ${red}${bold}ERROR ${BASH_SOURCE[0]}: | caller: $(caller)${reset}"
    exit 1
 }
 
 unmount_raw() {
-   trap exception_handler_unmount-raw ERR INT TERM
+   trap exception_handler_unmount_raw ERR INT TERM
 
    sync
 
@@ -35,6 +35,7 @@ unmount_raw() {
    if [ "${kpartx_only:-}" = "true" ]; then
       true "INFO: kpartx_only=${kpartx_only}, skipping unmount ${CHROOT_FOLDER}"
    else
+      "${dist_source_help_steps_folder}/mount-cleanup" -- "${CHROOT_FOLDER}"
       "${dist_source_help_steps_folder}/unmount-helper" -- "${CHROOT_FOLDER}"
    fi
 

@@ -1,6 +1,6 @@
 ![o,age](https://i.postimg.cc/1tvBZfYQ/prototypes.png)
 
-With the convenience of a debian:trixie docker container, `derivative-maker-docker` automatically builds Whonix/Kicksecure images, incorporating the official derivative-maker build scripts, while including environment variables and intuitive ways to customize every available build option, container behavior and final build command. Additionally, log files of the entire build, git and key verification process are automatically generated. All necessary files already ship with the current derivative-maker source code, allowing for quick and simple deployment with a variety of pre-defined user scripts.
+With the convenience of a debian:trixie docker container, `derivative-maker-docker` automatically builds Whonix/Kicksecure images, incorporating the official derivative-maker build scripts, while including environment variables and intuitive ways to customize every available build option, container behavior and final build command. Additionally, log files of the entire build, git and key verification process are automatically generated. All necessary files already ship with the current derivative-maker source code, allowing for quick and simple deployment with a variety of pre-defined user scripts. The docker image's apt is pinned to the same snapshot.debian.org timestamp a `--freshness frozen` build uses, so the builder and built image use the same packages during reproducible builds.
 
 ## Roadmap
 - [x] Read documentation
@@ -26,6 +26,7 @@ With the convenience of a debian:trixie docker container, `derivative-maker-dock
 - [x] Install docker engine
 - [x] Cloning derivative-maker
 - [x] (Re)build the docker image
+
 ### Docker Image
 1. Locate your [desired tag](https://github.com/Whonix/derivative-maker/tags)
 2. Clone it
@@ -56,37 +57,6 @@ On Apple Silicon hosts, the default platform already matches
 (`linux/arm64`); no extra flags needed. Cross-arch builds require
 `qemu-user-static` registered with binfmt_misc.
 
-### Frozen snapshot pin
-The image's apt is pinned to the same snapshot.debian.org timestamp a
-`--freshness frozen` build uses, so image tooling and the build resolve one
-snapshot.
-
-- The pin lives in `build_sources/`, not under `docker/`. The image gets
-  `debian_stable_frozen_direct_clearnet.sources` (direct URLs, since approx is not
-  running at image-build time); the build uses the approx-proxied file beside it.
-- `derivative-maker-docker-setup` passes `-o Dir::Etc::sourcelist` at that file and
-  `-o Dir::Etc::sourceparts=-`, so it is the only source apt reads; the base image's
-  own sources are never consulted and nothing is overwritten.
-- `-o Acquire::Check-Valid-Until=false`, because a dated snapshot Release ages past it.
-- `dm-update-frozen-snapshot` rewrites the timestamp across both `.sources` files and
-  the plain `build_sources/frozen-snapshot-timestamp`, and refuses when they disagree.
-  Do not hand-edit one of them.
-- `derivative-maker-docker-run` stamps the image with the pin
-  (`org.kicksecure.derivative-maker.frozen-snapshot`) and rebuilds when the label no
-  longer matches, so a bump cannot silently reuse the previous snapshot's image.
-- The sources are https and the slim base ships no `ca-certificates`, so
-  `apt-bootstrap-ca-certificates` installs the trust store first from the base image's
-  own sources, because https to the snapshot cannot be validated before it exists.
-  That is the only unpinned fetch: the base image itself is digest-pinned
-  (`FROM debian:trixie-slim@sha256:...`), not tag-resolved. `derivative-maker-docker-setup`
-  then re-fetches the package from the snapshot with `apt-get install --reinstall`;
-  without `--reinstall` that call is a no-op whenever the live archive and the
-  snapshot carry the same version, leaving the unpinned copy in place.
-
-The build context is the repo root (`docker build --file docker/Dockerfile .`) so the
-Dockerfile can COPY out of `build_sources/`; `.dockerignore` keeps the context to
-`docker/` plus that one file.
-
 ### Volumes
 1. By default three folders are generated in the user's home directory
    ```sh
@@ -98,6 +68,7 @@ Dockerfile can COPY out of `build_sources/`; `.dockerignore` keeps the context t
   + `CACHER_VOLUME` is the mount point of the container's `/var/cache/apt-cacher-ng`
   * `KEY_VOLUME` is the mount point of the container's `/home/user/.gnupg`
 2. To change folder names or locations use the container params `--*-mount`
+
 ### Container parameters
 - [x] Choose container parameters
 - [x] (Optional) Add custom volumes
@@ -109,6 +80,7 @@ Dockerfile can COPY out of `build_sources/`; `.dockerignore` keeps the context t
 | `--key-mount` | Configure custom keystore directory | /home/user/whonix/keys
 
 The command to run in the container is explicit, after `--`.
+
 #### Sample Commands
 1. Build a Kicksecure or Whonix image
    ```sh
@@ -126,12 +98,15 @@ The command to run in the container is explicit, after `--`.
    ```sh
    ./derivative-maker-docker-run --binary-mount /home/user/whonix/dm-binary --cacher-mount /home/user/whonix/apt-cache -- ./derivative-maker <build arguments>
    ```
+
 #### Hints
 * Multiple custom commands can be chained with `&&` or `;`
 * Using end of options `--` is recommended
+
 ### Build Command
 - [x] Read the [Build Documentation](https://www.whonix.org/wiki/Dev/Build_Documentation/VM#Build)
 - [x] Craft a build command
+
 #### Mandatory Build Parameters
 1. Target
 

@@ -33,6 +33,9 @@ case "${image_kind}" in
    *)
       ## The qcow2 is shipped xz-packed ('.qcow2.libvirt.xz'); the bare '.qcow2'
       ## is removed after packing. dm-boot-test extracts the tar.xz.
+      ##
+      ## TODO: Maybe we should explicitly check for an image_kind of qcow2
+      ## here, and error out on an unrecognized image_kind.
       find_glob='*.qcow2.libvirt.xz'
       ;;
 esac

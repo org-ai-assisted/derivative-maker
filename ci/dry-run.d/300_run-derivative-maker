@@ -77,13 +77,14 @@ cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../.."
 ## 1300, and one real '.deb' built in 1400 -- and a timeout that fires mid-build
 ## reads as a lane failure with no diagnosis. NOT the derivative package set:
 ## 2100_create-debian-packages returns immediately under --dry-run.
-timeout 3600 \
+timeout --kill-after=3600 3600 \
    ./help-steps/run-as-user --chown "${PWD}" -- \
       "${target_user}" \
       env CI=true \
           dist_build_sign_and_tag=true \
           dist_build_target_arch=amd64 \
-          flavors_list=kicksecure-lxqt dist_build_multi_target_list=qcow2 \
+          flavors_list=kicksecure-lxqt \
+          dist_build_multi_target_list=qcow2 \
       ./help-steps/dm-build-official \
          --dry-run true \
          --unsupported-os true \
@@ -94,7 +95,7 @@ timeout 3600 \
 ## Exit 0 alone is not evidence. Most build steps return early under --dry-run,
 ## so a regression that made one MORE step return early would leave this lane
 ## green while covering less -- the failure this whole lane exists to prevent.
-## Assert the artifacts the run is supposed to have produced.
+## Assert the existence of the artifacts the run is supposed to have produced.
 ##
 ## Resolve it for the TARGET USER, not from this script's environment. The build
 ## runs through help-steps/run-as-user, whose 'sudo --preserve-env=PATH' does NOT
@@ -148,7 +149,7 @@ buildinfo_file="$(find "${binary_dir}" -type f -name '*.qcow2.libvirt.xz.dm-buil
 ## let it pass and report success.
 if ! grep --quiet --extended-regexp -- '^Source-Commit: [^[:space:]]' "${buildinfo_file}" \
    || grep --quiet --fixed-strings -- 'Source-Commit: unrecorded' "${buildinfo_file}"; then
-   printf '%s\n' "${0##*/}: ERROR: buildinfo carries no recorded Source-Commit, but sign-and-tag ran in step 200 and should have left a source-state file." >&2
+   printf '%s\n' "${0##*/}: ERROR: buildinfo carries no recorded Source-Commit, but sign-and-tag should have left a source-state file." >&2
    exit 1
 fi
 printf '%s\n' "${0##*/}: ok: buildinfo carries recorded provenance." >&2

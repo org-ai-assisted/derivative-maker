@@ -30,6 +30,11 @@ name: Boot Test
 ## runnable. See agents/github-actions-security.md for the pinning / permissions
 ## patterns.
 
+## REMINDER: If the kernel arguments for enabling sysmaint mode ever change,
+## they will need updated in dist-ai/usr/bin/dm-boot-test as well. This could
+## be avoided by making it possible to select a default boot mode in GRUB using
+## an SMBIOS string, but this is not necessary for the time being.
+
 on:
   workflow_dispatch:
   ## Dispatch-only: dm-ci-dispatch --workflow local-boot-test.yml --ref <ref>
@@ -74,6 +79,12 @@ jobs:
           ## the boot chain + hardening core + systemcheck + user-sysmaint-split,
           ## no GUI/browser/anonymity layer.
           ## -> qcow2 disk image (also builds the VirtualBox ova).
+          ##
+          ## TODO: Why do we build qcow2 and VBox images at the same time but
+          ## not ISO images? If it's because of disk space, why not just do
+          ## all builds separately for clarity? If we're going to batch some
+          ## builds, can we make the "image_kind" value here less confusing,
+          ## i.e. change "qcow2" to "vm"?
           - flavor: kicksecure-debug
             image_kind: qcow2
             upload_glob: "*.qcow2*"
@@ -116,7 +127,7 @@ jobs:
           ## is pinned to the timestamp it carries: without it a snapshot bump
           ## would reuse an image built against the previous snapshot, silently
           ## restoring the mismatch the pin exists to prevent.
-          key: ${{ runner.os }}-boot-dmimg-${{ hashFiles('docker/**', 'build_sources/frozen-snapshot-timestamp', 'build_sources/debian_stable_frozen_direct_clearnet.sources') }}
+          key: ${{ runner.os }}-boot-dmimg-${{ hashFiles('docker/**', 'build_sources/frozen-snapshot-timestamp', 'build_sources/debian_stable_frozen_direct_clearnet.sources.in', 'build_sources/frozen-snapshot-timestamp') }}
 
       - name: Load cached docker image
         if: steps.dmimg-cache.outputs.cache-hit == 'true'
@@ -148,7 +159,7 @@ jobs:
       ## cache is pure speedup.
       ## Restore-only here; the matching save runs at job end AFTER a chown (the
       ## build writes these dirs as in-container uids the runner user cannot read,
-      ## so a plain post-save silently caches nothing -- that was the bug).
+      ## so a plain post-save silently caches nothing).
       - name: Restore derivative-package repo cache
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
@@ -195,7 +206,7 @@ jobs:
         ## and sign+tag HEAD FIRST. All three run in ONE
         ## docker-run so the home-directory state signing-key-create creates persists
         ## into sign-and-tag and the build. rule 4: shell vars from env, no ${{ }}
-        ## interpolation into run:.
+        ## interpolation into "run:".
         ## The ISO job needs ONLY the ISO; its sibling CLI job already builds the
         ## qcow2 + VirtualBox images. An EMPTY dist_build_multi_target_list builds
         ## no post-ISO VM images (the raw -> vdi -> ova + qcow2 build would exhaust
@@ -207,7 +218,8 @@ jobs:
           FRESHNESS: frozen
           ## vbox temporarily disabled (re-enable once stable): drop 'virtualbox'
           ## so the non-iso job builds only the qcow2 and skips the raw->vdi->ova
-          ## conversion. Restore 'virtualbox qcow2' below to re-enable vbox.
+          ## conversion. Change 'qcow2' to 'virtualbox qcow2' below to re-enable
+          ## vbox.
           MULTI_TARGET_LIST: ${{ matrix.image_kind != 'iso' && 'qcow2' || '' }}
           ## Reusing a base the cache never restored would hand
           ## 1300_cowbuilder-setup a stale or absent tree, so the flag is tied to
@@ -390,7 +402,7 @@ jobs:
       - name: Boot-test (${{ matrix.image_kind }}, ${{ matrix.firmware }}, ${{ matrix.session }})
         ## Every kind carries user-sysmaint-split, so both sessions run on all of
         ## them -- no skip (a skipped leg would report a vacuous 'success').
-        ## rule 4: values via env, not interpolated into run:.
+        ## rule 4: values via env, not interpolated into "run:".
         env:
           IMAGE: ${{ steps.image.outputs.path }}
           ARCH: ${{ env.BOOT_ARCH }}

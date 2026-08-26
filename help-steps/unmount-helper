@@ -6,6 +6,11 @@
 ## syntax:
 ## unmount-helper -- /path/to/folder
 
+## FIXME: This script was previously used to work around umount / filesystem /
+## kernel bugs. We would like to decommission it, and have commented out
+## almost everything special it does more than a plain 'umount' for the time
+## being.
+
 #set -x
 set -o errexit
 set -o nounset
@@ -47,7 +52,9 @@ main() {
    sync
 
    ## kill gpg-agent
-   ${SUDO_TO_ROOT} "${MYDIR}/umount_kill.sh" -- "${unmount_folder}"
+   ## Out-commented. Because mount-cleanup unmounts all submounts using this
+   ## script and this would cause a circular dependency.
+   #${SUDO_TO_ROOT} "${MYDIR}/mount-cleanup" -- "${unmount_folder}"
 
    if ! ${SUDO_TO_ROOT} mountpoint --quiet -- "${unmount_folder}" ; then
       true "INFO: Not mounted, no need to unmount, ok."
@@ -69,43 +76,42 @@ main() {
    #$SUDO_TO_ROOT dmsetup ls
    #$SUDO_TO_ROOT losetup --all
 
-   ${SUDO_TO_ROOT} umount --verbose --lazy -- "${unmount_folder}" || true "INFO: 'umount --verbose --lazy unmount_folder' non-zero exit code."
-   sync
+   ## Out-commented. Because --lazy is dangerous, see umount manpage.
+   #${SUDO_TO_ROOT} umount --verbose --lazy -- "${unmount_folder}" || true "INFO: 'umount --verbose --lazy unmount_folder' non-zero exit code."
+   #sync
    #sleep 6
 
-   ## 'mountpoint', not a substring grep of /proc/mounts: a SIBLING sharing the
-   ## string prefix ('<dir>' vs '<dir>_vbox-workdir') matches the grep, so an
-   ## already-unmounted folder reads as still mounted and the escalation runs
-   ## every remaining attempt against it. Matches the checks below.
-   if ! ${SUDO_TO_ROOT} mountpoint --quiet -- "${unmount_folder}" ; then
-      true "INFO: Already unmounted after first attempt using --lazy, ok."
-      return 0
-   fi
+   #if ! ${SUDO_TO_ROOT} mountpoint --quiet -- "${unmount_folder}" ; then
+   #   true "INFO: Already unmounted after first attempt using --lazy, ok."
+   #   return 0
+   #fi
 
    ${SUDO_TO_ROOT} umount --verbose -- "${unmount_folder}" || true "INFO: 'umount --verbose ${unmount_folder}' non-zero exit code."
    sync
    #sleep 6
 
    if ! ${SUDO_TO_ROOT} mountpoint --quiet -- "${unmount_folder}" ; then
-      true "INFO: Already unmounted after second attempt using normal mount, ok."
+      #true "INFO: Already unmounted after second attempt using normal mount, ok."
+      true "INFO: Already unmounted after first attempt using normal mount, ok."
       return 0
    fi
 
-   ${SUDO_TO_ROOT} umount --verbose --force -- "${unmount_folder}" || true "INFO: umount '--verbose --force ${unmount_folder}' non-zero exit code."
-   sync
+   ## Out-commented. Because --force only does anything with when used on NFS.
+   #${SUDO_TO_ROOT} umount --verbose --force -- "${unmount_folder}" || true "INFO: umount '--verbose --force ${unmount_folder}' non-zero exit code."
+   #sync
    #sleep 6
 
-   if ! ${SUDO_TO_ROOT} mountpoint --quiet -- "${unmount_folder}" ; then
-      true "INFO: Already unmounted after third attempt using --force, ok."
-      return 0
-   fi
+   #if ! ${SUDO_TO_ROOT} mountpoint --quiet -- "${unmount_folder}" ; then
+   #   true "INFO: Already unmounted after third attempt using --force, ok."
+   #   return 0
+   #fi
 
    sync
 
    ## Debugging.
    ${SUDO_TO_ROOT} cat -- /proc/mounts
 
-   printf '%s\n' "ERROR: unmount_folder '${unmount_folder}' not unmounted after three attempts!"
+   printf '%s\n' "ERROR: unmount_folder '${unmount_folder}' not unmounted!"
    exit 1
 }
 

@@ -5,28 +5,11 @@
 
 ## AI-Assisted
 
-## Installs ca-certificates so the pinned https apt sources that the Dockerfile
-## COPYs in AFTER this can be fetched at all.
-##
-## Why this exists: debian:trixie-slim carries only the base system, and
-## ca-certificates is Priority: standard, so it is absent. Without a trust store
-## apt cannot talk https, which would leave the choice between an http downgrade
-## for the pinned snapshot and no pin. Neither is acceptable, so the trust store
-## is bootstrapped first.
-##
-## This one apt-get runs against the BASE IMAGE's own sources, which are the live
-## archive -- the only unpinned fetch in the image build. That is a deliberate,
-## bounded exception:
-##   - ca-certificates is build-host tooling. It installs no library the built
-##     image links against and is not a build input, so it cannot move a package
-##     version in the product.
-##   - The pinned snapshot sources land immediately after this, and
-##     derivative-maker-docker-setup installs ca-certificates AGAIN from that
-##     snapshot, so the finished image carries the pinned version, not this one.
-##     This step only has to be good enough to establish TLS.
-##
-## Deliberately NOT 'apt-get upgrade': the goal is a trust store, not a moving
-## base image.
+## debian:trixie-slim carries only the base system, and ca-certificates is
+## Priority: standard, so it is absent. Without a trust store apt cannot talk
+## https, which we need for additional safety. We could just install
+## ca-certificates directly in the Dockerfile, but this script lets us make
+## sure it provides the files we expect too.
 
 set -x
 set -o errexit
@@ -44,8 +27,6 @@ DEBIAN_FRONTEND=noninteractive \
       --yes \
       ca-certificates
 
-## Fail loud rather than let the https sources fail later with a confusing
-## certificate error: the bundle is the whole point of this script.
 if [ ! -s /etc/ssl/certs/ca-certificates.crt ]; then
    printf '%s\n' "${BASH_SOURCE[0]}: ERROR: /etc/ssl/certs/ca-certificates.crt missing or empty after install." >&2
    exit 1

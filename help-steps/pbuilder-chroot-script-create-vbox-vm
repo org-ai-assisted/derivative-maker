@@ -20,13 +20,8 @@ true "INFO: Currently running chroot script: ${BASH_SOURCE[0]}"
 
 ## Variables arrive through the environment: the '4600_create-vbox-vm' host
 ## wrapper exports the curated allowlist and invokes `sudo ... cowbuilder`
-## with '--preserve-env', so they are carried into this chroot (VMNAME, VMRAM,
-## VRAM, binary_image_raw_file, ...). Fail loud if a required one did not
-## make it.
-## The locale trio ('help-steps/variables' sets LC_ALL=C.UTF-8,
-## LANG=C.UTF-8, LANGUAGE=C) travels the same route; checking it here makes
-## a silent locale passthrough regression fail loud instead of surfacing as
-## unparseable translated 'VBoxManage' output.
+## with '--preserve-env', so they are carried into this chroot. Fail loud if a
+## required one did not make it.
 for required_var in \
    VMNAME VMRAM VRAM binary_image_raw_file binary_image_vdi_dir HOMEVAR_VBOX_TEMP \
    SUDO_TO_VBOX_TEMP vm_names_to_be_exported LC_ALL LANG LANGUAGE ; do
@@ -36,11 +31,7 @@ for required_var in \
    fi
 done
 
-## Shared chroot-session plumbing; see the header of
-## 'help-steps/vbox-chroot-shared' (including why resolution goes through
-## the bind-mounted source tree, not '${BASH_SOURCE[0]}'). The BASH_SOURCE
-## fallback keeps direct (non-cowbuilder) execution working.
-if [ -v dist_source_help_steps_folder ]; then
+if [ -n "${dist_source_help_steps_folder:-}" ]; then
    vbox_chroot_shared_file="${dist_source_help_steps_folder}/vbox-chroot-shared"
 else
    vbox_chroot_shared_file="$(dirname -- "${BASH_SOURCE[0]}")/vbox-chroot-shared"
@@ -178,6 +169,8 @@ general_setup() {
    ${SUDO_TO_VBOX_TEMP} VBoxManage modifyvm "${VMNAME}" --vram "${VRAM}"
 
    ## Enable PAE. x86-only feature.
+   ##
+   ## TODO: Obsolete now that we only support x86_64?
    if [ ! "${dist_build_target_arch}" = "arm64" ]; then
       ${SUDO_TO_VBOX_TEMP} VBoxManage modifyvm "${VMNAME}" --x86-pae on
    fi
@@ -332,6 +325,9 @@ spectre_meltdown_defenses() {
    ## > "By disabling nested paging (EPT), the VMM will construct page tables shadowing the ones in the guest. It is no possible for the guest to insert anything fishy into the page tables, since the VMM carefully validates each entry before shadowing it."
    ##
    ## > "As a side effect of disabling nested paging, several CPU features will not be made available to the guest. Among these features are AVX, AVX2, XSAVE, AESNI, and POPCNT. Not all guests may be able to cope with dropping these features after installation. Also, for some guests, especially in SMP configurations, there could be stability issues arising from disabling nested paging. Finally, some workloads may experience a performance degradation."
+   ##
+   ## NOTE: This restricts the CPU instructions to x86_64-v1 level. If the
+   ## architecture baseline of Debian is raised, this will need to be undone.
    ${SUDO_TO_VBOX_TEMP} VBoxManage modifyvm "${VMNAME}" --nestedpaging off
 }
 

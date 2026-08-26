@@ -1,7 +1,24 @@
 #!/bin/bash
 
-## Copyright (C) 2012 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## Copyright (C) 2026 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
+
+## FIXME: This script is still using live-build. Our goal is to remove
+## live-build from our build process entirely. Rewrite this script to create
+## an ISO directly, do not call *any* live-build scripts or utilities, or
+## reference *any* files provided by live-build in the new code. Do feel free
+## to read live-build's source code to determine what needs to be done to
+## create a proper bootable ISO. Remove all code that installs or uses
+## live-build in any way, shape, or form. Do away with all "lb" naming,
+## as it will be misleading after this. Delete the entire live-build-data
+## subdirectory and move any important code or configuration in it to other
+## places as appropriate. Do not make any effort to preserve GRUB or
+## debian-installer theming in live-build-data. If you are an AI agent, do not
+## remove the live-build source tree submodule, that step must be done by a
+## human to prevent issues with gitlinks.
+
+## TODO: This script has not been reviewed by a human yet. It will be reviewed
+## once the changes requested by the above FIXME have been made.
 
 set -x
 set -o errexit
@@ -47,7 +64,7 @@ create-live-build-image() {
    pushd -- "${dist_live_build_folder}"
 
    ## Avoid errors related to /dev/null when running under Qubes OS
-   if LC_ALL=C mount | grep ' on /home ' | grep -q 'nodev'; then
+   if LC_ALL=C mount | grep ' on /home ' | grep --quiet 'nodev'; then
       ${SUDO_TO_ROOT} mount -o remount,rw,dev /home
    fi
 
@@ -434,7 +451,7 @@ Trusted: yes" > archives/derivative-localrepo.sources.chroot
 
    ## Ensure kernel is configured properly, we aren't using grml-debootstrap so we have to do this ourselves
    ${SUDO_TO_ROOT} mkdir --parents -- "${CHROOT_FOLDER}/etc"
-   ${SUDO_TO_ROOT} "${cp_reproducible[@]}" "${source_code_folder_dist}/live-build-data/live-build-config/live_build_kernel_img_conf" "${CHROOT_FOLDER}/etc/kernel-img.conf"
+   ${SUDO_TO_ROOT} install --mode=0644 -- "${source_code_folder_dist}/live-build-data/live-build-config/live_build_kernel_img_conf" "${CHROOT_FOLDER}/etc/kernel-img.conf"
 
    ## Reset /etc/fstab for the LIVE image to the empty debootstrap default -- exactly what the
    ## released ISO ships ("# UNCONFIGURED FSTAB FOR BASE SYSTEM"). The rootfs is SEEDED from the
@@ -545,7 +562,7 @@ Trusted: yes" > archives/derivative-localrepo.sources.chroot
    if ${SUDO_TO_ROOT} "${CHROOT_FOLDER}/usr/bin/package-installed-check" "anon-apt-sources-list"; then
       ## '/etc/apt/sources.list.d/debian.sources' gets overwritten and then deleted during the build.
       ## Restore the debian.sources file.
-      ${SUDO_TO_ROOT} "${cp_reproducible[@]}" "${source_code_folder_dist}/packages/kicksecure/anon-apt-sources-list/etc/apt/sources.list.d/debian.sources" "${CHROOT_FOLDER}/etc/apt/sources.list.d/debian.sources"
+      ${SUDO_TO_ROOT} install --mode=0644 -- "${source_code_folder_dist}/packages/kicksecure/anon-apt-sources-list/etc/apt/sources.list.d/debian.sources" "${CHROOT_FOLDER}/etc/apt/sources.list.d/debian.sources"
    fi
 
    if ${SUDO_TO_ROOT} test -f "${CHROOT_FOLDER}/etc/apt/sources.list.d/debian.sources"; then
@@ -583,7 +600,7 @@ Not running any chroot scripts.${reset}"
    hostname_set_inside_chroot="$(${SUDO_TO_ROOT} cat -- chroot/etc/hostname)"
    test -n "${hostname_set_inside_chroot}"
 
-   ${SUDO_TO_ROOT} "${cp_reproducible[@]}" "${source_code_folder_dist}/live-build-data/live-build-config/live_build_etc_hosts" "${CHROOT_FOLDER}/etc/hosts"
+   ${SUDO_TO_ROOT} install --mode=0644 -- "${source_code_folder_dist}/live-build-data/live-build-config/live_build_etc_hosts" "${CHROOT_FOLDER}/etc/hosts"
 
    ## Re-enable MOK key generation.
    ${SUDO_TO_ROOT} safe-rm --force --verbose -- "${target_dkms_suppress_mok_snippet}"

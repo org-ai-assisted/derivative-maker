@@ -1,13 +1,15 @@
 # Build paths: who calls what
 
+NOTE: All of the line numbers in this file are either wrong or will probably
+become wrong in the (potentially near) future. Consider removing them or
+replacing them with function name references as appropriate.
+
 Text-only flow charts of how a derivative-maker build is actually driven, and
 where the dry-run path stops matching the real one.
 
-Every arrow below was read out of the files on THIS branch. `ci/build` no longer
+Every arrow below was read out of the files on the 'ai' branch. `ci/build` no longer
 exists here -- `ee8711e7f` retired it so there is one build path, with
-`ci/reproducible-build-twice` driving `dm-build-official` directly. It is still
-present on master, so a reader coming from master will find one entry point more
-than this document describes.
+`ci/reproducible-build-twice` driving `dm-build-official` directly.
 
 ## The single build spine
 
