@@ -39,9 +39,7 @@
 ## script owns the build-twice orchestration; the comparison lives in exactly one
 ## place.
 ##
-## Exit: 0 reproducible, 4 differ, 2 usage / artifact-not-found, 3 a build failed,
-## 1 unexpected internal error. 'differ' is 4 (forwarded from the comparator), not
-## 1, so it never collides with an errexit-caught failure.
+## Exit: 0 reproducible, 1 differ, 2 usage / artifact-not-found, 3 a build failed.
 
 set -o errexit
 set -o nounset
@@ -49,6 +47,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 ## style-ok: no-has
 
@@ -254,7 +253,7 @@ build_one b b
 ## best-effort diffoscope explanation) instead of re-implementing it here. It locates
 ## exactly one artifact of $target under each dir, so the two build outputs collected
 ## into a/ and b/ are compared bit-for-bit. Its exit maps onto ours: 0 identical
-## (reproducible), 4 differ, 2 setup / artifact-not-found.
+## (reproducible), 1 differ, 2 setup / artifact-not-found.
 compare_bin="${source_code_folder_dist}/packages/kicksecure/developer-meta-files/usr/bin/dm-reproducible-compare-artifacts"
 compare_rc=0
 "${compare_bin}" --target "${target}" --dir-a "${output_dir}/a" --dir-b "${output_dir}/b" --output "${report}" || compare_rc="$?"
