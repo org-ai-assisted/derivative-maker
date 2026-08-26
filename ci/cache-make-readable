@@ -19,11 +19,6 @@ shopt -s inherit_errexit
 shopt -s shift_verbose
 export LC_ALL=C
 
-## style-ok: no-safe-rm -- this script only chowns CI cache dirs, it removes nothing.
-##
-## TODO: If we don't have any rm call in this script, we should fix the scanner
-## script to not warn about it rather than adding a style-ok exclusion here.
-
 if [ "${CI:-}" != "true" ]; then
    printf '%s\n' "${0##*/}: refusing to chown cache dirs outside CI (CI is not 'true')" >&2
    exit 0
