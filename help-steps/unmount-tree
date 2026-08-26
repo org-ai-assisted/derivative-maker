@@ -13,6 +13,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -66,18 +67,10 @@ collect_mounts_under_tree() {
 main() {
    local file_system_object real_path mount_point attempt_number remaining_list
 
-   ## TODO: This could be shortened to `[ "${1:-}" = '--' ] && shift`.
-   while true; do
-      case "${1:-}" in
-         --)
-            shift
-            break
-            ;;
-         *)
-            break
-            ;;
-      esac
-   done
+   ## Skip a leading '--' end-of-options separator if present.
+   if [ "${1:-}" = '--' ]; then
+      shift
+   fi
 
    file_system_object="${1:-}"
 
