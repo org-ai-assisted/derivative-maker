@@ -26,6 +26,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -446,25 +447,29 @@ create_derivative_distribution_debian_packages() {
          fi
          base_name="${item##*/}"
          ## 'Architecture:' currently in ./packages/$derivative_name_item/ folder: all / any /
-         ## amd64 / linux-amd64.
-         if grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "all" ; then
-            true "DEBUG: ${base_name} Architecture: all"
-         elif grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "any" ; then
-            true "DEBUG: ${base_name} Architecture: any"
-         elif grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "amd64" ; then
-            if [ ! "${dist_build_target_arch:-}" = "amd64" ]; then
-               true "${cyan}INFO: Skipping platform 'amd64' specific package ${base_name} as expected.${reset}"
-               continue
-            fi
-         elif grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" | grep --quiet --fixed-strings -- "linux-amd64" ; then
-            if [ ! "${dist_build_target_arch:-}" = "amd64" ]; then
-               true "${cyan}INFO: Skipping platform 'linux-amd64' specific package ${base_name} as expected.${reset}"
-               continue
-            fi
-         else
-            grep -- "Architecture:" "${control_file}" || true
-            error "unknown Architecture: in ${control_file}"
-         fi
+         ## amd64 / linux-amd64. Capture the non-comment 'Architecture:' line(s) once, then
+         ## match by substring (same order and semantics as the previous grep chain). '*amd64*'
+         ## also matches 'linux-amd64', so both amd64 spellings share the one amd64-only path.
+         architecture_field="$(grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" || true)"
+         case "${architecture_field}" in
+            *all*)
+               true "DEBUG: ${base_name} Architecture: all"
+               ;;
+            *any*)
+               true "DEBUG: ${base_name} Architecture: any"
+               ;;
+            *amd64*)
+               ## Covers both 'amd64' and 'linux-amd64' (the latter contains 'amd64').
+               if [ ! "${dist_build_target_arch:-}" = "amd64" ]; then
+                  true "${cyan}INFO: Skipping platform 'amd64' specific package ${base_name} as expected.${reset}"
+                  continue
+               fi
+               ;;
+            *)
+               grep -- "Architecture:" "${control_file}" || true
+               error "unknown Architecture: in ${control_file}"
+               ;;
+         esac
          ## Fast local iteration (opt-in): skip a package already published in the
          ## local reprepro repo at its current changelog version. Off by default,
          ## so editing a package without bumping debian/changelog is not silently
