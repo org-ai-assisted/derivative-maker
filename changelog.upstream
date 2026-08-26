@@ -1,3 +1,270 @@
+commit 008d14e97526ccfe3095629704e3787b5e158b97
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sun Aug 23 01:51:54 2026 -0400
+
+    .
+
+commit b042cf8fae43de0e3a75cdd406c50bd95cbb767e
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sun Aug 23 01:43:11 2026 -0400
+
+    .
+
+commit 7ecd7ac578d7e8cde1d8bc8657f3f0b8ea449082
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sun Aug 23 01:39:33 2026 -0400
+
+    .
+
+commit 877fd13199ce9367f73e57c1ef3377dda45a6aa4
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sat Aug 22 05:08:18 2026 -0400
+
+    .
+
+commit 39115e6a155f15a349b993a7d81b112b849b623d
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sat Aug 22 05:05:03 2026 -0400
+
+    .
+
+commit 5badba630ef5b5299348fc7a54e5779c388a0a6a
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Aug 21 04:49:03 2026 -0400
+
+    .
+
+commit 9df331e96f70e08f83696ae31a86635e90471a2b
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Aug 21 02:26:07 2026 -0400
+
+    .
+
+commit 6c0e9f33552fcf6c1c301c90614e51ffb43907f8
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Aug 21 02:24:17 2026 -0400
+
+    update
+
+commit d3b38ef1519816504e0f6530ec8652d5324e1655
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Aug 21 02:23:14 2026 -0400
+
+    update VirtualBox download links for Whonix Windows Installer
+
+commit fc11fb39189cba01a1781eb7ce49f027deaf2054
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Aug 21 02:22:42 2026 -0400
+
+    .
+
+commit f05a8569c92042e5481853260a90bad2e89b5254
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Aug 21 02:16:08 2026 -0400
+
+    .
+
+commit 2967b48c950299d04c8d480ab2760db734bdaf87
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 17 05:34:36 2026 +0000
+
+    bumped changelog version
+
+commit afa1e7070b04d478389bccf1ff88dead1239d064
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 17 01:01:50 2026 -0400
+
+    .
+
+commit f75d3d7ac2cab084215292efe4301c32b8d44ca6
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 17 00:49:40 2026 -0400
+
+    .
+
+commit bb7382ee8451bacbb443d3f139fe5352af2fc715
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 17 00:23:58 2026 -0400
+
+    .
+
+commit 0dae8a06b7b36f63f84aaf0c0bbb83ffb88cf27a
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sun Aug 16 04:13:24 2026 -0400
+
+    .
+
+commit 74111c4a3c8828bd7dfacbb4af0872dc8436b779
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sat Aug 15 12:35:00 2026 -0400
+
+    .
+
+commit 21195d9348a6ffac69c61158bf229e81c2338f91
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sat Aug 15 12:09:32 2026 -0400
+
+    .
+
+commit 23a252c2f24159f6e8cdce5d6488a98799d6d6d8
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sat Aug 15 11:56:05 2026 -0400
+
+    .
+
+commit 0b2af7f6b1a1f134b5332a4cecc6cda745c36988
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sat Aug 15 11:47:35 2026 -0400
+
+    .
+
+commit d7f87045592c3e3347263af9bff1446cdff8b74a
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sat Aug 15 10:23:16 2026 -0400
+
+    .
+
+commit 854a9ba851a6d588168a6e938175322095d7e993
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sat Aug 15 10:19:31 2026 -0400
+
+    .
+
+commit 5eeab6b42de347b0393765ee388ac4825fd15ec1
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Wed Aug 12 04:00:33 2026 -0400
+
+    .
+
+commit eeb205f4585a6ddcb6146c4607bc6886026ad9d6
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 10 13:02:54 2026 -0400
+
+    .
+
+commit a7f10c87b0d6fe2c0738ccb244d16677c98913e3
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 10 10:27:03 2026 -0400
+
+    .
+
+commit a481feb5ec50ac8468ce9591c934e926c38ac90c
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 10 10:21:14 2026 -0400
+
+    .
+
+commit 55e1df722eeac23d4431c87bce0024d38fe95b45
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 10 10:19:00 2026 -0400
+
+    .
+
+commit 8d3e0f4ba0e46655a3de897bd5bb0f71024db1cb
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 10 09:54:35 2026 -0400
+
+    .
+
+commit b754b5adc353d8b05c8cea4bec03249f254c7100
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Mon Aug 10 09:50:04 2026 -0400
+
+    .
+
+commit 11269ee1213f0841c82af681b407eb5cf6400d77
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sat Aug 1 10:13:39 2026 +0000
+
+    bumped changelog version
+
+commit 0322e099a130db2bf7266ef879e230348cf8bbc2
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sat Aug 1 04:49:00 2026 -0400
+
+    .
+
+commit fc5de0e60bb2ddbb37680530f741ff21423e2cc6
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Jul 31 13:22:49 2026 -0400
+
+    .
+
+commit d3dd946307bda6bebec611263d5f72bb15c0ec9b
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Jul 31 13:22:45 2026 -0400
+
+    .
+
+commit 396589ccd4677c90be52e3ff6b75f221a4e01bba
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Jul 31 07:12:19 2026 -0400
+
+    .
+
+commit a57ca73f62232fa308622052d5a2b34eae6d72d7
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Fri Jul 31 07:08:58 2026 -0400
+
+    .
+
+commit 940e83f528118824cc332c64f1c8265ea5fcec2c
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Thu Jul 30 05:20:41 2026 -0400
+
+    .
+
+commit ec57abfa2f6698c31f0fb2724036961a41f9f29e
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Wed Jul 29 08:22:37 2026 -0400
+
+    .
+
+commit 0618378357849988e4bac27b98dc561f7b817108
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Wed Jul 29 08:13:24 2026 -0400
+
+    .
+
+commit 7ab56b5828b212521fa4ded2bda1c09843637717
+Merge: 75908f588 fb8a987cd
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Wed Jul 29 08:13:11 2026 -0400
+
+    Merge remote-tracking branch 'refs/remotes/org-ai-assisted/master'
+
+commit fb8a987cd272df6f421b5d61d1ecf4e0a7016ce0
+Author: claude (dev113 6465e658-44ed-4e80-93cf-c9586d8683d6) <noreply@anthropic.com>
+Date:   Tue Jul 28 12:36:42 2026 -0400
+
+    ci/reproducible-build-twice: diffoscope is best-effort, not localization
+
+    The comment promised diffoscope would "localize a mismatch to the specific
+    in-image file". The comparator itself does not claim that: it prints
+    "diffoscope explanation follows (best-effort; may be truncated or skipped)" and
+    documents that the run is capped and can be skipped on large images. The verdict
+    is the whole-file sha256; diffoscope is a diagnosis aid.
+
+    Generated with assistance from Claude Code.
+
+commit bfc9d9583cce327b4c5bec746a79ec5d9adabc27
+Author: claude (dev113 6465e658-44ed-4e80-93cf-c9586d8683d6) <noreply@anthropic.com>
+Date:   Tue Jul 28 08:28:16 2026 -0400
+
+    ci/build: correct the caller comment
+
+    local-build.yml drives help-steps/dm-build-official, not this script. Name the
+    real callers (ci/reproducible-build-twice and manual local builds) so the header
+    stops pointing at a workflow that no longer uses it.
+
+    Generated with assistance from Claude Code.
+
+commit 75908f5880fa63435b986e681b31fe337c4e3340
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Tue Jul 28 13:29:31 2026 +0000
+
+    bumped changelog version
+
 commit ce50a73add3c1857a31c012eb452b77e2c66f698
 Author: Patrick Schleizer <adrelanos@whonix.org>
 Date:   Tue Jul 28 09:26:00 2026 -0400
