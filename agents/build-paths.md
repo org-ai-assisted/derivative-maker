@@ -56,8 +56,9 @@ Two things that read like gaps and are not:
 ```
 .github/workflows/local-build.yml     # dispatch-only + release tags + weekly
   -> job build (matrix: copy = a, b)          # two SEPARATE runners
-       flavor kicksecure-debug -- the SAME flavor the boot-test lane builds,
-       so the two lanes can share one image instead of building two
+       flavor kicksecure-ci-tiny-do-not-use -- the SAME flavor the boot-test
+       lane builds, so the two lanes can share one image instead of building
+       two
        ci/configure-fork-mirror
        git submodule update --init --recursive
        ci/checkout-fork-submodule-branches
