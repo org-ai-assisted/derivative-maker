@@ -21,8 +21,11 @@ fi
 
 MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 
-## Skip a leading '--' end-of-options separator if present.
-[ "${1:-}" = '--' ] && shift
+## Skip a leading '--' end-of-options separator if present. (A bare '&& shift'
+## would trip errexit when '--' is absent, so use an if.)
+if [ "${1:-}" = '--' ]; then
+   shift
+fi
 
 file_system_object="${1:-}"
 
@@ -173,6 +176,6 @@ fi
 
 ## Unmount all submounts. All callers consider it an error for any submount
 ## unmount to fail.
-"${MYDIR}"/unmount-tree -- "${file_system_object}"
+"${MYDIR}"/unmount-tree
 
 true "$0 INFO: end"
