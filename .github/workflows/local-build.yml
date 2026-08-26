@@ -13,12 +13,11 @@ name: Build
 ## == bit-for-bit reproducible, red == a difference remains.
 ## The diffoscope report artifact says exactly what differs. The build runs through
 ## the official orchestration (help-steps/dm-build-official) with a single-flavor smoke
-## (kicksecure-debug, the flavor local-boot-test.yml also builds), so there is
-## ONE build path and no duplicate build
-## logic; all compare logic lives in developer-meta-files'
-## dm-reproducible-compare-artifacts, so the shell stays lint-covered and
-## locally runnable. See agents/github-actions-security.md for the pinning
-## / permissions patterns.
+## (kicksecure-ci-tiny-do-not-use, the flavor local-boot-test.yml also builds), so
+## there is ONE build path and no duplicate build logic; all compare logic lives in
+## developer-meta-files' dm-reproducible-compare-artifacts, so the shell stays
+## lint-covered and locally runnable. See agents/github-actions-security.md for the
+## pinning / permissions patterns.
 
 ## TODO: This file is now poorly named; rename to reproducible-build-test.yml?
 
@@ -26,7 +25,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: "Which built image to compare. Both are built from kicksecure-debug, the flavor local-boot-test.yml also uses."
+        description: "Which built image to compare. Both are built from kicksecure-ci-tiny-do-not-use, the flavor local-boot-test.yml also uses."
         type: choice
         ## A choice input defaults to the first option (qcow2); the env fallback
         ## below ('inputs.target || qcow2') covers schedule/push.
@@ -74,15 +73,15 @@ env:
   ## artifact; agreeing on one is what lets the boot lane consume this lane's
   ## image instead of rebuilding it.
   ##
-  ## kicksecure-debug is the minimal one that still boots: the boot chain,
-  ## hardening core, systemcheck and user-sysmaint-split (both boot sessions), no
-  ## GUI/browser/anonymity layer. 'dracut' comes in through ram-wipe's own
+  ## kicksecure-ci-tiny-do-not-use is the minimal one that still boots: the boot,
+  ## chain hardening core, systemcheck and user-sysmaint-split (both boot sessions),
+  ## no GUI/browser/anonymity layer. 'dracut' comes in through ram-wipe's own
   ## Depends, so the initramfs path is present despite not being named in the
   ## meta package. What it does NOT carry -- grub-live-dracut,
   ## bootclockrandomization, boot-info-script -- is live-mode, clock-privacy and
   ## diagnostics, none of which a boot needs. The boot lane has produced green
   ## boots on this flavor, which is the evidence that matters.
-  REPRO_FLAVOR: kicksecure-debug
+  REPRO_FLAVOR: kicksecure-ci-tiny-do-not-use
   ## Build ONLY the target this run compares, not the whole 'virtualbox qcow2' set:
   ## the other is pure runner time, and the .ova leg cannot complete anyway (see the
   ## target choices above). Empty for iso, which the lxqt flavor produces on its own.
