@@ -8,6 +8,13 @@
 ## dist-ai/ci/dist-ai-tests-ci-config.sh.
 
 dist-ai-tests:
-  ## Default stack plus: procps (umount_kill.sh 'ps' kill-report) and
+  ## Default stack plus: procps (mount-cleanup 'ps' kill-report) and
   ## safe-rm (dm-help-steps-tests scratch cleanup).
   apt-packages: "python3 python3-pytest python3-hypothesis procps safe-rm"
+
+  ## dm-grub-smbios-tests compares the disk-side SMBIOS reader, which lives in
+  ## the vm-config-dist SUBMODULE, against the ISO-side copy in the main tree.
+  ## Without the submodules it cannot resolve its subject and exits 77 -- an
+  ## unauthorized skip, which fails the run. Checking them out is what makes the
+  ## test actually run, rather than authorizing it away.
+  submodules: true

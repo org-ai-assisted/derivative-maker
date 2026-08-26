@@ -1,98 +1,21 @@
-# GitHub Actions security - required patterns
+# GitHub Actions security - derivative-maker pins
 
-For org-wide cross-repo conventions (reusable workflows, the
-`github.*` constraint in `jobs.<id>.uses:`, `schedule:`-must-be-at-
-caller, cross-repo `uses:` pinning), see
+The required patterns themselves (permissions, `persist-credentials: false`,
+fork-PR guards, no `${{ }}` into `run:`, SHA pinning, job timeouts, the
+"why no actionlint" rationale, and the pin-bump procedure) are maintained in
+the AI-maintained `dist-ai` repo:
+[`dist-ai:agents/github-actions-security.md`](https://github.com/org-ai-assisted/dist-ai/blob/master/agents/github-actions-security.md).
+We do not duplicate them.
+
+For org-wide cross-repo conventions, see
 `packages/kicksecure/developer-meta-files/agents/github-actions.md`
 ([upstream](https://github.com/Kicksecure/developer-meta-files/blob/master/agents/github-actions.md)).
-This file covers the **derivative-maker-specific** security patterns
-only.
 
-When editing `.github/workflows/*.yml`, every workflow MUST:
+This file holds only THIS repo's live pin state. It stays here because a pin
+must be bumped in the same commit as the workflow line it documents, which a
+cross-repo file cannot do -- a Dependabot bump here would silently desync it.
 
-1. **`permissions: contents: read` at the workflow top level.**
-   Override per-job (e.g. `security-events: write` for codeql) only when
-   strictly needed.
-
-2. **`persist-credentials: false` on every `actions/checkout`.**
-   The default leaves `GITHUB_TOKEN` in `.git/config` for any
-   subsequent step to harvest. None of our workflows push, so always
-   drop credentials post-checkout.
-
-3. **Fork-PR guard on jobs that touch secrets or trigger builds:**
-   ```
-   if: github.event.pull_request.head.repo.full_name == github.repository
-       || github.event_name != 'pull_request'
-   ```
-
-4. **Never interpolate `${{ github.event.* }}` (or `${{ inputs.* }}`,
-   `${{ github.head_ref }}`, etc.) directly into `run:` shell.**
-   Route through `env:` instead:
-   ```
-   env:
-     TITLE: ${{ github.event.issue.title }}
-   run: |
-     echo "$TITLE"   # safe; not subject to expression-engine substitution
-   ```
-   Direct interpolation into `run:` is the cycode/Trojan-Source script-
-   injection attack class.
-
-5. **Pin `uses:` actions and Docker `image:` to commit SHA / digest.**
-   Tags are mutable. Dependabot (`.github/dependabot.yml`) will bump SHAs
-   automatically; do not change tags by hand to "latest" / "v6".
-
-6. **Hard timeout on every job** (`timeout-minutes:`).
-
-7. **Inline shell only for steps that must run before checkout** (e.g.
-   `apt-get install git ca-certificates` before `actions/checkout`).
-   Everything else should call a script under `ci/*.sh` so the bash
-   is shellcheck/`bash -n` covered by the lint workflow and runnable
-   locally.
-
-If ANY of the above is missing in a workflow you edited, restore it
-before committing.
-
-## Why no actionlint
-
-[`rhysd/actionlint`](https://github.com/rhysd/actionlint) catches
-workflow-specific bugs that `python3 -c 'yaml.safe_load(...)'` and
-shellcheck (on the file tree) don't see - script injection from
-`${{ github.event.* }}` into `run:` blocks, mistyped action refs,
-shellcheck-of-embedded-shell. It would be useful in principle.
-
-We don't run it because:
-
-- It is not packaged in Debian (`packages.debian.org` has no
-  `actionlint` binary). Pulling it from upstream means trusting a
-  single-maintainer GitHub release for a tool that runs in CI - same
-  trust footprint as the workflow steps it's auditing.
-- It is not a "GitHub-verified" Marketplace action; `actionlint`
-  itself is a CLI, and the third-party `rhysd/actionlint-action`
-  wrapper has the same single-maintainer concern.
-- The script-injection class it would catch is already enforced by
-  rule 4 above (`env:`-route every external string), and the
-  embedded-shell-shellcheck class is mitigated by rule 7 (inline
-  shell only when unavoidable).
-
-If `actionlint` ever ships in Debian, we add it back via apt.
-
----
-
-## Pinned-action provenance
-
-Every `uses: <action>@<sha>` line in our workflows MUST cite a verifiable
-source for the SHA. Dependabot bumps will replace this list automatically;
-when bumping by hand, update this table at the same time.
-
-The format is:
-
-> **`<action>@<sha>  # v<tag>`**
->
-> - Source: `<URL of the GitHub release page>`
-> - Verbatim quote from the source: `"<commit hash shown there>"`
-> - Verified: `<YYYY-MM-DD>` by `<who/how>`
-
-### Currently pinned
+## Currently pinned
 
 **`actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2`**
 - Source: https://github.com/actions/checkout/releases/tag/v6.0.2
@@ -138,7 +61,7 @@ The format is:
 - Verified: 2026-04.
 - Note: there is no immutable release tag; we re-verify HEAD of v1 manually before each bump.
 
-### Container image digests (Docker Hub)
+## Container image digests (Docker Hub)
 
 Workflow `image:` lines must also be pinned to a content digest. Tags
 are mutable.
@@ -154,14 +77,3 @@ are mutable.
   ```
 - Multi-arch index digest. Used by both `local-lint.yml` and
   `local-build-dry-run.yml`; bump both call sites in lockstep.
-
-Dependabot does NOT auto-bump container digests in workflow `image:`,
-so this needs manual re-pinning when porting to a new Debian release.
-
-### Procedure when adding or bumping a pin
-
-1. Open the action's release page on github.com (`/<owner>/<action>/releases/tag/<version>`).
-2. Copy the exact SHA shown there (40 hex chars).
-3. Replace the `@<sha>  # v<tag>` line in the workflow.
-4. Add (or update) a row in the "Currently pinned" list above with the same source URL.
-5. Commit the workflow change and the doc update **in the same commit** so review can verify both at once.

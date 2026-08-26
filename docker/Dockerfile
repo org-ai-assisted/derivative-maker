@@ -21,10 +21,30 @@ HOME=/home/user
 ARG DM_UID=1000
 ENV DM_UID=${DM_UID}
 
-COPY derivative-maker-docker-setup /usr/bin
-COPY build-data/docker-entrypoint.target /etc/systemd/system
-COPY build-data/docker-entrypoint.service /etc/systemd/system
-COPY build-data/docker-entrypoint-stop.sh /usr/bin
+## Install ca-certificates and ensure the expected files from it are present.
+COPY docker/apt-bootstrap-ca-certificates /usr/bin
+RUN chmod 0755 /usr/bin/apt-bootstrap-ca-certificates \
+    && /usr/bin/apt-bootstrap-ca-certificates
+
+## Provide the container a timestamp-pinned sources file. We use apt options to
+## point apt at this file, so it doesn't need to be in sources.list.d.
+COPY build_sources/debian_stable_frozen_direct_clearnet.sources.in /etc/apt/dm-frozen.sources
+
+## Fix any umask-induced permission issues.
+RUN chmod 0644 /etc/apt/dm-frozen.sources
+
+## Populate the timestamp in the frozen sources file. Note that
+## apt-populate-frozen-timestamp deletes /etc/apt/frozen-snapshot-timestamp
+## when it's done with it.
+COPY docker/apt-populate-frozen-timestamp /usr/bin
+COPY build_sources/frozen-snapshot-timestamp /etc/apt/frozen-snapshot-timestamp
+RUN chmod 0775 /usr/bin/apt-populate-frozen-timestamp \
+    && /usr/bin/apt-populate-frozen-timestamp
+
+COPY docker/derivative-maker-docker-setup /usr/bin
+COPY docker/build-data/docker-entrypoint.target /etc/systemd/system
+COPY docker/build-data/docker-entrypoint.service /etc/systemd/system
+COPY docker/build-data/docker-entrypoint-stop.sh /usr/bin
 
 RUN /usr/bin/derivative-maker-docker-setup
 
@@ -38,14 +58,10 @@ LABEL org.opencontainers.image.documentation="https://www.kicksecure.com/wiki/De
 LABEL org.opencontainers.image.version="1.0"
 LABEL org.opencontainers.image.vendor="ENCRYPTED SUPPORT LLC"
 
-COPY entrypoint.sh /usr/bin
-COPY derivative-maker-docker-start /usr/bin
+COPY docker/entrypoint.sh /usr/bin
+COPY docker/derivative-maker-docker-start /usr/bin
 
-## COPY preserves the source file mode; under a hardened umask (e.g. 027/007)
-## the checked-out scripts are 0770 (no world-exec), so once COPY'd 0770
-## root:root they cannot be executed by the unprivileged 'user' the entrypoint
-## drops to ('sudo -u user'), failing with "Permission denied". Force 0755 so
-## the image is executable regardless of the builder's umask.
+## Fix any umask-induced permission issues.
 RUN chmod 0755 /usr/bin/entrypoint.sh /usr/bin/derivative-maker-docker-start
 
 ENTRYPOINT ["/usr/bin/entrypoint.sh"]

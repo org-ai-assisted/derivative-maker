@@ -10,6 +10,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
 container=docker
 export container
@@ -54,6 +56,7 @@ declare -a systemd_args=(
   --unit=docker-entrypoint.target
 )
 
-printf '%s\n' "$0: starting $systemd ${systemd_args[*]}"
+printf '%s\n' "$0: starting ${systemd} ${systemd_args[*]}"
 
-exec "$systemd" "${systemd_args[@]}"
+## style-ok: allow-exec -- systemd must become pid 1 to work.
+exec "${systemd}" "${systemd_args[@]}"

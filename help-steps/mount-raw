@@ -13,7 +13,7 @@ set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
 
-HELPER_SCRIPTS_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/../packages/kicksecure/helper-scripts"
+HELPER_SCRIPTS_PATH="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )/../packages/kicksecure/helper-scripts"
 export HELPER_SCRIPTS_PATH
 source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/check_runtime.bsh"
 
@@ -29,14 +29,14 @@ if [ "${mount_raw_was_sourced}" = 'false' ]; then
 
    true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
-   MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+   MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 
-   source "$MYDIR/pre"
-   source "$MYDIR/variables"
+   source "${MYDIR}/pre"
+   source "${MYDIR}/variables"
 
    error_handler_mount-raw() {
       true "
-   ${red}${bold}BASH_COMMAND${reset}: $BASH_COMMAND
+   ${red}${bold}BASH_COMMAND${reset}: ${BASH_COMMAND}
    ${red}${bold}ERROR ${BASH_SOURCE[0]}: | caller: $(caller)${reset}
    "
       exit 1
@@ -48,26 +48,19 @@ mount_raw() {
       trap error_handler_mount-raw ERR INT TERM
    fi
 
-   if [ "${mount_folder:-}" = "" ]; then
-      true
-   else
-      ## hack for help-steps/analyze-image
-      CHROOT_FOLDER="$mount_folder"
-   fi
-
    sync
 
    if [ "${dist_build_mount_raw_file:-}" = "" ]; then
-      local img="$binary_image_raw_file"
+      local img="${binary_image_raw_file}"
    else
-      local img="$dist_build_mount_raw_file"
+      local img="${dist_build_mount_raw_file}"
    fi
 
    ## Sanity test.
-   ls -la "$img"
+   ls -la -- "${img}"
 
    ## Debugging.
-   $SUDO_TO_ROOT losetup --all
+   ${SUDO_TO_ROOT} losetup --all
    sync
 
    sleep 2 &
@@ -81,10 +74,10 @@ mount_raw() {
    #sync
 
    ## Debugging.
-   $SUDO_TO_ROOT parted "$img" print || true
+   ${SUDO_TO_ROOT} parted -- "${img}" print || true
 
    local kpartx_output kpartx_last_line a b device
-   kpartx_output="$($SUDO_TO_ROOT kpartx -a -s -v "$img" 2>&1)"
+   kpartx_output="$(${SUDO_TO_ROOT} kpartx -a -s -v -- "${img}" 2>&1)"
    ## example kpartx_output:
    ## add map loop0p1 (253:0): 0 204800 linear 7:0 2048
    ## add map loop0p2 (253:1): 0 2048 linear 7:0 206848
@@ -94,36 +87,36 @@ mount_raw() {
 
    if [ "${kpartx_output:-}" = "" ]; then
       local msg="kpartx did not output anything."
-      error "$msg"
+      error "${msg}"
    fi
 
    ## This is needed because using grml-debootstrap with '--vmefi' option.
-   kpartx_last_line=$(printf '%s\n' "$kpartx_output" | tail --lines -1)
+   kpartx_last_line=$(printf '%s\n' "${kpartx_output}" | tail --lines -1)
    ## example kpartx_last_line:
    ## add map loop0p3 (253:2): 0 3983360 linear 7:0 208896
 
    ## Debugging.
-   $SUDO_TO_ROOT losetup --all
+   ${SUDO_TO_ROOT} losetup --all
    sync
 
-   read -r a b device _ <<< "$kpartx_last_line"
+   read -r a b device _ <<< "${kpartx_last_line}"
    ## example device:
    ## loop0p3
-   true "device: $device"
+   true "device: ${device}"
 
-   dev_mapper_device="/dev/mapper/$device"
+   dev_mapper_device="/dev/mapper/${device}"
    ## example dev_mapper_device:
    ## /dev/mapper/loop0p3
 
    if [ "${kpartx_only:-}" = "true" ]; then
-      true "kpartx_only=$kpartx_only, therefore skipping mount."
+      true "kpartx_only=${kpartx_only}, therefore skipping mount."
       return 0
    fi
 
-   mkdir --parents "$CHROOT_FOLDER"
+   mkdir --parents -- "${CHROOT_FOLDER}"
    sync
 
-   $SUDO_TO_ROOT mount "$dev_mapper_device" "$CHROOT_FOLDER"
+   ${SUDO_TO_ROOT} mount -- "${dev_mapper_device}" "${CHROOT_FOLDER}"
    sync
 }
 

@@ -8,24 +8,26 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
-MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 
-source "$MYDIR/pre"
-source "$MYDIR/variables"
+source "${MYDIR}/pre"
+source "${MYDIR}/variables"
 
-error_handler_chroot-raw() {
+error_handler_chroot_raw() {
    : echo "
-${red}${bold}BASH_COMMAND${reset}: $BASH_COMMAND
+${red}${bold}BASH_COMMAND${reset}: ${BASH_COMMAND}
 ${red}${bold}ERROR ${BASH_SOURCE[0]}: | caller: $(caller)${reset}
 "
    exit 1
 }
 
 main() {
-   trap "error_handler_chroot-raw" ERR INT TERM
+   trap error_handler_chroot_raw ERR INT TERM
 
    sync
 
@@ -51,22 +53,22 @@ devices_mount() {
    ##
    ## In past we needed /dev to create a swapfile.
    ## dd if=/dev/zero of=/swapfile1 bs=1024 count=524288
-   $SUDO_TO_ROOT mkdir --parents "$CHROOT_FOLDER/dev"
-   $SUDO_TO_ROOT mount -t devtmpfs udev "$CHROOT_FOLDER/dev"
+   ${SUDO_TO_ROOT} mkdir --parents -- "${CHROOT_FOLDER}/dev"
+   ${SUDO_TO_ROOT} mount -t devtmpfs -- udev "${CHROOT_FOLDER}/dev"
 
    ##########
    ## /proc #
    ##########
-   $SUDO_TO_ROOT mkdir --parents "$CHROOT_FOLDER/proc"
-   $SUDO_TO_ROOT mount -t proc none "$CHROOT_FOLDER/proc"
+   ${SUDO_TO_ROOT} mkdir --parents -- "${CHROOT_FOLDER}/proc"
+   ${SUDO_TO_ROOT} mount -t proc -- none "${CHROOT_FOLDER}/proc"
 
    #########
    ## /sys #
    #########
 
    ## required by dracut
-   $SUDO_TO_ROOT mkdir --parents "$CHROOT_FOLDER/sys"
-   $SUDO_TO_ROOT mount -t sysfs none "$CHROOT_FOLDER/sys"
+   ${SUDO_TO_ROOT} mkdir --parents -- "${CHROOT_FOLDER}/sys"
+   ${SUDO_TO_ROOT} mount -t sysfs -- none "${CHROOT_FOLDER}/sys"
 
    #############
    ## /dev/pts #
@@ -74,8 +76,8 @@ devices_mount() {
 
    ## Was required in the past by unbuffer (was required by apt-get-wrapper).
    ## Might not be required anymore.
-   $SUDO_TO_ROOT mkdir --parents "$CHROOT_FOLDER/dev/pts"
-   $SUDO_TO_ROOT mount -t devpts devpts "$CHROOT_FOLDER/dev/pts"
+   ${SUDO_TO_ROOT} mkdir --parents -- "${CHROOT_FOLDER}/dev/pts"
+   ${SUDO_TO_ROOT} mount -t devpts -- devpts "${CHROOT_FOLDER}/dev/pts"
 
    #########
    ## /run #
@@ -88,7 +90,7 @@ devices_mount() {
    #chroot_run ls -la /run/udev/data || true
 
    ## https://piiis.blogspot.com/2013/07/fedora-dracut-in-chroot-environment.html
-   chroot_run mkdir --parents /run/udev/data
+   chroot_run mkdir --parents -- /run/udev/data
 
    ## Debugging.
    #chroot_run ls -la /run/udev/data || true
@@ -96,8 +98,8 @@ devices_mount() {
 
 chroot_files_cleanup() {
    ## Cleanup leftover files from the build process using 'mmdebstrap'.
-   if test -f "$CHROOT_FOLDER/etc/apt/apt.conf.d/99mmdebstrap" ; then
-      $SUDO_TO_ROOT rm --verbose "$CHROOT_FOLDER/etc/apt/apt.conf.d/99mmdebstrap"
+   if test -f "${CHROOT_FOLDER}/etc/apt/apt.conf.d/99mmdebstrap" ; then
+      ${SUDO_TO_ROOT} safe-rm --verbose -- "${CHROOT_FOLDER}/etc/apt/apt.conf.d/99mmdebstrap"
    fi
 
    ##########################
@@ -114,32 +116,32 @@ chroot_files_cleanup() {
 
    ## Sanity test.
    ## Verify the existence of the primary sources.list file used during the build process.
-   test -f "$dist_build_sources_list_primary"
+   test -f "${dist_build_sources_list_primary}"
 
-   if test -f "$CHROOT_FOLDER/etc/apt/sources.list" ; then
+   if test -f "${CHROOT_FOLDER}/etc/apt/sources.list" ; then
       ## Ensure the sources.list file inside the chroot is readable by APT.
-      $SUDO_TO_ROOT chmod o+r -- "$CHROOT_FOLDER/etc/apt/sources.list"
-      if diff "$dist_build_sources_list_primary" "$CHROOT_FOLDER/etc/apt/sources.list" ; then
-         true "INFO: Host $dist_build_sources_list_primary matches chroot $CHROOT_FOLDER/etc/apt/sources.list, deleting it, ok."
-         $SUDO_TO_ROOT rm --verbose "$CHROOT_FOLDER/etc/apt/sources.list"
+      ${SUDO_TO_ROOT} chmod o+r -- "${CHROOT_FOLDER}/etc/apt/sources.list"
+      if diff -- "${dist_build_sources_list_primary}" "${CHROOT_FOLDER}/etc/apt/sources.list" ; then
+         true "INFO: Host ${dist_build_sources_list_primary} matches chroot ${CHROOT_FOLDER}/etc/apt/sources.list, deleting it, ok."
+         ${SUDO_TO_ROOT} safe-rm --verbose -- "${CHROOT_FOLDER}/etc/apt/sources.list"
       else
-         error "ERROR: Host $dist_build_sources_list_primary does not match chroot $CHROOT_FOLDER/etc/apt/sources.list"
+         error "ERROR: Host ${dist_build_sources_list_primary} does not match chroot ${CHROOT_FOLDER}/etc/apt/sources.list"
       fi
    else
-      true "INFO: Chroot file $CHROOT_FOLDER/etc/apt/sources.list does not exist, no action needed."
+      true "INFO: Chroot file ${CHROOT_FOLDER}/etc/apt/sources.list does not exist, no action needed."
    fi
 
    ## Delete extraneous, duplicate '/etc/apt/sources.list.d/0000debian_stable_current_clearnet.sources' by 'mmdebstrap'.
-   if test -f "$CHROOT_FOLDER/$dist_mmdebstrap_build_sources_list_primary" ; then
-      $SUDO_TO_ROOT chmod o+r -- "$CHROOT_FOLDER/$dist_mmdebstrap_build_sources_list_primary"
-      if diff "$dist_build_sources_list_primary" "$CHROOT_FOLDER/$dist_mmdebstrap_build_sources_list_primary" ; then
-         true "INFO: Host $dist_build_sources_list_primary matches chroot $CHROOT_FOLDER/$dist_mmdebstrap_build_sources_list_primary, deleting it, ok."
-         $SUDO_TO_ROOT rm --verbose "$CHROOT_FOLDER/$dist_mmdebstrap_build_sources_list_primary"
+   if test -f "${CHROOT_FOLDER}/${dist_mmdebstrap_build_sources_list_primary}" ; then
+      ${SUDO_TO_ROOT} chmod o+r -- "${CHROOT_FOLDER}/${dist_mmdebstrap_build_sources_list_primary}"
+      if diff -- "${dist_build_sources_list_primary}" "${CHROOT_FOLDER}/${dist_mmdebstrap_build_sources_list_primary}" ; then
+         true "INFO: Host ${dist_build_sources_list_primary} matches chroot ${CHROOT_FOLDER}/${dist_mmdebstrap_build_sources_list_primary}, deleting it, ok."
+         ${SUDO_TO_ROOT} safe-rm --verbose -- "${CHROOT_FOLDER}/${dist_mmdebstrap_build_sources_list_primary}"
       else
-         error "ERROR: Host $dist_build_sources_list_primary does not match chroot $CHROOT_FOLDER/$dist_mmdebstrap_build_sources_list_primary"
+         error "ERROR: Host ${dist_build_sources_list_primary} does not match chroot ${CHROOT_FOLDER}/${dist_mmdebstrap_build_sources_list_primary}"
       fi
    else
-      true "INFO: Chroot file $CHROOT_FOLDER/$dist_mmdebstrap_build_sources_list_primary does not exist, no action needed."
+      true "INFO: Chroot file ${CHROOT_FOLDER}/${dist_mmdebstrap_build_sources_list_primary} does not exist, no action needed."
    fi
 }
 
@@ -181,39 +183,39 @@ chroot_mount_files() {
    ## - If dist_chroot_mount_resolv_conf=0: do not mount; leave the file empty.
    ## - If dist_chroot_mount_resolv_conf=1 or unset: mount the host version inside chroot.
 
-   if [ ! -d "$binary_build_folder_dist/system-files-copy/etc" ]; then
-      mkdir --parents "$binary_build_folder_dist/system-files-copy/etc"
+   if [ ! -d "${binary_build_folder_dist}/system-files-copy/etc" ]; then
+      mkdir --parents -- "${binary_build_folder_dist}/system-files-copy/etc"
    fi
 
    for mount_base_file in "etc/resolv.conf" "etc/hosts" "etc/hostname" ; do
       ## Backup the existing $mount_base_file to safely mount it inside chroot.
       ## "Safely" means the host version remains unchanged even if chroot overwrites it.
-      host_system_file_full_path="/$mount_base_file"
+      host_system_file_full_path="/${mount_base_file}"
 
-      host_system_file_base_name="$(basename "$host_system_file_full_path")"
-      system_file_copy_full_path="$binary_build_folder_dist/system-files-copy/etc/$host_system_file_base_name"
+      host_system_file_base_name="$(basename -- "${host_system_file_full_path}")"
+      system_file_copy_full_path="${binary_build_folder_dist}/system-files-copy/etc/${host_system_file_base_name}"
 
-      if [ -f "$host_system_file_full_path" ]; then
+      if [ -f "${host_system_file_full_path}" ]; then
          ## Not using:
          ## - To avoid leaking derivative-maker build sources /etc/apt/sources.list.backup into VM.
          ## - To prevent the host /etc/resolv.conf from ending up inside VM.
          #$SUDO_TO_ROOT cp --no-clobber --preserve "$1" "$1.backup"
 
-         $SUDO_TO_ROOT cp --preserve "$host_system_file_full_path" "$system_file_copy_full_path"
+         ${SUDO_TO_ROOT} cp --preserve -- "${host_system_file_full_path}" "${system_file_copy_full_path}"
       else
-         true "INFO: File '$host_system_file_full_path' does not exist, skipping copy."
-         if [ -f "$system_file_copy_full_path" ]; then
+         true "INFO: File '${host_system_file_full_path}' does not exist, skipping copy."
+         if [ -f "${system_file_copy_full_path}" ]; then
             true "INFO: Deleting potentially stale version from a previous run..."
-            $SUDO_TO_ROOT rm --verbose "$system_file_copy_full_path"
+            ${SUDO_TO_ROOT} safe-rm --verbose -- "${system_file_copy_full_path}"
          fi
          ## Create an empty file to ensure its existence.
-         $SUDO_TO_ROOT touch "$system_file_copy_full_path"
+         ${SUDO_TO_ROOT} touch -- "${system_file_copy_full_path}"
       fi
-      $SUDO_TO_ROOT chown "$user_name:$user_name" "$system_file_copy_full_path"
+      ${SUDO_TO_ROOT} chown -- "${user_name}:${user_name}" "${system_file_copy_full_path}"
 
       ## Remove leaked host files inside chroot from previous processes like 'grml-debootstrap' or 'mmdebstrap'.
-      if diff "$host_system_file_full_path" "$CHROOT_FOLDER/$mount_base_file" >/dev/null; then
-         true "INFO: Host '/$mount_base_file' matches chroot '$CHROOT_FOLDER/$mount_base_file'"
+      if diff -- "${host_system_file_full_path}" "${CHROOT_FOLDER}/${mount_base_file}" >/dev/null; then
+         true "INFO: Host '/${mount_base_file}' matches chroot '${CHROOT_FOLDER}/${mount_base_file}'"
 
          is_ok=no
 
@@ -223,49 +225,49 @@ chroot_mount_files() {
          ## - Whonix: Yes.
          ## Define a list of allowed packaged source code files for comparison.
          ok_if_match_file_list=(
-            "$source_code_folder_dist/packages/whonix/whonix-gw-network-conf/etc/resolv.conf.whonix"
-            "$source_code_folder_dist/packages/whonix/whonix-ws-network-conf/etc/resolv.conf.whonix"
-            "$source_code_folder_dist/packages/whonix/whonix-base-files/etc/hosts.whonix"
-            "$source_code_folder_dist/packages/whonix/whonix-base-files/etc/hostname.whonix"
+            "${source_code_folder_dist}/packages/whonix/whonix-gw-network-conf/etc/resolv.conf.whonix"
+            "${source_code_folder_dist}/packages/whonix/whonix-ws-network-conf/etc/resolv.conf.whonix"
+            "${source_code_folder_dist}/packages/whonix/whonix-base-files/etc/hosts.whonix"
+            "${source_code_folder_dist}/packages/whonix/whonix-base-files/etc/hostname.whonix"
          )
 
          for ok_if_match_file_item in "${ok_if_match_file_list[@]}"; do
-            true "ok_if_match_file_item: $ok_if_match_file_item"
-            true "CHROOT_FOLDER/mount_base_file: $CHROOT_FOLDER/$mount_base_file"
-            if diff "$CHROOT_FOLDER/$mount_base_file" "$ok_if_match_file_item" >/dev/null; then
-               true "INFO: Chroot '$CHROOT_FOLDER/$mount_base_file' matches hardcoded allowed packaged source code version (ok_if_match_file_item) '$ok_if_match_file_item', keeping it."
+            true "ok_if_match_file_item: ${ok_if_match_file_item}"
+            true "CHROOT_FOLDER/mount_base_file: ${CHROOT_FOLDER}/${mount_base_file}"
+            if diff -- "${CHROOT_FOLDER}/${mount_base_file}" "${ok_if_match_file_item}" >/dev/null; then
+               true "INFO: Chroot '${CHROOT_FOLDER}/${mount_base_file}' matches hardcoded allowed packaged source code version (ok_if_match_file_item) '${ok_if_match_file_item}', keeping it."
                is_ok=yes
                break
             fi
          done
 
          if [ "${is_ok:-}" = "no" ] && [ "${mount_base_file:-}" = 'etc/hostname' ]; then
-            mount_base_file_etc_hostname_contents="$(cat -- "$CHROOT_FOLDER/$mount_base_file")"
-            if [ "${mount_base_file_etc_hostname_contents:-}" = "$dist_build_hostname" ]; then
+            mount_base_file_etc_hostname_contents="$(cat -- "${CHROOT_FOLDER}/${mount_base_file}")"
+            if [ "${mount_base_file_etc_hostname_contents:-}" = "${dist_build_hostname}" ]; then
                is_ok='yes'
             fi
          fi
 
          if [ "${is_ok:-}" = "no" ]; then
-            true "INFO: Shredding '$CHROOT_FOLDER/$mount_base_file'."
+            true "INFO: Shredding '${CHROOT_FOLDER}/${mount_base_file}'."
             ## Remove leaked host $mount_base_file inside the image.
-            $SUDO_TO_ROOT shred -u --zero --force --random-source=/dev/random "$CHROOT_FOLDER/$mount_base_file"
+            ${SUDO_TO_ROOT} shred -u --zero --force --random-source=/dev/random -- "${CHROOT_FOLDER}/${mount_base_file}"
          fi
       else
-         true "INFO: Host '/$mount_base_file' does not match chroot '$CHROOT_FOLDER/$mount_base_file', proceeding."
+         true "INFO: Host '/${mount_base_file}' does not match chroot '${CHROOT_FOLDER}/${mount_base_file}', proceeding."
       fi
 
       ## Ensure the file exists for the 'mount' command.
       ## - 'mount' only works both, source and target file are already existing.
       ## - 'mount' cannot operate on non-existing files.
-      $SUDO_TO_ROOT touch "$CHROOT_FOLDER/$mount_base_file"
+      ${SUDO_TO_ROOT} touch -- "${CHROOT_FOLDER}/${mount_base_file}"
 
       if [ "${dist_chroot_mount_resolv_conf:-}" = "0" ]; then
-         true "${cyan}INFO ${BASH_SOURCE[0]}: Not mounting /$mount_base_file and others inside chroot, as dist_chroot_mount_resolv_conf is 0.${reset}"
+         true "${cyan}INFO ${BASH_SOURCE[0]}: Not mounting /${mount_base_file} and others inside chroot, as dist_chroot_mount_resolv_conf is 0.${reset}"
          continue
       fi
 
-      $SUDO_TO_ROOT mount --bind "$binary_build_folder_dist/system-files-copy/$mount_base_file" "$CHROOT_FOLDER/$mount_base_file"
+      ${SUDO_TO_ROOT} mount --bind -- "${binary_build_folder_dist}/system-files-copy/${mount_base_file}" "${CHROOT_FOLDER}/${mount_base_file}"
    done
 
    sync

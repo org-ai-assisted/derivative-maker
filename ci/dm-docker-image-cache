@@ -39,9 +39,8 @@ if [ "${CI:-}" != "true" ] && [ "${ALLOW_LOCAL:-}" != "true" ]; then
    exit 1
 fi
 
-## Must match docker-run's image_ref (it builds "${IMG}:$(uname --machine)").
-image_arch="$(uname --machine)"
-img="kicksecure/derivative-maker-docker:${image_arch}"
+MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
+img="$( "${MYDIR}"/../docker/derivative-maker-docker-image-ref )"
 cache_dir="${HOME}/.dm-docker-image"
 image_tar="${cache_dir}/image.tar"
 

@@ -28,7 +28,7 @@ else
 fi
 
 implicit_dist_type_vm() {
-   if printf '%s\n' "${args[@]}" | grep --fixed-strings -- "--type" &>/dev/null; then
+   if printf '%s\n' "${args[@]}" | grep --fixed-strings --line-regexp -- "--type" &>/dev/null; then
       return 0
    fi
    if [ ! "${dist_build_type:-}" = "" ]; then
@@ -39,7 +39,7 @@ implicit_dist_type_vm() {
 }
 
 implicit_dist_type_host() {
-   if printf '%s\n' "${args[@]}" | grep --fixed-strings -- "--type" &>/dev/null; then
+   if printf '%s\n' "${args[@]}" | grep --fixed-strings --line-regexp -- "--type" &>/dev/null; then
       return 0
    fi
    if [ ! "${dist_build_type:-}" = "" ]; then
@@ -71,7 +71,7 @@ parse_cmd_flavor_error() {
 --flavor whonix-host-cli
 --flavor kicksecure-cli
 --flavor kicksecure-lxqt
---flavor kicksecure-debug
+--flavor kicksecure-ci-tiny-do-not-use (DANGEROUS, DO NOT USE)
 --flavor dist-installer-cli
 --flavor source
 ${reset}"
@@ -86,6 +86,24 @@ parse_cmd_freedom_versus_nonfreedom_firmware_choice_check() {
    else
       error "${red}${bold}When building '--arch amd64', you must select firmware. Add either '--freedom true' or '--freedom false'!${reset}"
    fi
+}
+
+error_dangerous_option_maybe() {
+  if [ "${dist_build_unlock_dangerous_options}" = 'true' ]; then
+    return 0
+  fi
+  error "\
+${red}${bold}${1} is marked as a DANGEROUS option. You should NOT use this unless you
+know exactly what you are doing.
+
+Options that are marked as dangerous will not cause damage to the builder, but
+will enable behavior that is unintuitive, potentially misleading, or that has
+security implications that users must fully understand before use. These
+options should only be used by experienced developers.
+
+To enable the use of dangerous options, export
+'dist_build_unlock_dangerous_options=true' in the environment.${reset}"
+  exit 1
 }
 
 dist_build_one_script_help() {
@@ -147,12 +165,10 @@ Optional Parameters:
   --vram [size]            : Set VM video RAM size (e.g., --vram 12).
   --vmsize [size]          : Set VM disk size (e.g., --vmsize 200G).
 
-  --freshness <frozen|current> : REQUIRED for an image build. 'frozen' pins snapshot.debian.org
-                              sources for a reproducible build; 'current' tracks the live mirror.
-  --build-slot [name]      : Build under derivative-binary/<name> (its own output tree and
-                             cowbuilder chroots) so multiple builds can run concurrently on a
-                             resourceful host. Name chars: [A-Za-z0-9_-]. Default: unset (shared
-                             derivative-binary/<version> layout).
+  --freshness [option]     : Choose between 'frozen' (reproducible build with frozen sources) or
+                             'current' (current sources). Mandatory when building an image.
+  --build-slot [name]      : Build under derivative-binary/<name> so multiple builds can run
+                             concurrently. Name chars: [A-Za-z0-9_-]. Default: unset.
   --connection [option]    : Select 'clearnet' for clearnet apt sources or 'onion' for onion apt sources.
   --repo [true|false]      : Enable or disable derivative remote repository (default: false).
 
@@ -185,17 +201,19 @@ Environment Variables:
 
 Advanced Options:
   --report [true|false]           : Enable or disable build reports (default: false).
-  --serial-console-enable [true|false] : Install serial-console-enable and add a serial console (ttyS0) to the boot cmdline / GRUB menu, so the image can be driven headless over serial (default: false).
+  --serial-console-enable [true|false] : Install serial-console-enable, enable serial console on ISO builds (default: false).
+  --smbios-reader [true|false]    : DANGEROUS, DO NOT USE. Allow injecting kernel parameters via the SMBIOS serial number field. This will allow attackers with physical access to inject arbitrary kernel parameters into the boot process! Only useful for CI.
   --sanity-tests [true|false]     : Enable or disable chroot script sanity tests for faster build speed (default: false).
-  --only-packages 'p1 p2'         : Debug speed-up: rebuild ONLY these packages into the persistent local repo (reuse the rest from the prior build). Only safe if omitted packages' source is unchanged.
-  --skip-packages                 : Debug speed-up: skip package building entirely and reuse the whole local package repo from the prior build. Only safe if NO package source changed.
-  --skip-published-packages       : Debug speed-up: rebuild only packages that changed since the last build -- a new/changed debian/changelog version OR edited source content (auto-detected by a content hash); skip up-to-date ones. No changelog bump needed to pick up a source edit.
-  --rebuild-packages '<p1 p2>'    : With --skip-published-packages, force-rebuild these SOURCE packages (space-separated) without a debian/changelog bump, by deleting them from the local repo first.
-  --skip-prepare-build-machine    : Shared-work speed-up: skip build-steps.d/*_prepare-build-machine. Only safe when the build machine was already prepared by an earlier run in the same session.
-  --skip-cowbuilder-setup         : Shared-work speed-up: skip build-steps.d/*_cowbuilder-setup. Only safe when the cowbuilder chroot was already created by an earlier run in the same session.
-  --reuse-cowbuilder-base         : Speed-up: in build-steps.d/*_cowbuilder-setup, reuse an already-present cowbuilder base chroot instead of rebuilding it; if none exists yet, build one as usual. Unlike --skip-cowbuilder-setup this is safe when the base may or may not be present (e.g. a base restored from a CI cache).
-  --skip-local-dependencies       : Shared-work speed-up: skip build-steps.d/*_local-dependencies. Only safe when the local dependencies were already installed by an earlier run in the same session.
-  --base-image-role <create|consume> : Internal (dm-build-official-one): shared post-debootstrap base handling. 'create' captures the pure base as base-image.raw (create-raw-image only); 'consume' copies that base instead of re-running grml-debootstrap.
+  --only-packages 'p1 p2'         : Rebuild only listed packages into the persistent local repo, reuse the rest from the prior build.
+  --skip-packages                 : Skip package building entirely and reuse the whole local package repo from the prior build.
+  --skip-published-packages       : Rebuild only packages that changed since the last build, reuse unchanged packages from the prior build.
+  --package-jobs N                : Build up to N derivative packages concurrently. Default: 1.
+  --skip-prepare-build-machine    : Skip build-steps.d/*_prepare-build-machine. Only safe when the build machine was already prepared by an earlier run in the same session.
+  --skip-cowbuilder-setup         : Skip build-steps.d/*_cowbuilder-setup. Only safe when the cowbuilder chroot was already created by an earlier run in the same session.
+  --reproducible-dist-build-version : DANGEROUS, DO NOT USE. Drops the '-<n>-g<commit>' version suffix on builds from untagged commits. This will result in the built image carrying a misleading version number! Only useful for AI agents, for reproducing CI-built images outside of CI. Humans should tolerate the version suffix or create a release tag.
+  --reuse-cowbuilder-base         : Reuse an already-present cowbuilder base chroot instead of rebuilding it, if one exists.
+  --skip-local-dependencies       : Skip build-steps.d/*_local-dependencies. Only safe when the local dependencies were already installed by an earlier run in the same session.
+  --base-image-role <create|consume> : Creates or reuses a shared base image for building multiple images quicker. Mainly useful for building release images.
   --retry-max [attempts]          : Set maximum retry attempts. (default: 2)
   --retry-wait [seconds]          : Set wait time between retry attempts.
   --retry-before [script]         : Specify a script to run before retry. [default: none)
@@ -203,7 +221,7 @@ Advanced Options:
   --allow-uncommitted [true|false]: Permit builds with uncommitted changes (default: false).
   --allow-untagged [true|false]   : Permit builds from non-tagged sources (default: false).
   --allow-unsigned [true|false]   : Skip git_sanity_test commit-signature verification (default: false).
-  --sign-and-tag [true|false]     : Sign and tag HEAD and submodules (default: true).
+  --sign-and-tag [true|false]     : DANGEROUS, DO NOT USE. Amend, sign, and tag HEAD and submodules. This may sign code you did not intend to sign! It may break your ability to pull from git! Only useful for AI agents to test signing verification without access to sensitive keys. Humans should either use --allow-unsigned or set up a GPG key properly. (default: false).
   --kernel [packages]             : Specify kernel packages (e.g., 'linux-image-amd64' or 'none').
   --headers [packages]            : Specify kernel header packages.
   --remote-derivative-packages    : Choose to use remote derivative packages instead of building derivative packages from source code. (default: false).
@@ -293,33 +311,34 @@ dist_build_one_parse_cmd() {
                dist_build_flavor="${2:-}"
                export dist_build_flavor
                if [ "${dist_build_flavor:-}" = "whonix-gateway-lxqt" ]; then
-                  build_machines_counter="$(( $build_machines_counter + 1 ))"
+                  build_machines_counter="$(( ${build_machines_counter} + 1 ))"
                elif [ "${dist_build_flavor:-}" = "whonix-gateway-rpi" ]; then
-                  build_machines_counter="$(( $build_machines_counter + 1 ))"
+                  build_machines_counter="$(( ${build_machines_counter} + 1 ))"
                elif [ "${dist_build_flavor:-}" = "whonix-gateway-cli" ]; then
-                  build_machines_counter="$(( $build_machines_counter + 1 ))"
+                  build_machines_counter="$(( ${build_machines_counter} + 1 ))"
                elif [ "${dist_build_flavor:-}" = "whonix-workstation-lxqt" ]; then
-                  build_machines_counter="$(( $build_machines_counter + 1 ))"
+                  build_machines_counter="$(( ${build_machines_counter} + 1 ))"
                elif [ "${dist_build_flavor:-}" = "whonix-workstation-cli" ]; then
-                  build_machines_counter="$(( $build_machines_counter + 1 ))"
+                  build_machines_counter="$(( ${build_machines_counter} + 1 ))"
                elif [ "${dist_build_flavor:-}" = "whonix-custom-workstation" ]; then
-                  build_machines_counter="$(( $build_machines_counter + 1 ))"
+                  build_machines_counter="$(( ${build_machines_counter} + 1 ))"
                elif [ "${dist_build_flavor:-}" = "whonix-host-cli" ]; then
-                  build_machines_counter="$(( $build_machines_counter + 1 ))"
+                  build_machines_counter="$(( ${build_machines_counter} + 1 ))"
                elif [ "${dist_build_flavor:-}" = "whonix-host-lxqt" ]; then
-                  build_machines_counter="$(( $build_machines_counter + 1 ))"
+                  build_machines_counter="$(( ${build_machines_counter} + 1 ))"
                elif [ "${dist_build_flavor:-}" = "kicksecure-cli" ]; then
-                  build_machines_counter="$(( $build_machines_counter + 1 ))"
+                  build_machines_counter="$(( ${build_machines_counter} + 1 ))"
                elif [ "${dist_build_flavor:-}" = "kicksecure-lxqt" ]; then
-                  build_machines_counter="$(( $build_machines_counter + 1 ))"
-               elif [ "${dist_build_flavor:-}" = "kicksecure-debug" ]; then
-                  build_machines_counter="$(( $build_machines_counter + 1 ))"
+                  build_machines_counter="$(( ${build_machines_counter} + 1 ))"
+               elif [ "${dist_build_flavor:-}" = "kicksecure-ci-tiny-do-not-use" ]; then
+                  error_dangerous_option_maybe "kicksecure-ci-tiny-do-not-use"
+                  build_machines_counter="$(( ${build_machines_counter} + 1 ))"
                elif [ "${dist_build_flavor:-}" = "dist-installer-cli" ]; then
-                  build_machines_counter="$(( $build_machines_counter + 1 ))"
+                  build_machines_counter="$(( ${build_machines_counter} + 1 ))"
                   export dist_build_installer_dist="true"
                   dist_build_image_upload_supported="true"
                elif [ "${dist_build_flavor:-}" = "source" ]; then
-                  build_machines_counter="$(( $build_machines_counter + 1 ))"
+                  build_machines_counter="$(( ${build_machines_counter} + 1 ))"
                   export dist_build_source_run="true"
                else
                   parse_cmd_flavor_error
@@ -340,41 +359,42 @@ dist_build_one_parse_cmd() {
            --target)
                true "${cyan}INFO: --target ${2:-} chosen.${reset}"
                if [ "${2:-}" = "virtualbox" ]; then
-                  build_target_counter="$(( $build_target_counter + 1 ))"
+                  build_target_counter="$(( ${build_target_counter} + 1 ))"
                   export dist_build_virtualbox="true"
                   dist_build_image_upload_supported="true"
                   implicit_dist_type_vm "--target ${2:-}"
                elif [ "${2:-}" = "qcow2" ]; then
-                  build_target_counter="$(( $build_target_counter + 1 ))"
+                  build_target_counter="$(( ${build_target_counter} + 1 ))"
                   export dist_build_qcow2="true"
                   dist_build_image_upload_supported="true"
                   implicit_dist_type_vm "--target ${2:-}"
                elif [ "${2:-}" = "utm" ]; then
-                  build_target_counter="$(( $build_target_counter + 1 ))"
+                  build_target_counter="$(( ${build_target_counter} + 1 ))"
                   export dist_build_raw="true"
                   export dist_build_utm="true"
                   dist_build_image_upload_supported="false"
                   implicit_dist_type_vm "--target ${2:-}"
                elif [ "${2:-}" = "iso" ]; then
-                  build_target_counter="$(( $build_target_counter + 1 ))"
+                  build_target_counter="$(( ${build_target_counter} + 1 ))"
                   export dist_build_iso="true"
                   dist_build_image_upload_supported="true"
                   implicit_dist_type_host "--target ${2:-}"
                elif [ "${2:-}" = "raw" ]; then
-                  build_target_counter="$(( $build_target_counter + 1 ))"
+                  build_target_counter="$(( ${build_target_counter} + 1 ))"
                   export dist_build_raw="true"
                   dist_build_image_upload_supported="false"
+                  implicit_dist_type_vm "--target ${2:-}"
                elif [ "${2:-}" = "root" ]; then
-                  build_target_counter="$(( $build_target_counter + 1 ))"
+                  build_target_counter="$(( ${build_target_counter} + 1 ))"
                   export dist_build_install_to_root="true"
                   dist_build_image_upload_supported="false"
                elif [ "${2:-}" = "windows" ]; then
-                  build_target_counter="$(( $build_target_counter + 1 ))"
+                  build_target_counter="$(( ${build_target_counter} + 1 ))"
                   export dist_build_windows_installer="true"
                   dist_build_image_upload_supported="true"
                   implicit_dist_type_vm "--target ${2:-}"
                elif [ "${2:-}" = "source" ]; then
-                  build_target_counter="$(( $build_target_counter + 1 ))"
+                  build_target_counter="$(( ${build_target_counter} + 1 ))"
                   export dist_build_source_archive="true"
                   dist_build_image_upload_supported="true"
                else
@@ -421,12 +441,8 @@ dist_build_one_parse_cmd() {
                ;;
            --freshness)
                if [ "${2:-}" = "frozen" ]; then
-                  ## 'frozen' pins APT to a snapshot.debian.org timestamp for a reproducible
-                  ## build. The pin (the timestamp) lives in build_sources/*_frozen_*.sources;
-                  ## approx stays a generic pass-through (not pinned). buildconfig.d/25_apt_sources.conf
-                  ## selects the frozen sources file from this variable.
                   export dist_build_apt_freshness="frozen"
-                  true "${cyan}INFO: Using frozen (snapshot.debian.org) sources -- reproducible build.${reset}"
+                  true "${cyan}INFO: Using frozen sources, build should be reproducible.${reset}"
                elif [ "${2:-}" = "current" ]; then
                   export dist_build_apt_freshness="current"
                   true "${cyan}INFO: Using current sources.${reset}"
@@ -437,23 +453,19 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
            --build-slot)
-               ## Isolate this build's output tree AND its cowbuilder chroots under a per-slot
-               ## subfolder ('derivative-binary/<slot>' + '<slot>/pbuilder'), so multiple builds
-               ## can run concurrently on a resourceful host without colliding. Applied in
-               ## help-steps/variables. Restricted to a single safe path component.
                if [ -z "${2:-}" ]; then
                   printf '%s\n' "${red}${bold}ERROR: --build-slot requires a non-empty name.${reset}"
                   exit 1
                fi
                case "${2}" in
-                  -* | *[!A-Za-z0-9_-]*)
+                  -*|*[!A-Za-z0-9_-]*)
                      printf '%s\n' "${red}${bold}ERROR: --build-slot name '${2}' is invalid: use [A-Za-z0-9_-] only, no leading '-'.${reset}"
                      exit 1
                      ;;
                esac
                dist_build_slot="${2}"
                export dist_build_slot
-               true "${cyan}INFO: --build-slot ${dist_build_slot} chosen (isolated build tree + cowbuilder cache).${reset}"
+               true "${cyan}INFO: --build-slot ${dist_build_slot} chosen.${reset}"
                shift 2
                ;;
            --connection)
@@ -480,7 +492,7 @@ dist_build_one_parse_cmd() {
                   exit 1
                else
                   export BUILD_RELEASE="${2:-}"
-                  true "${cyan}BUILD_RELEASE set to $BUILD_RELEASE.${reset}"
+                  true "${cyan}BUILD_RELEASE set to ${BUILD_RELEASE}.${reset}"
                fi
                shift 2
                ;;
@@ -499,7 +511,7 @@ dist_build_one_parse_cmd() {
                   exit 1
                else
                   dist_build_target_arch="${2:-}"
-                  true "${cyan}dist_build_target_arch set to $dist_build_target_arch.${reset}"
+                  true "${cyan}dist_build_target_arch set to ${dist_build_target_arch}.${reset}"
                fi
                shift 2
                ;;
@@ -527,10 +539,10 @@ dist_build_one_parse_cmd() {
                   exit 1
                elif [ "${2:-}" = "none" ]; then
                   export BUILD_INITRAMFS_PKGS="none"
-                  true "${cyan}BUILD_INITRAMFS_PKGS set to $BUILD_INITRAMFS_PKGS.${reset}"
+                  true "${cyan}BUILD_INITRAMFS_PKGS set to ${BUILD_INITRAMFS_PKGS}.${reset}"
                else
-                  export BUILD_INITRAMFS_PKGS="$BUILD_INITRAMFS_PKGS ${2:-}"
-                  true "${cyan}BUILD_INITRAMFS_PKGS set to $BUILD_INITRAMFS_PKGS.${reset}"
+                  export BUILD_INITRAMFS_PKGS="${BUILD_INITRAMFS_PKGS} ${2:-}"
+                  true "${cyan}BUILD_INITRAMFS_PKGS set to ${BUILD_INITRAMFS_PKGS}.${reset}"
                fi
                shift 2
                ;;
@@ -540,10 +552,10 @@ dist_build_one_parse_cmd() {
                   exit 1
                elif [ "${2:-}" = "none" ]; then
                   export BUILD_KERNEL_PKGS="none"
-                  true "${cyan}BUILD_KERNEL_PKGS set to $BUILD_KERNEL_PKGS.${reset}"
+                  true "${cyan}BUILD_KERNEL_PKGS set to ${BUILD_KERNEL_PKGS}.${reset}"
                else
-                  export BUILD_KERNEL_PKGS="$BUILD_KERNEL_PKGS ${2:-}"
-                  true "${cyan}BUILD_KERNEL_PKGS set to $BUILD_KERNEL_PKGS.${reset}"
+                  export BUILD_KERNEL_PKGS="${BUILD_KERNEL_PKGS} ${2:-}"
+                  true "${cyan}BUILD_KERNEL_PKGS set to ${BUILD_KERNEL_PKGS}.${reset}"
                fi
                shift 2
                ;;
@@ -553,10 +565,10 @@ dist_build_one_parse_cmd() {
                   exit 1
                elif [ "${2:-}" = "none" ]; then
                   export BUILD_HEADER_PKGS="none"
-                  true "${cyan}BUILD_HEADER_PKGS set to $BUILD_HEADER_PKGS.${reset}"
+                  true "${cyan}BUILD_HEADER_PKGS set to ${BUILD_HEADER_PKGS}.${reset}"
                else
-                  export BUILD_HEADER_PKGS="$BUILD_HEADER_PKGS ${2:-}"
-                  true "${cyan}BUILD_HEADER_PKGS set to $BUILD_HEADER_PKGS.${reset}"
+                  export BUILD_HEADER_PKGS="${BUILD_HEADER_PKGS} ${2:-}"
+                  true "${cyan}BUILD_HEADER_PKGS set to ${BUILD_HEADER_PKGS}.${reset}"
                fi
                shift 2
                ;;
@@ -575,7 +587,7 @@ dist_build_one_parse_cmd() {
                ;;
            --serial-console-enable)
                if [ "${2:-}" = "true" ]; then
-                  true "${cyan}INFO: serial console enabled (ttyS0): installs 'serial-console-enable' and adds a serial console to the boot cmdline, so the image can be driven headless over a serial line.${reset}"
+                  true "${cyan}INFO: serial console enabled.${reset}"
                   export dist_build_serial_console_enable="true"
                elif [ "${2:-}" = "false" ]; then
                   export dist_build_serial_console_enable="false"
@@ -585,79 +597,69 @@ dist_build_one_parse_cmd() {
                fi
                shift 2
                ;;
+           --smbios-reader)
+               error_dangerous_option_maybe '--smbios-reader'
+               if [ "${2:-}" = "true" ]; then
+                  true "${cyan}INFO: SMBIOS kernel parameter injection enabled.${reset}"
+                  export dist_build_smbios_reader="true"
+               elif [ "${2:-}" = "false" ]; then
+                  export dist_build_smbios_reader="false"
+               else
+                  printf '%s\n' "${red}${bold}ERROR: supported options for --smbios-reader are 'true' or 'false'.${reset}"
+                  exit 1
+               fi
+               shift 2
+               ;;
            --only-packages)
-               ## Debug speed-up: rebuild ONLY these (space-separated) packages into the persistent
-               ## local package repo -- 2100_create-debian-packages honors pkg_list, and buildconfig
-               ## precedence lets this env value win over buildconfig.d/30_pkg_list.conf. Every other
-               ## package is reused from the prior build's repo. Only safe when the omitted packages'
-               ## source is unchanged.
+               ## FIXME: Pick a less generic name for this variable, this is confusing.
                export pkg_list="${2:-}"
                true "${cyan}INFO: --only-packages: rebuilding only '${pkg_list}', reusing the rest.${reset}"
                shift 2
                ;;
            --skip-packages)
-               ## Debug speed-up: skip 2100_create-debian-packages entirely and reuse the whole local
-               ## package repo from the prior build. Only safe when NO package source changed.
                export dist_build_skip_packages="true"
                true "${cyan}INFO: --skip-packages: reusing the existing local package repo.${reset}"
                shift
                ;;
            --skip-published-packages)
-               ## Debug speed-up: within 2100_create-debian-packages, skip each package already
-               ## published in the local repo whose changelog version AND source content are
-               ## unchanged since the last build; rebuild the rest. A source edit is auto-detected
-               ## by content hash, so no changelog bump is needed to force a rebuild.
                export dist_build_skip_published_packages="true"
-               true "${cyan}INFO: --skip-published-packages: rebuilding only changed packages (version or source content).${reset}"
+               true "${cyan}INFO: --skip-published-packages: rebuilding only changed packages.${reset}"
                shift
                ;;
-           --rebuild-packages)
-               ## Debug speed-up (with --skip-published-packages): force-rebuild these
-               ## SOURCE packages (space-separated) even without a debian/changelog bump,
-               ## by deleting them from the local repo first so they read as unpublished.
-               export dist_build_rebuild_packages="$2"
-               true "${cyan}INFO: --rebuild-packages: force-rebuilding '${2}'.${reset}"
+           --package-jobs)
+               export dist_build_package_jobs="${2:-}"
+               if ! [[ "${dist_build_package_jobs}" =~ ^(0|[1-9][0-9]*)$ ]]; then
+                  printf '%s\n' "${red}${bold}ERROR: --package-jobs must be passed a whole integer.${reset}"
+               fi
+               true "${cyan}INFO: --package-jobs: up to '${dist_build_package_jobs}' concurrent package build(s).${reset}"
                shift 2
                ;;
            --skip-prepare-build-machine)
-               ## Shared-work speed-up: skip 'build-steps.d/*_prepare-build-machine'
-               ## entirely (it exits early at its top). Safe only when the build machine
-               ## was already prepared by an earlier run in the same session (e.g. the
-               ## first flavor of an official multi-flavor build).
                export dist_build_skip_prepare_build_machine="true"
-               true "${cyan}INFO: --skip-prepare-build-machine: reusing the already prepared build machine.${reset}"
+               true "${cyan}INFO: --skip-prepare-build-machine: not preparing build machine.${reset}"
                shift
                ;;
            --skip-cowbuilder-setup)
-               ## Shared-work speed-up: skip 'build-steps.d/*_cowbuilder-setup' entirely
-               ## (it exits early at its top). Safe only when the cowbuilder chroot was
-               ## already created by an earlier run in the same session.
                export dist_build_skip_cowbuilder_setup="true"
-               true "${cyan}INFO: --skip-cowbuilder-setup: reusing the existing cowbuilder chroot.${reset}"
+               true "${cyan}INFO: --skip-cowbuilder-setup: not building a new cowbuilder chroot.${reset}"
+               shift
+               ;;
+           --reproducible-dist-build-version)
+               error_dangerous_option_maybe '--reproducible-dist-build-version'
+               export dist_build_version_reproducible="true"
+               true "${cyan}INFO: --reproducible-dist-build-version: version will be normalized to the nearest tag.${reset}"
                shift
                ;;
            --reuse-cowbuilder-base)
-               ## Speed-up: 'build-steps.d/*_cowbuilder-setup' reuses an already-present
-               ## cowbuilder base chroot ('base.cow_<arch>') instead of the rm +
-               ## 'cowbuilder --create'. Unlike --skip-cowbuilder-setup (which skips the
-               ## whole step and needs the base to exist), the step still decides:
-               ## reuse if the base is present, else build a fresh one. Safe when a base
-               ## may or may not be present, e.g. one restored from a CI cache.
                export dist_build_reuse_cowbuilder_base="true"
-               true "${cyan}INFO: --reuse-cowbuilder-base: reuse an existing cowbuilder base if present, else build fresh.${reset}"
+               true "${cyan}INFO: --reuse-cowbuilder-base: reusing an existing cowbuilder base if present.${reset}"
                shift
                ;;
            --base-image-role)
-               ## Internal (dm-build-official-one). Selects the shared post-debootstrap
-               ## base-image.raw role applied in help-steps/variables: 'create' captures
-               ## the pure pre-package-install image as base-image.raw (a create-raw-image
-               ## only invocation, so a full run never installs packages into the shared
-               ## base); 'consume' copies that base instead of re-running grml-debootstrap.
-               ## Enum -> fail loud on a typo.
                case "${2:-}" in
                   create|consume)
                      export dist_build_base_image_role="${2}"
-                     true "${cyan}INFO: --base-image-role set to: $dist_build_base_image_role${reset}"
+                     true "${cyan}INFO: --base-image-role set to: ${dist_build_base_image_role}${reset}"
                      ;;
                   *)
                      printf '%s\n' "${red}${bold}ERROR: --base-image-role must be 'create' or 'consume', got: '${2:-}'.${reset}"
@@ -667,11 +669,8 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
            --skip-local-dependencies)
-               ## Shared-work speed-up: skip 'build-steps.d/*_local-dependencies'
-               ## entirely (it exits early at its top). Safe only when the local
-               ## dependencies were already installed by an earlier run in the same session.
                export dist_build_skip_local_dependencies="true"
-               true "${cyan}INFO: --skip-local-dependencies: reusing the already installed local dependencies.${reset}"
+               true "${cyan}INFO: --skip-local-dependencies: reusing already installed local dependencies.${reset}"
                shift
                ;;
            --sanity-tests)
@@ -749,6 +748,7 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
            --sign-and-tag)
+               error_dangerous_option_maybe '--sign-and-tag'
                if [ "${2:-}" = "true" ]; then
                   true "${cyan}INFO: Would sign and tag HEAD and submodules.${reset}"
                   export dist_build_sign_and_tag="true"
@@ -767,11 +767,11 @@ dist_build_one_parse_cmd() {
                   exit 1
                else
                   export dist_build_custom_config_dir="${2:-}"
-                  true "${cyan}INFO: --confdir set to: $dist_build_custom_config_dir${reset}"
-                  if [ -d "$dist_build_custom_config_dir" ]; then
-                     true "${cyan}INFO: --confdir $dist_build_custom_config_dir exists.${reset}"
+                  true "${cyan}INFO: --confdir set to: ${dist_build_custom_config_dir}${reset}"
+                  if [ -d "${dist_build_custom_config_dir}" ]; then
+                     true "${cyan}INFO: --confdir ${dist_build_custom_config_dir} exists.${reset}"
                   else
-                     printf '%s\n' "${red}${bold}ERROR: --confdir $dist_build_custom_config_dir does not exist!${reset}"
+                     printf '%s\n' "${red}${bold}ERROR: --confdir ${dist_build_custom_config_dir} does not exist!${reset}"
                      exit 1
                   fi
                fi
@@ -783,11 +783,11 @@ dist_build_one_parse_cmd() {
                   exit 1
                else
                   export dist_build_conf_file="${2:-}"
-                  true "${cyan}INFO: --conffile set to: $dist_build_conf_file${reset}"
-                  if [ -f "$dist_build_conf_file" ]; then
-                     true "${cyan}INFO: --conffile $dist_build_conf_file exists.${reset}"
+                  true "${cyan}INFO: --conffile set to: ${dist_build_conf_file}${reset}"
+                  if [ -f "${dist_build_conf_file}" ]; then
+                     true "${cyan}INFO: --conffile ${dist_build_conf_file} exists.${reset}"
                   else
-                     printf '%s\n' "${red}${bold}ERROR: --conffile $dist_build_conf_file does not exist!${reset}"
+                     printf '%s\n' "${red}${bold}ERROR: --conffile ${dist_build_conf_file} does not exist!${reset}"
                      exit 1
                   fi
                fi
@@ -799,11 +799,11 @@ dist_build_one_parse_cmd() {
                   exit 1
                else
                   export dist_build_grml_bin="${2:-}"
-                  true "${cyan}INFO: --grmlbin set to: $dist_build_grml_bin${reset}"
-                  if [ -x "$dist_build_grml_bin" ]; then
-                     true "${cyan}INFO: --grmlbin $dist_build_grml_bin exists.${reset}"
+                  true "${cyan}INFO: --grmlbin set to: ${dist_build_grml_bin}${reset}"
+                  if [ -x "${dist_build_grml_bin}" ]; then
+                     true "${cyan}INFO: --grmlbin ${dist_build_grml_bin} exists.${reset}"
                   else
-                     printf '%s\n' "${red}${bold}ERROR: --grmlbin $dist_build_grml_bin is not executable!${reset}"
+                     printf '%s\n' "${red}${bold}ERROR: --grmlbin ${dist_build_grml_bin} is not executable!${reset}"
                      exit 1
                   fi
                fi
@@ -815,7 +815,7 @@ dist_build_one_parse_cmd() {
                   exit 1
                else
                   export anon_shared_inst_tb="${2:-}"
-                  true "${cyan}INFO: --tb set to: $anon_shared_inst_tb${reset}"
+                  true "${cyan}INFO: --tb set to: ${anon_shared_inst_tb}${reset}"
                fi
                shift 2
                ;;
@@ -943,7 +943,7 @@ dist_build_one_parse_cmd() {
                   exit 1
                else
                   FUNCTION="${2:-}"
-                  true "${cyan}INFO: --function set to $FUNCTION${reset}"
+                  true "${cyan}INFO: --function set to ${FUNCTION}${reset}"
                fi
                shift 2
                ;;
@@ -1016,7 +1016,7 @@ Build for '--arch amd64' or '--arch arm64' instead.${reset}"
       if [ "${virtualbox_supported_architecture:-}" = "false" ]; then
          error "\
 ${red}${bold}VirtualBox architecture support test failed!
-virtualbox_supported_architecture: '$virtualbox_supported_architecture'
+virtualbox_supported_architecture: '${virtualbox_supported_architecture}'
 dist_build_target_arch is not 'amd64' or 'arm64'.
 dist_build_target_arch is '${dist_build_target_arch:-}'.
 You cannot build '--target virtualbox' if not using '--arch amd64' or '--arch arm64'.
@@ -1026,7 +1026,7 @@ Should VirtualBox meanwhile support other architectures such as 'ppc64el', then 
    fi
 
    for architecture_all_item in "${architecture_all_list[@]}"; do
-      if [ "${dist_build_target_arch:-}" = "$architecture_all_item" ]; then
+      if [ "${dist_build_target_arch:-}" = "${architecture_all_item}" ]; then
         architecture_valid=true
         break
       fi
@@ -1036,7 +1036,7 @@ Should VirtualBox meanwhile support other architectures such as 'ppc64el', then 
       error "\
 ${red}${bold}Invalid '--arch' option!${reset}
 
-Chosen architecture ${red}${under}'$dist_build_target_arch'${reset} is invalid!
+Chosen architecture ${red}${under}'${dist_build_target_arch}'${reset} is invalid!
 
 Choosing a target architecture is mandatory! Pick one of the following.${reset}
 ${architecture_all_list[*]}
@@ -1102,11 +1102,6 @@ Using default dist_build_sources_clearnet_or_onion=${under}clearnet${eunder}.
       parse_cmd_target_error
    fi
 
-   ## --freshness is mandatory for an image build: the operator must explicitly
-   ## choose 'frozen' (reproducible, pinned snapshot.debian.org) or 'current'
-   ## (live mirror), so a build is never silently non-reproducible. Source-only
-   ## runs and helper scripts that skip parse-cmd do not build an image and keep
-   ## the fallback in buildconfig.d/25_apt_sources.conf.
    if [ "${dist_build_one_parsed:-}" = "true" ]; then
       true
    elif [ "${dist_build_source_run:-}" = "true" ]; then
@@ -1114,7 +1109,7 @@ Using default dist_build_sources_clearnet_or_onion=${under}clearnet${eunder}.
    elif [ "${dist_build_source_archive:-}" = "true" ]; then
       true
    elif [ -z "${dist_build_apt_freshness:-}" ]; then
-      printf '%s\n' "${red}${bold}You must add '--freshness frozen' (reproducible, pinned snapshot.debian.org) or '--freshness current' (live mirror).${reset}"
+      printf '%s\n' "${red}${bold}You must add '--freshness frozen' or '--freshness current'.${reset}"
       exit 1
    fi
 
@@ -1150,22 +1145,18 @@ ${reset}"
    fi
 
    if [ "${CI:-}" = "true" ]; then
-      ## CI real-build versus dry-run is about CROSS-building, not about
-      ## flavor: cross-builds (e.g. AMD64 building ARM64) hit the GitHub
-      ## 6 hours maximum time, while native builds of any production flavor
-      ## (kicksecure-cli, kicksecure-lxqt, ...) fit comfortably.
-      ## 'kicksecure-cli' additionally stays real even when cross-built
-      ## (historical behavior; the CLI flavor is small enough).
+      ## Real cross-builds time out in GitHub's CI infra, so turn them into
+      ## dummy builds.
       ci_host_architecture="$(dpkg --print-architecture)"
       if [ "${dist_build_flavor:-}" = "kicksecure-cli" ]; then
-         true "${BASH_SOURCE[0]} INFO: CI='${CI:-}' and dist_build_flavor='${dist_build_flavor:-}': real build."
+         true "${BASH_SOURCE[0]} INFO: CI='${CI:-}' and dist_build_flavor='${dist_build_flavor:-}', building real image."
       elif [ "${dist_build_target_arch:-}" = "${ci_host_architecture}" ]; then
-         true "${BASH_SOURCE[0]} INFO: CI='${CI:-}', native build (target arch '${dist_build_target_arch:-}' == build host arch): real build."
+         true "${BASH_SOURCE[0]} INFO: CI='${CI:-}', native build, building real image."
       else
          ## equivalent of '--dry-run true'
          build_dry_run="true"
          export build_dry_run
-         true "${BASH_SOURCE[0]} INFO: CI='${CI:-}', cross-build of dist_build_flavor='${dist_build_flavor:-}' (target arch '${dist_build_target_arch:-}' != build host arch '${ci_host_architecture}'), therefore setting: build_dry_run='${build_dry_run:-}'"
+         true "${BASH_SOURCE[0]} INFO: CI='${CI:-}', cross-build of dist_build_flavor='${dist_build_flavor:-}', therefore setting: build_dry_run='${build_dry_run:-}'"
       fi
    fi
 }

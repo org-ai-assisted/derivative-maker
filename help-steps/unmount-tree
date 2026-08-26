@@ -1,0 +1,142 @@
+#!/bin/bash
+
+## Copyright (C) 2026 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## See the file COPYING for copying conditions.
+
+## AI-Assisted
+
+## Unmount every mount point strictly UNDER a tree, deepest first.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+
+true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
+
+MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
+
+unmount_tree_die() {
+   printf '%s\n' "$0: ERROR: $1" >&2
+   exit 1
+}
+
+mounts_under_tree=()
+
+## Collect the mount points strictly under '$1', deepest first. Does not use
+## findmnt, because unescaping findmnt's hex escapes is non-trivial.
+collect_mounts_under_tree() {
+   local tree mountinfo_line encoded_list encoded_sorted encoded_line decoded_path
+   local field_mount_id field_parent_id field_major_minor field_root field_mount_point
+
+   tree="${1%/}"
+   mounts_under_tree=()
+
+   if [ ! -r /proc/self/mountinfo ]; then
+      return 1
+   fi
+
+   encoded_list=""
+   while read -r field_mount_id field_parent_id field_major_minor field_root field_mount_point mountinfo_line; do
+      printf -v decoded_path '%b' "${field_mount_point}"
+      case "${decoded_path}" in
+         "${tree}"/*)
+            encoded_list+="${field_mount_point}"$'\n'
+            ;;
+      esac
+   done < /proc/self/mountinfo
+
+   if [ -z "${encoded_list}" ]; then
+      return 0
+   fi
+
+   encoded_sorted="$(printf '%s' "${encoded_list}" | LC_ALL=C sort --reverse)" || return 1
+
+   while IFS="" read -r encoded_line; do
+      if [ -z "${encoded_line}" ]; then
+         continue
+      fi
+      printf -v decoded_path '%b' "${encoded_line}"
+      mounts_under_tree+=( "${decoded_path}" )
+   done <<< "${encoded_sorted}"
+}
+
+main() {
+   local file_system_object real_path mount_point attempt_number remaining_list
+
+   ## TODO: This could be shortened to `[ "${1:-}" = '--' ] && shift`.
+   while true; do
+      case "${1:-}" in
+         --)
+            shift
+            break
+            ;;
+         *)
+            break
+            ;;
+      esac
+   done
+
+   file_system_object="${1:-}"
+
+   if [ -z "${file_system_object}" ]; then
+      unmount_tree_die "no parameter given!"
+   fi
+
+   ## An empty or '/' tree would make the '"${tree}"/*' pattern below
+   ## degenerate to '/*' and match every mount on the system.
+   if [ "${file_system_object}" = "/" ]; then
+      unmount_tree_die "file_system_object is set to / which is probably wrong (would unmount the whole system)!"
+   fi
+
+   if ! [ -d "${file_system_object}" ]; then
+      true "INFO: '${file_system_object}' does not exist or is not a directory, nothing can be mounted under it, ok."
+      return 0
+   fi
+
+   ## mountinfo reports canonical kernel paths, so the tree has to be
+   ## canonicalized too.
+   real_path="$(realpath -- "${file_system_object}")" \
+      || unmount_tree_die "could not canonicalize file_system_object '${file_system_object}'."
+
+   if [ -z "${real_path}" ] || [ "${real_path}" = "/" ]; then
+      unmount_tree_die "file_system_object '${file_system_object}' canonicalized to '${real_path}', refusing."
+   fi
+
+   ## In theory, we may have to go through multiple layers of mounts if the
+   ## same path has multiple things mounted to it.
+   for attempt_number in 1 2 3; do
+      collect_mounts_under_tree "${real_path}" \
+         || unmount_tree_die "could not read the mount table!"
+
+      if [ "${#mounts_under_tree[@]}" = "0" ]; then
+         break
+      fi
+
+      ## If we have multiple layers of mounts to dig through, some submounts
+      ## might not be visible until the more recent mounts have been unmounted.
+      ## A mount might also just take more than one try before it unmounts.
+      for mount_point in "${mounts_under_tree[@]}"; do
+         "${MYDIR}/unmount-helper" -- "${mount_point}" \
+            || printf '%s\n' "$0: WARNING: unmount of '${mount_point}' failed, attempt ${attempt_number}." >&2
+      done
+
+      sync
+   done
+
+   collect_mounts_under_tree "${real_path}" \
+      || unmount_tree_die "could not read the mount table!"
+
+   if [ ! "${#mounts_under_tree[@]}" = "0" ]; then
+      remaining_list="$(printf '%s\n' "${mounts_under_tree[@]}")"
+      printf '%s\n' "$0: ERROR: mounts still present under '${real_path}' after the sweep:" >&2
+      printf '%s\n' "${remaining_list}" >&2
+      unmount_tree_die "do NOT delete '${real_path}'!"
+   fi
+
+   true "INFO: no mounts left under '${real_path}', ok."
+}
+
+main "$@"

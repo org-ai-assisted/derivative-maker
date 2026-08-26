@@ -20,6 +20,10 @@ set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
 
+## Deterministic umask for the whole build. security-misc sets the same umask
+## for commands run with sudo.
+umask 0022
+
 true "${BASH_SOURCE[0]} INFO: begin"
 
 ## Silence xtrace while sourcing parse-cmd and running the parser, to
@@ -48,8 +52,8 @@ variables_script_sanity_test() {
    ## None of the programs below need root, so do not invoke them via sudo.
    ## Using '$SUDO_TO_ROOT' here would also be wrong because SUDO_TO_ROOT
    ## is only initialized further down in this file.
-   for programs_to_check_installed_item in $dist_build_programs_to_check_installed_list ; do
-      command -v "$programs_to_check_installed_item" >/dev/null || dist_build_missing_dependency "$programs_to_check_installed_item"
+   for programs_to_check_installed_item in ${dist_build_programs_to_check_installed_list} ; do
+      command -v "${programs_to_check_installed_item}" >/dev/null || dist_build_missing_dependency "${programs_to_check_installed_item}"
    done
 }
 
@@ -64,16 +68,16 @@ path_variable_adjustments() {
    ## CI has the following and lacks any mention of 'sbin' in the PATH variable.
    #PATH="/usr/local/bin:/usr/bin:/bin:/usr/games"
 
-   old_path="$PATH"
-   true "INFO: old_path: $old_path"
+   old_path="${PATH}"
+   true "INFO: old_path: ${old_path}"
    ## Example PATH:
    ## /home/user/derivative-maker/help-steps:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
    ## Example PATH on CI:
    #PATH="/usr/local/bin:/usr/bin:/bin:/usr/games"
 
-   IFS=':' read -ra path_array <<< "$PATH"
+   IFS=':' read -ra path_array <<< "${PATH}"
 
-   new_path="$PATH"
+   new_path="${PATH}"
    for path_part in "${path_array[@]}"; do
       if [ "${path_part:-}" = "/usr/local/sbin" ]; then
          local_sbin_found=yes
@@ -84,15 +88,15 @@ path_variable_adjustments() {
    done
 
    if [ ! "${local_sbin_found:-}" = "yes" ]; then
-      new_path="/usr/local/sbin:$new_path"
+      new_path="/usr/local/sbin:${new_path}"
    fi
 
    if [ ! "${standard_sbin_found:-}" = "yes" ]; then
-      new_path="$new_path:/usr/sbin"
+      new_path="${new_path}:/usr/sbin"
    fi
 
-   export PATH="$new_path"
-   true "INFO: new_path: $PATH"
+   export PATH="${new_path}"
+   true "INFO: new_path: ${PATH}"
 }
 
 path_variable_adjustments
@@ -109,7 +113,7 @@ path_variable_adjustments
 ##    would silently point at a nonexistent home directory.
 [ -n "${user_name:-}" ] || user_name="${SUDO_USER:-}"
 [ -n "${user_name:-}" ] || user_name="$(logname 2>/dev/null)" || true
-if [ -z "${user_name:-}" ] && [ "$EUID" != "0" ]; then
+if [ -z "${user_name:-}" ] && [ "${EUID}" != "0" ]; then
    user_name="$(whoami)" || true
    [ -n "${user_name:-}" ] || user_name="${USER:-}"
 fi
@@ -124,29 +128,22 @@ export HOMEVAR_VBOX_TEMP
 
 ## Use 'sudo' with '-D $HOMEVAR_VBOX_TEMP' ('--chdir') to avoid 'VBoxManage' error.
 #> VBoxManage: error: Could not create the directory '.' (VERR_ACCESS_DENIED)
-[ -n "${SUDO_TO_VBOX_TEMP:-}" ] || SUDO_TO_VBOX_TEMP="sudo --non-interactive -D $HOMEVAR_VBOX_TEMP -u dm-vbox-temp"
+[ -n "${SUDO_TO_VBOX_TEMP:-}" ] || SUDO_TO_VBOX_TEMP="sudo --non-interactive -D ${HOMEVAR_VBOX_TEMP} -u dm-vbox-temp"
 
-[ -n "${HOMEVAR:-}" ] || HOMEVAR="/home/$user_name"
+[ -n "${HOMEVAR:-}" ] || HOMEVAR="/home/${user_name}"
 export HOMEVAR
-## '--build-slot NAME' (parse-cmd, OPTIONAL) isolates this build's entire output tree AND cowbuilder
-## chroots under a per-slot subfolder ('derivative-binary/<slot>'), so several builds can run
-## concurrently on a resourceful host without colliding. UNSET by default: without a slot the layout
-## is the historical 'derivative-binary/<version>' -- defaulting the slot to "main" was reverted
-## because the extra '/main/' path level broke code hardcoding 'derivative-binary/<version>' (e.g.
-## ci/build's live-build / cowbuilder scratch cleanup). An explicit 'binary_build_folder_dist'
-## override still wins.
 export dist_build_slot="${dist_build_slot:-}"
 if [ -n "${binary_build_folder_dist:-}" ]; then
-   true "INFO: using explicitly set binary_build_folder_dist='$binary_build_folder_dist'"
+   true "INFO: using explicitly set binary_build_folder_dist='${binary_build_folder_dist}'"
 elif [ -n "${dist_build_slot:-}" ]; then
-   binary_build_folder_dist="$HOMEVAR/derivative-binary/$dist_build_slot"
+   binary_build_folder_dist="${HOMEVAR}/derivative-binary/${dist_build_slot}"
 else
-   binary_build_folder_dist="$HOMEVAR/derivative-binary"
+   binary_build_folder_dist="${HOMEVAR}/derivative-binary"
 fi
 export binary_build_folder_dist
 
 MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
-[ -n "${source_code_folder_dist:-}" ] || source_code_folder_dist="$(dirname -- "$MYDIR")"
+[ -n "${source_code_folder_dist:-}" ] || source_code_folder_dist="$(dirname -- "${MYDIR}")"
 export source_code_folder_dist
 
 ## '$binary_build_folder_dist' and '$source_code_folder_dist' are bind-mounted
@@ -166,10 +163,10 @@ for space_check_var in binary_build_folder_dist source_code_folder_dist ; do
 done
 unset space_check_var
 
-[ -n "${dist_parent_folder:-}" ] || dist_parent_folder="$(dirname -- "$source_code_folder_dist")"
+[ -n "${dist_parent_folder:-}" ] || dist_parent_folder="$(dirname -- "${source_code_folder_dist}")"
 [ -n "${dist_developer_meta_files_folder:-}" ] || dist_developer_meta_files_folder="${source_code_folder_dist}/packages/kicksecure/developer-meta-files"
 
-[ -n "${dist_source_parentdir:-}" ] || dist_source_parentdir="$(dirname -- "$source_code_folder_dist")"
+[ -n "${dist_source_parentdir:-}" ] || dist_source_parentdir="$(dirname -- "${source_code_folder_dist}")"
 export dist_source_parentdir
 
 [ -n "${dist_source_help_steps_folder:-}" ] || dist_source_help_steps_folder="${source_code_folder_dist}/help-steps"
@@ -197,11 +194,11 @@ export HELPER_SCRIPTS_PATH
 ## downstream build-step scripts rely on being in the derivative-maker
 ## source tree. Callers that source 'variables' must be aware of this
 ## side effect and either accept it or save/restore their own CWD.
-cd -- "$source_code_folder_dist"
+cd -- "${source_code_folder_dist}"
 
-[ -n "${dist_aptgetopt_file:-}" ] || dist_aptgetopt_file="$binary_build_folder_dist/30_derivative-maker.conf"
+[ -n "${dist_aptgetopt_file:-}" ] || dist_aptgetopt_file="${binary_build_folder_dist}/30_derivative-maker.conf"
 export dist_aptgetopt_file
-$SUDO_TO_ROOT rm --force -- "$dist_aptgetopt_file"
+${SUDO_TO_ROOT} rm --force -- "${dist_aptgetopt_file}"
 
 ## DIST_ prefix avoids a name collision with pbuilder/cowbuilder, which use
 ## their own array variable 'APTGETOPT' (see pbuilderrc) that gets sourced
@@ -220,35 +217,31 @@ aptgetopt_add() {
    opt="$1"
 
    DIST_APTGETOPT+=("-o")
-   DIST_APTGETOPT+=("$opt")
+   DIST_APTGETOPT+=("${opt}")
    DIST_APTGETOPT_SERIALIZED="$(printf '%s\n' "${DIST_APTGETOPT[@]}")"
 
    if [[ "${opt:-}" =~ [Pp]roxy ]]; then
       return 0
    fi
    DIST_APTGETOPT_WITHOUT_APT_CACHE+=("-o")
-   DIST_APTGETOPT_WITHOUT_APT_CACHE+=("$opt")
+   DIST_APTGETOPT_WITHOUT_APT_CACHE+=("${opt}")
 }
 
 aptgetopt_conf_add () {
-   mkdir --parents -- "$binary_build_folder_dist/"
-   printf "%s\n" "$1" | tee --append -- "$dist_aptgetopt_file" >/dev/null
+   mkdir --parents -- "${binary_build_folder_dist}/"
+   printf "%s\n" "$1" | tee --append -- "${dist_aptgetopt_file}" >/dev/null
 }
 
 ## Avoiding "perl: warning: Setting locale failed." as suggested on
 ## https://wiki.ubuntu.com/DebootstrapChroot and
 ## https://lists.debian.org/debian-amd64/2005/08/msg00249.html.
-## 'C.UTF-8' ships with glibc (no locale generation needed, available in
-## every chroot) and keeps tool output deterministic English while staying
-## UTF-8-clean. 'LANGUAGE' is the gettext override list and must be 'C' as
-## well, otherwise it can override 'LC_MESSAGES' with a translated locale.
-## All three are passed into the cowbuilder chroots via
-## '$env_vars_keep_list'; the VBox chroot scripts additionally carry them
-## across their internal 'sudo' 'env_reset' boundary via an 'env_keep'
-## sudoers rule (see 'setup_vbox_temp_sudo').
-LANG="C.UTF-8"
+## The "C.UTF-8" locale was considered and rejected. It has some odd behaviors
+## (like making LC_ALL no longer override LANGUAGE as it should, causing
+## different byte sequences to be recognized as identical if invalid UTF-8 is
+## involved, and triggering Unicode parsing) that are undesirable.
+LANG="C"
 export LANG
-LC_ALL="C.UTF-8"
+LC_ALL="C"
 export LC_ALL
 LANGUAGE="C"
 export LANGUAGE
@@ -419,16 +412,16 @@ repository_dist_initializer_setup() {
    [ -n "${CHROOT_FOLDER}" ] || error "repository_dist_initializer_setup: variable CHROOT_FOLDER missing!"
 
    ## Enable generation of repository-dist config file
-   true "INFO: build_remote_repo_enable: $build_remote_repo_enable"
+   true "INFO: build_remote_repo_enable: ${build_remote_repo_enable}"
    if [ "${build_remote_repo_enable}" = 'true' ]; then
       printf "%s\n" "${DERIVATIVE_APT_REPOSITORY_OPTS}" | sponge -- "${binary_build_folder_dist}/derivative_apt_repository_opts"
 
       ## Debugging.
       true "INFO: sudo test"
-      $SUDO_TO_ROOT test -d /usr
+      ${SUDO_TO_ROOT} test -d /usr
 
-      $SUDO_TO_ROOT mkdir --parents -- "${CHROOT_FOLDER}/var/lib/repository-dist/"
-      $SUDO_TO_ROOT cp -- "${binary_build_folder_dist}/derivative_apt_repository_opts" "${CHROOT_FOLDER}/var/lib/repository-dist/derivative_apt_repository_opts"
+      ${SUDO_TO_ROOT} mkdir --parents -- "${CHROOT_FOLDER}/var/lib/repository-dist/"
+      ${SUDO_TO_ROOT} cp -- "${binary_build_folder_dist}/derivative_apt_repository_opts" "${CHROOT_FOLDER}/var/lib/repository-dist/derivative_apt_repository_opts"
    else
       rm --force -- "${binary_build_folder_dist}/derivative_apt_repository_opts"
    fi
@@ -474,7 +467,7 @@ if [ "${dist_build_flavor:-}" = "whonix-gateway-rpi" ]; then
    [ -n "${dist_build_gui:-}" ] || dist_build_gui="true"
    #[ -n "${dist_build_hostname:-}" ] || dist_build_hostname="host"
    #[ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" whonix-gateway-rpi "
-   error "${red}${bold}dist_build_flavor $dist_build_flavor is not implemented.${reset}"
+   error "${red}${bold}dist_build_flavor ${dist_build_flavor} is not implemented.${reset}"
 fi
 
 if [ "${dist_build_flavor:-}" = "whonix-gateway-cli" ]; then
@@ -540,7 +533,7 @@ if [ "${dist_build_flavor:-}" = "whonix-host-cli" ]; then
    [ -n "${dist_build_gui:-}" ] || dist_build_gui="false"
    [ -n "${dist_build_host_operating_system:-}" ] || dist_build_host_operating_system="true"
    #[ -n "${dist_build_hostname:-}" ] || dist_build_hostname="host"
-   error "${red}${bold}dist_build_flavor $dist_build_flavor is not implemented.${reset}"
+   error "${red}${bold}dist_build_flavor ${dist_build_flavor} is not implemented.${reset}"
 fi
 
 if [ "${dist_build_flavor:-}" = "whonix-host-lxqt" ]; then
@@ -556,7 +549,7 @@ if [ "${dist_build_flavor:-}" = "whonix-host-lxqt" ]; then
    #[ -n "${dist_build_hostname:-}" ] || dist_build_hostname="host"
    ## TODO: Do not hardcode to VirtualBox.
    #[ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" whonix-lxqt-host-virtualbox "
-   error "${red}${bold}dist_build_flavor $dist_build_flavor is not implemented.${reset}"
+   error "${red}${bold}dist_build_flavor ${dist_build_flavor} is not implemented.${reset}"
 fi
 
 if [ "${dist_build_flavor:-}" = "kicksecure-cli" ]; then
@@ -598,12 +591,10 @@ if [ "${dist_build_flavor:-}" = "kicksecure-lxqt" ]; then
       [ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" kicksecure-baremetal-gui-lxqt "
    fi
 fi
-## Minimal CLI-only image for fast boot/grub/systemcheck iteration: the same base
-## as kicksecure-cli, but the 'kicksecure-debug' meta pulls only the boot chain +
-## hardening core + systemcheck (no GUI/browser/anonymity layer). Debug/test only.
-if [ "${dist_build_flavor:-}" = "kicksecure-debug" ]; then
+
+if [ "${dist_build_flavor:-}" = "kicksecure-ci-tiny-do-not-use" ]; then
    [ -n "${SHORT_VMNAME:-}" ] || SHORT_VMNAME="Kicksecure"
-   [ -n "${VMNAME:-}" ] || VMNAME="Kicksecure-Debug"
+   [ -n "${VMNAME:-}" ] || VMNAME="Kicksecure-CI-Tiny-Do-Not-Use"
    [ -n "${VMRAM:-}" ] || VMRAM="768"
    [ -n "${VRAM:-}" ] || VRAM="16"
    [ -n "${dist_build_type_short:-}" ] || dist_build_type_short="kicksecure"
@@ -612,11 +603,11 @@ if [ "${dist_build_flavor:-}" = "kicksecure-debug" ]; then
    if [ "${dist_build_type:-}" = "vm" ]; then
       [ -n "${dist_build_host_operating_system:-}" ] || dist_build_host_operating_system="false"
       [ -n "${dist_build_type_long:-}" ] || dist_build_type_long="kicksecure"
-      [ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" kicksecure-debug "
+      [ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" kicksecure-ci-tiny-do-not-use "
    elif [ "${dist_build_type:-}" = "host" ]; then
       [ -n "${dist_build_host_operating_system:-}" ] || dist_build_host_operating_system="true"
       [ -n "${dist_build_type_long:-}" ] || dist_build_type_long="kicksecure-host"
-      [ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" kicksecure-debug "
+      [ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" kicksecure-ci-tiny-do-not-use "
    fi
 fi
 
@@ -676,26 +667,22 @@ maybe_disable_dist_build_windows_installer() {
    fi
 }
 
-## TODO: refactor confusingly named variables:
-## dist_server_with_upload_location_list
-## dist_server_with_upload_location_list_list
-
 if [ "${dist_build_type_short:-}" = "kicksecure" ]; then
    [ -n "${derivative_name_list:-}" ] || derivative_name_list="kicksecure"
    [ -n "${dist_build_type_short_pretty:-}" ] || dist_build_type_short_pretty="Kicksecure"
-   [ -n "${dist_server_with_upload_location_list_list:-}" ] || dist_server_with_upload_location_list_list="kicksecure.com"
+   [ -n "${dist_server_upload_location_list:-}" ] || dist_server_upload_location_list=( "kicksecure.com" )
    [ -n "${project_clearnet:-}" ] || project_clearnet="kicksecure.com"
    true "${BASH_SOURCE[0]} INFO: dist_build_type_short is 'kicksecure'. Build Whonix Windows Installer only for Whonix LXQt for VirtualBox. Therefore: maybe_disable_dist_build_windows_installer"
    maybe_disable_dist_build_windows_installer
 elif [ "${dist_build_type_short:-}" = "whonix" ]; then
    [ -n "${derivative_name_list:-}" ] || derivative_name_list="kicksecure whonix"
    [ -n "${dist_build_type_short_pretty:-}" ] || dist_build_type_short_pretty="Whonix"
-   [ -n "${dist_server_with_upload_location_list_list:-}" ] || dist_server_with_upload_location_list_list="whonix.org"
+   [ -n "${dist_server_upload_location_list:-}" ] || dist_server_upload_location_list=( "whonix.org" )
    [ -n "${project_clearnet:-}" ] || project_clearnet="whonix.org"
 elif [ "${dist_build_type_short:-}" = "dist-installer-cli" ]; then
    [ -n "${derivative_name_list:-}" ] || derivative_name_list="kicksecure whonix"
    [ -n "${dist_build_type_short_pretty:-}" ] || dist_build_type_short_pretty="dist-installer-cli"
-   [ -n "${dist_server_with_upload_location_list_list:-}" ] || dist_server_with_upload_location_list_list="kicksecure.com whonix.org"
+   [ -n "${dist_server_upload_location_list:-}" ] || dist_server_upload_location_list=( "kicksecure.com" "whonix.org" )
    [ -n "${project_clearnet:-}" ] || project_clearnet="kicksecure.com"
    true "${BASH_SOURCE[0]} INFO: dist_build_type_short is 'dist-installer-cli'. Build Whonix Windows Installer only for Whonix LXQt for VirtualBox. Therefore: maybe_disable_dist_build_windows_installer"
    maybe_disable_dist_build_windows_installer
@@ -704,17 +691,20 @@ elif [ "${dist_build_type_short:-}" = "dist-installer-cli" ]; then
 elif [ "${dist_build_type_short:-}" = "source" ]; then
    ## --flavor source / --target source path. Set the same defaults the
    ## kicksecure / whonix / dist-installer-cli branches set, so later
-   ## consumers (e.g. dist_server_with_upload_location_list,
-   ## derivative_name_list usage) don't trip on unset variables. The
-   ## values match dist-installer-cli, which is also a non-flavor-
-   ## specific multi-derivative build.
+   ## consumers (e.g. derivative_name_list usage) don't trip on unset
+   ## variables. The values match dist-installer-cli, which is also a
+   ## non-flavor-specific multi-derivative build.
    [ -n "${derivative_name_list:-}" ]         || derivative_name_list="kicksecure whonix"
    [ -n "${dist_build_type_short_pretty:-}" ] || dist_build_type_short_pretty="source"
-   [ -n "${dist_server_with_upload_location_list_list:-}" ] || dist_server_with_upload_location_list_list="kicksecure.com whonix.org"
+   [ -n "${dist_server_upload_location_list:-}" ] || dist_server_upload_location_list=( "kicksecure.com" "whonix.org" )
    [ -n "${project_clearnet:-}" ]             || project_clearnet="kicksecure.com"
 else
    error "unknown dist_build_type_short!"
 fi
+
+## dm-reproducible-buildinfo needs these.
+export project_clearnet
+export dist_build_type
 
 ## example dist_build_desktop_lowercase:
 ## lxqt
@@ -725,7 +715,7 @@ dist_build_desktop_safe="${dist_build_desktop:-}"
 unset dist_build_desktop_safe
 
 if [ ! "${dist_build_desktop_lowercase:-}" = "lxqt" ] ; then
-   true "${BASH_SOURCE[0]} INFO: dist_build_desktop_lowercase is '$dist_build_desktop_lowercase'. Not 'lxqt'. Build Whonix Windows Installer only for Whonix LXQt for VirtualBox. Therefore: maybe_disable_dist_build_windows_installer"
+   true "${BASH_SOURCE[0]} INFO: dist_build_desktop_lowercase is '${dist_build_desktop_lowercase}'. Not 'lxqt'. Build Whonix Windows Installer only for Whonix LXQt for VirtualBox. Therefore: maybe_disable_dist_build_windows_installer"
    maybe_disable_dist_build_windows_installer
 fi
 
@@ -750,7 +740,7 @@ else
 fi
 export CHROOT_FOLDER
 
-true "${BASH_SOURCE[0]} INFO: CHROOT_FOLDER: $CHROOT_FOLDER"
+true "${BASH_SOURCE[0]} INFO: CHROOT_FOLDER: ${CHROOT_FOLDER}"
 
 ## {{{ initramfs
 
@@ -768,9 +758,9 @@ true "${BASH_SOURCE[0]} INFO: CHROOT_FOLDER: $CHROOT_FOLDER"
 ##     overriding /etc/dracut.conf.d/30-dist-base-files.conf.
 [ -n "${BUILD_INITRAMFS_DRACUT:-}" ] || BUILD_INITRAMFS_DRACUT="dracut dracut-live binutils dmsetup pigz"
 
-[ -n "${BUILD_INITRAMFS_PKGS:-}" ] || BUILD_INITRAMFS_PKGS="$BUILD_INITRAMFS_DRACUT"
+[ -n "${BUILD_INITRAMFS_PKGS:-}" ] || BUILD_INITRAMFS_PKGS="${BUILD_INITRAMFS_DRACUT}"
 
-if printf "%s\n" "$BUILD_INITRAMFS_PKGS" | grep --quiet -- "dracut" ; then
+if printf "%s\n" "${BUILD_INITRAMFS_PKGS}" | grep --quiet -- "dracut" ; then
    ## INITRD_GENERATOR_OPTS gets read by grml-debootstrap and passed to dracut and is also
    ## read by build-steps.d/*_install-packages
    ##
@@ -780,30 +770,26 @@ if printf "%s\n" "$BUILD_INITRAMFS_PKGS" | grep --quiet -- "dracut" ; then
    export INITRD_GENERATOR_OPTS
 fi
 
-source_dracut_disable_config_snippet="$source_code_folder_dist/packages/kicksecure/initializer-dist/usr/share/initializer-dist/dracut/90-derivative-maker-build.conf"
-target_dracut_disable_config_snippet="$CHROOT_FOLDER/etc/dracut.conf.d/90-derivative-maker-build.conf"
+source_dracut_disable_config_snippet="${source_code_folder_dist}/packages/kicksecure/initializer-dist/usr/share/initializer-dist/dracut/90-derivative-maker-build.conf"
+target_dracut_disable_config_snippet="${CHROOT_FOLDER}/etc/dracut.conf.d/90-derivative-maker-build.conf"
 
-source_dkms_suppress_mok_snippet="$source_code_folder_dist/packages/kicksecure/initializer-dist/usr/share/initializer-dist/dkms/90-derivative-maker-build.conf"
-target_dkms_suppress_mok_snippet="$CHROOT_FOLDER/etc/dkms/framework.conf.d/90-derivative-maker-build.conf"
+source_dkms_suppress_mok_snippet="${source_code_folder_dist}/packages/kicksecure/initializer-dist/usr/share/initializer-dist/dkms/90-derivative-maker-build.conf"
+target_dkms_suppress_mok_snippet="${CHROOT_FOLDER}/etc/dkms/framework.conf.d/90-derivative-maker-build.conf"
 
-true "${cyan}${BASH_SOURCE[0]} INFO: BUILD_INITRAMFS_PKGS (--initramfs): $BUILD_INITRAMFS_PKGS${reset}"
+true "${cyan}${BASH_SOURCE[0]} INFO: BUILD_INITRAMFS_PKGS (--initramfs): ${BUILD_INITRAMFS_PKGS}${reset}"
 
 ## }}}
 
 ## {{{ ISO extra packages
-##
-## The ISO reuses the shared raw image + 'build-steps.d/*_install-packages'.
-## On top of the shared VM package set, the ISO needs the live-boot /
-## installer / live-bootloader packages. Resolve them here (before
-## '*_install-packages' runs) from the same source-of-truth package lists the
-## ISO has always used, applying the per-architecture / freedom substitutions.
-##
-## Note: the baremetal host meta ('XXX_KICKSECURE_HOST_XXX') and network-conf
-## are installed by '*_install-packages' itself (flavor_meta_packages_to_install
-## and its kicksecure-network-conf handling), so they are substituted to empty
-## here. VirtualBox Guest Additions are handled by the GUI metapackage
-## ('Depends: virtualbox-guest-additions-iso', 'Breaks/Replaces' the deprecated
-## 'virtualbox-guest-utils'/'-x11'), so the live list no longer carries those.
+
+## FIXME: This section will need major rework since we're removing live-build.
+## Beyond simply refactoring to get rid of live-build-data, we should very
+## likely get rid of the live-config-* packages, as these are part of
+## live-build and it is unlikely they contain functionality we need. There are
+## also a lot of packages listed in the live-build-config files that may be
+## redundant with our existing metapackage system or that should be integrated
+## into the metapackage system.
+
 if [ "${dist_build_iso:-}" = "true" ]; then
    dist_iso_grub_pc=""
    dist_iso_shim_signed=""
@@ -842,6 +828,7 @@ if [ "${dist_build_iso:-}" = "true" ]; then
          dist_iso_pkg_line="${dist_iso_pkg_line#"${dist_iso_pkg_line%%[![:space:]]*}"}"
          dist_iso_pkg_line="${dist_iso_pkg_line%"${dist_iso_pkg_line##*[![:space:]]}"}"
          [ -n "${dist_iso_pkg_line}" ] || continue
+
          ## Per-architecture / freedom substitutions.
          dist_iso_pkg_line="${dist_iso_pkg_line//XXX_ARCHITECTURE_XXX/${dist_build_target_arch:-}}"
          dist_iso_pkg_line="${dist_iso_pkg_line//XXX_GRUB_PC_XXX/${dist_iso_grub_pc}}"
@@ -849,15 +836,18 @@ if [ "${dist_build_iso:-}" = "true" ]; then
          dist_iso_pkg_line="${dist_iso_pkg_line//XXX_GRUB_EFI_SIGNED_XXX/${dist_iso_grub_efi_signed}}"
          dist_iso_pkg_line="${dist_iso_pkg_line//XXX_FWUPD_SIGNED_XXX/${dist_iso_fwupd_signed}}"
          dist_iso_pkg_line="${dist_iso_pkg_line//XXX_FIRMWARE_NONFREEDOM_XXX/${dist_iso_firmware_nonfreedom}}"
+
          ## Installed by '*_install-packages' itself; drop from the extras.
          dist_iso_pkg_line="${dist_iso_pkg_line//XXX_KICKSECURE_HOST_XXX/}"
          dist_iso_pkg_line="${dist_iso_pkg_line//XXX_KICKSECURE_NETWORK_CONF_XXX/}"
          dist_iso_pkg_line="${dist_iso_pkg_line//XXX_KICKSECURE_NETWORK_CONF_GUI_XXX/}"
+
          ## A substituted-to-empty placeholder line is skipped.
          [ -n "${dist_iso_pkg_line}" ] || continue
          dist_build_iso_extra_packages="${dist_build_iso_extra_packages:+${dist_build_iso_extra_packages} }${dist_iso_pkg_line}"
       done < "${dist_iso_list_file}"
    done
+
    export dist_build_iso_extra_packages
    true "${cyan}${BASH_SOURCE[0]} INFO: dist_build_iso_extra_packages: ${dist_build_iso_extra_packages}${reset}"
 fi
@@ -877,7 +867,7 @@ fi
 
 if [ "${VMNAME:-}" = "" ]; then
    MSG="${red}${bold}variables ERROR: VMNAME is empty! Please report this bug!${reset}"
-   error "$MSG"
+   error "${MSG}"
 fi
 
 [ -n "${XZ_OPT:-}" ] || XZ_OPT="--threads=8"
@@ -903,10 +893,10 @@ if [ "${dist_build_unsafe_io:-}" = "true" ]; then
    if [ -n "${libeatmydata_multiarch:-}" ] && test -f "/usr/lib/${libeatmydata_multiarch}/libeatmydata.so" ; then
       libeatmydata_file="/usr/lib/${libeatmydata_multiarch}/libeatmydata.so"
    fi
-   if [ -n "${libeatmydata_file:-}" ] && test -f "$libeatmydata_file" ; then
+   if [ -n "${libeatmydata_file:-}" ] && test -f "${libeatmydata_file}" ; then
       true "INFO: eatmydata installed, preloading."
       if [ -z "${LD_PRELOAD:-}" ]; then
-         LD_PRELOAD="$libeatmydata_file"
+         LD_PRELOAD="${libeatmydata_file}"
       else
          LD_PRELOAD="${LD_PRELOAD}:${libeatmydata_file}"
       fi
@@ -920,7 +910,7 @@ if [ "${dist_build_unsafe_io:-}" = "true" ]; then
       ## additionally listed in 'env_vars_keep_list' so that
       ## '--preserve-env=...' (appended to SUDO_TO_ROOT further below)
       ## keeps it alive for any nested sudo invocations.
-      SUDO_TO_ROOT="$SUDO_TO_ROOT LD_PRELOAD=$LD_PRELOAD"
+      SUDO_TO_ROOT="${SUDO_TO_ROOT} LD_PRELOAD=${LD_PRELOAD}"
    else
       true "INFO: eatmydata not yet installed, not yet preloading."
    fi
@@ -969,12 +959,7 @@ fi
 
 ## '--freshness frozen' pins snapshot.debian.org timestamps whose Release
 ## 'Valid-Until' is intentionally in the past; tell apt to accept them rather than
-## abort ("Release file ... is expired"). Added to DIST_APTGETOPT so it reaches EVERY
-## apt path the build drives -- cowbuilder/pbuilder (via the APTGETOPT array in the
-## generated pbuilder config) and grml-debootstrap's in-chroot apt during raw-image
-## creation (via DPKG_OPTIONS, set from DIST_APTGETOPT in 3200_create-raw-image) --
-## instead of per-source 'Check-Valid-Until: no' edits. Archive-key signature
-## verification (Signed-By) is unaffected; 'current' builds keep the check.
+## abort.
 if [ "${dist_build_apt_freshness:-}" = "frozen" ]; then
    aptgetopt_add "Acquire::Check-Valid-Until=false"
    aptgetopt_conf_add "Acquire::Check-Valid-Until \"false\";"
@@ -1016,22 +1001,22 @@ chroot_env_vars_var_remove_list="
 "
 
 chroot_remove_env_list=""
-for chroot_env_vars_var_remove_item in $chroot_env_vars_var_remove_list ; do
+for chroot_env_vars_var_remove_item in ${chroot_env_vars_var_remove_list} ; do
    if [ "${chroot_remove_env_list:-}" = "" ]; then
-      chroot_remove_env_list="--unset $chroot_env_vars_var_remove_item"
+      chroot_remove_env_list="--unset ${chroot_env_vars_var_remove_item}"
    else
-      chroot_remove_env_list+=" --unset $chroot_env_vars_var_remove_item"
+      chroot_remove_env_list+=" --unset ${chroot_env_vars_var_remove_item}"
    fi
 done
 unset chroot_env_vars_var_remove_item
 
 if [ "${dist_build_install_to_root:-}" = "true" ]; then
    chroot_run() {
-      $SUDO_TO_ROOT "$@"
+      ${SUDO_TO_ROOT} "$@"
    }
 else
    chroot_run() {
-      $SUDO_TO_ROOT env $chroot_remove_env_list -- chroot -- "$CHROOT_FOLDER" "$@"
+      ${SUDO_TO_ROOT} env ${chroot_remove_env_list} -- chroot -- "${CHROOT_FOLDER}" "$@"
 
       #$SUDO_TO_ROOT env $chroot_remove_env_list systemd-nspawn --directory="$CHROOT_FOLDER"
    }
@@ -1080,7 +1065,7 @@ if [ "${rsync_opts:-}" = "" ]; then
 fi
 
 if [ "${build_dry_run:-}" = "true" ]; then
-   rsync_opts="$rsync_opts --dry-run"
+   rsync_opts="${rsync_opts} --dry-run"
 fi
 
 ## TODO: auto retry function error handler trap lacks variables
@@ -1092,7 +1077,7 @@ fi
 [ -n "${dist_build_wait_auto_retry:-}" ] || dist_build_wait_auto_retry="5"
 
 ## Sanity Test.
-command -v "$git_bin" >/dev/null
+command -v "${git_bin}" >/dev/null
 
 [ -n "${DEB_INSTALL_FOLDER:-}" ] || DEB_INSTALL_FOLDER="mnt/initialdeb"
 export DEB_INSTALL_FOLDER
@@ -1134,7 +1119,7 @@ fi
 ## isn't a real concern.)
 ##
 ## NOTE: Cannot use end-of-options ("--").
-dist_build_current_git_head="$($git_bin rev-parse HEAD)" || error 'Cannot get head commit ID!'
+dist_build_current_git_head="$(${git_bin} rev-parse HEAD)" || error 'Cannot get head commit ID!'
 
 #printf "%s\n" "dist_build_current_git_head: $dist_build_current_git_head"
 
@@ -1147,17 +1132,51 @@ if [ "${dist_build_version:-}" = "" ]; then
    ## Examples dist_build_version:
    ## 10-13-g20e1b49ff27053784e3e9e163dfd4c98dced73f5
    ## 10.0.0.0.3-13-g20e1b49ff27053784e3e9e163dfd4c98dced73f5-developers-only
-   dist_build_version="$($git_bin describe --always --abbrev=1000000000)"
+   ##
+   ## --exclude skips help-steps/sign-tag-head's ephemeral signing tags.
+   dist_build_version="$(${git_bin} describe --always --abbrev=1000000000 --exclude '*_*_*')"
    true "${cyan}INFO: Variable dist_build_version was unset. Auto detected. Set to: dist_build_version=${dist_build_version}${reset}"
 else
    true "${cyan}INFO: Variable dist_build_version was already set to: dist_build_version=${dist_build_version}${reset}"
+
+   ## CI exports dist_build_version to specify a particular commit in buildinfo
+   ## metadata, but also runs sign-and-tag which amends commits and overwrites
+   ## the commit mentioned in the version string. This is fine, but AI agents
+   ## have caused the same situation unintentionally during local work, so warn
+   ## when this happens.
+   dist_build_version_described="${dist_build_version##*-g}"
+   ## Non-hex means this is not a describe suffix (a tag may contain '-g').
+   if ! [[ "${dist_build_version_described}" =~ ^[0-9a-f]{40}$ ]]; then
+      dist_build_version_described=""
+   fi
+   if [ -n "${dist_build_version_described}" ]; then
+      dist_build_version_head="$(${git_bin} rev-parse --verify HEAD 2>/dev/null || true)"
+      if [ -n "${dist_build_version_head}" ] \
+         && [ ! "${dist_build_version_described}" = "${dist_build_version_head}" ]; then
+         true "${red}${bold}WARNING: dist_build_version describes commit ${dist_build_version_described}, but HEAD is ${dist_build_version_head}. This should only ever happen in CI.${reset}"
+      fi
+   fi
+fi
+
+## --reproducible-dist-build-version: drop the git describe suffix
+## '-<n>-g<commit>', leaving the nearest tag.
+if [ "${dist_build_version_reproducible:-}" = "true" ]; then
+   dist_build_version_normalized="$(${git_bin} describe --always --abbrev=0 --exclude '*_*_*')"
+   if [ "${dist_build_version_normalized}" = "${dist_build_version}" ]; then
+      true "${cyan}INFO: --reproducible-dist-build-version: '${dist_build_version}' carries no describe suffix; unchanged.${reset}"
+   else
+      true "${cyan}INFO: --reproducible-dist-build-version: normalized '${dist_build_version}' -> '${dist_build_version_normalized}'.${reset}"
+      ## dm-reproducible-buildinfo records the pre-normalization version too.
+      export dist_build_version_unnormalized="${dist_build_version}"
+      dist_build_version="${dist_build_version_normalized}"
+   fi
 fi
 
 ## Strip channel suffixes ('-developers-only', '-testers-only', '-stable')
 ## that may be attached to the git tag so that 'dist_build_version' is a
 ## clean version string regardless of which release channel we are on.
 ## Single sed invocation with alternation instead of three pipelines.
-dist_build_version="$(printf "%s\n" "$dist_build_version" | sed -E "s#-(developers-only|testers-only|stable)##g")"
+dist_build_version="$(printf "%s\n" "${dist_build_version}" | sed -E "s#-(developers-only|testers-only|stable)##g")"
 
 ## Using `export`, so 70_log_build_version can read it.
 export dist_build_version
@@ -1177,7 +1196,7 @@ set_default_variable() {
     ## Use 'printf -v' instead of 'eval' so single quotes or other shell
     ## metacharacters inside "$var_content" are stored literally and cannot
     ## be reinterpreted by the shell parser.
-    printf -v "$var_name" '%s' "$var_content"
+    printf -v "${var_name}" '%s' "${var_content}"
     return 0
   fi
   #printf "%s\n" "INFO: Variable '$var_name' is already set? Yes. - Already: $var_name='${!var_name}'"
@@ -1194,7 +1213,7 @@ elif [ "${dist_build_type_short:-}" = "dist-installer-cli" ]; then
 elif [ "${dist_build_type_short:-}" = "source" ]; then
     set_default_variable dist_unified_name "source"
 else
-    error "dist_unified_name: unhandled dist_build_type_short '$dist_build_type_short'"
+    error "dist_unified_name: unhandled dist_build_type_short '${dist_build_type_short}'"
 fi
 
 set_default_variable dist_binary_build_folder "${binary_build_folder_dist}/${dist_build_version}"
@@ -1202,17 +1221,11 @@ set_default_variable dist_binary_build_folder "${binary_build_folder_dist}/${dis
 set_default_variable binary_image_raw_file "${dist_binary_build_folder}/${SHORT_VMNAME}-${dist_build_desktop}-${dist_build_version}.${target_architecture_pretty_name}.raw"
 set_default_variable binary_image_qcow2_file "${dist_binary_build_folder}/${SHORT_VMNAME}-${dist_build_desktop}-${dist_build_version}.${target_architecture_pretty_name}.qcow2"
 
-## Shared post-debootstrap base image, selected via --base-image-role (set only on
-## the dm-build-official-one shared-base invocations). Path defined once here.
-## 'create' redirects the raw OUTPUT to the shared base-image.raw so
-## grml-debootstrap writes the reusable, pre-package-install base; 'consume' points
-## the cached INPUT at it so create-raw-image copies the base instead of re-running
-## grml-debootstrap. Neither set -> normal per-flavor raw (unchanged default).
 set_default_variable base_image_raw_file "${dist_binary_build_folder}/base-image.raw"
 if [ "${dist_build_base_image_role:-}" = "create" ]; then
-   binary_image_raw_file="$base_image_raw_file"
+   binary_image_raw_file="${base_image_raw_file}"
 elif [ "${dist_build_base_image_role:-}" = "consume" ]; then
-   cached_binary_image_raw_file="$base_image_raw_file"
+   cached_binary_image_raw_file="${base_image_raw_file}"
 fi
 
 ## Working folder for the intermediate VirtualBox '.vdi' created by
@@ -1241,9 +1254,9 @@ set_default_variable binary_image_vdi_dir "${HOMEVAR}/derivative-binary_vbox-wor
 ## silently breaks the bind-mount. It is checked here rather than in that early
 ## loop because it is only defined at this point. Fail early with a clear
 ## message instead of late with a cryptic pbuilder / VirtualBox error.
-case "$binary_image_vdi_dir" in
+case "${binary_image_vdi_dir}" in
    *[[:space:]]*)
-      error "binary_image_vdi_dir must not contain whitespace (it is bind-mounted into the cowbuilder chroot and pbuilder word-splits BINDMOUNTS): '$binary_image_vdi_dir'"
+      error "binary_image_vdi_dir must not contain whitespace (it is bind-mounted into the cowbuilder chroot and pbuilder word-splits BINDMOUNTS): '${binary_image_vdi_dir}'"
       ;;
 esac
 
@@ -1256,14 +1269,14 @@ esac
 ## 1200_prepare-build-machine) treat it as a single path - e.g. the
 ## error message reads "missing other VM for unified builds". Do not
 ## convert this to an array without updating those callers.
-for vm_name_item_to_be_exported in $vm_names_to_be_exported ; do
+for vm_name_item_to_be_exported in ${vm_names_to_be_exported} ; do
    ## Compare case-insensitively but as exact substrings, not regex, to
    ## avoid regex metacharacters in 'dist_build_type_long' matching
    ## unintended VM names.
    vm_name_item_lower="${vm_name_item_to_be_exported,,}"
    dist_build_type_long_lower="${dist_build_type_long,,}"
-   case "$vm_name_item_lower" in
-      *"$dist_build_type_long_lower"*)
+   case "${vm_name_item_lower}" in
+      *"${dist_build_type_long_lower}"*)
          continue
          ;;
    esac
@@ -1303,8 +1316,8 @@ set_default_variable copy_vms_into_raw_file_two "${dist_binary_build_folder}/Who
 
 ## Sanity test. dm-prepare-release uses 'rm --force --recursive'.
 ## XXX: hardcoded derivative-binary
-if ! printf "%s\n" "$dist_binary_build_folder" | grep --quiet --fixed-strings -- "derivative-binary" ; then
-   printf "%s\n" "$0: FAIL: wrong folder: dist_binary_build_folder: $dist_binary_build_folder"
+if ! printf "%s\n" "${dist_binary_build_folder}" | grep --quiet --fixed-strings -- "derivative-binary" ; then
+   printf "%s\n" "$0: FAIL: wrong folder: dist_binary_build_folder: ${dist_binary_build_folder}"
    exit 1
 fi
 
@@ -1317,38 +1330,37 @@ mkdir --parents -- "${dist_binary_build_folder}"
 unset dist_build_files_to_upload
 declare -a dist_build_files_to_upload
 
-## Parallel to dist_build_files_to_upload: the upload destination for the file at
-## the same index. A multi-target build (e.g. '--target virtualbox --target qcow2')
-## must send each image to ITS OWN location, so a single scalar destination shared
-## across all files cannot express it (it would send every image to one target's
-## directory, e.g. a qcow2 into .../ova). installer-dist maps one file to two
-## servers by pushing the file twice, once per destination.
 unset dist_build_upload_locations
 declare -a dist_build_upload_locations
 
+append_upload_source_and_locations_to_lists() {
+  local upload_source upload_path
+
+  upload_source="${1}"
+  upload_path="${2}"
+  for dist_server_upload_location_item in "${dist_server_upload_location_list[@]}"; do
+    dist_build_files_to_upload+=( "${upload_source}" )
+    dist_build_upload_locations+=( "${ssh_uploader_account}@${dist_server_upload_location_item}:${upload_path}" )
+  done
+}
+
 if [ "${dist_build_virtualbox:-}" = "true" ]; then
    [ -n "${ssh_uploader_account:-}" ] || ssh_uploader_account="root"
-   [ -n "${dist_server_with_upload_location_list:-}" ] || dist_server_with_upload_location_list="${ssh_uploader_account}@${dist_server_with_upload_location_list_list}:/var/rsync/ova"
 
-   dist_build_files_to_upload+=("$binary_image_ova_file")
-   dist_build_upload_locations+=("${ssh_uploader_account}@${dist_server_with_upload_location_list_list}:/var/rsync/ova")
+   append_upload_source_and_locations_to_lists "${binary_image_ova_file}" "/var/rsync/ova"
 fi
 
 if [ "${dist_build_iso:-}" = "true" ]; then
    [ -n "${ssh_uploader_account:-}" ] || ssh_uploader_account="root"
-   [ -n "${dist_server_with_upload_location_list:-}" ] || dist_server_with_upload_location_list="${ssh_uploader_account}@${dist_server_with_upload_location_list_list}:/var/rsync/iso"
 
-   dist_build_files_to_upload+=("$binary_image_iso_file")
-   dist_build_upload_locations+=("${ssh_uploader_account}@${dist_server_with_upload_location_list_list}:/var/rsync/iso")
+   append_upload_source_and_locations_to_lists "${binary_image_iso_file}" "/var/rsync/iso"
 fi
 
 if [ "${dist_build_qcow2:-}" = "true" ]; then
    #[ -n "${ssh_uploader_account:-}" ] || ssh_uploader_account="hulahoop"
    [ -n "${ssh_uploader_account:-}" ] || ssh_uploader_account="root"
-   [ -n "${dist_server_with_upload_location_list:-}" ] || dist_server_with_upload_location_list="${ssh_uploader_account}@${dist_server_with_upload_location_list_list}:/var/rsync/libvirt"
 
-   dist_build_files_to_upload+=("$libvirt_target_qcow2_xz_archive_file")
-   dist_build_upload_locations+=("${ssh_uploader_account}@${dist_server_with_upload_location_list_list}:/var/rsync/libvirt")
+   append_upload_source_and_locations_to_lists "${libvirt_target_qcow2_xz_archive_file}" "/var/rsync/libvirt"
 fi
 
 ## Default this target flag at its source so consumers (notably
@@ -1357,77 +1369,85 @@ fi
 [ -n "${dist_build_installer_dist:-}" ] || dist_build_installer_dist="false"
 export dist_build_installer_dist
 
-## Default off; '--serial-console-enable true' installs the serial-console-enable
-## package and adds a serial console (ttyS0) to the boot cmdline so the image can
-## be driven headless over a serial line (e.g. in qemu).
 [ -n "${dist_build_serial_console_enable:-}" ] || dist_build_serial_console_enable="false"
 export dist_build_serial_console_enable
 
+[ -n "${dist_build_smbios_reader:-}" ] || dist_build_smbios_reader="false"
+export dist_build_smbios_reader
+
 if [ "${dist_build_installer_dist}" = "true" ]; then
    [ -n "${ssh_uploader_account:-}" ] || ssh_uploader_account="root"
-   [ -n "${dist_server_with_upload_location_list:-}" ] || dist_server_with_upload_location_list="
-${ssh_uploader_account}@kicksecure.com:/var/rsync/dist-installer-cli
-${ssh_uploader_account}@whonix.org:/var/rsync/dist-installer-cli
-"
 
-   ## One image, two destination servers: push the file once per destination so
-   ## the per-index pairing uploads it to both.
-   dist_build_files_to_upload+=("$binary_image_installer_dist_file")
-   dist_build_upload_locations+=("${ssh_uploader_account}@kicksecure.com:/var/rsync/dist-installer-cli")
-   dist_build_files_to_upload+=("$binary_image_installer_dist_file")
-   dist_build_upload_locations+=("${ssh_uploader_account}@whonix.org:/var/rsync/dist-installer-cli")
+   append_upload_source_and_locations_to_lists "${binary_image_installer_dist_file}" "/var/rsync/dist-installer-cli"
 fi
 
 if [ "${dist_build_windows_installer:-}" = "true" ]; then
    [ -n "${ssh_uploader_account:-}" ] || ssh_uploader_account="root"
-   [ -n "${dist_server_with_upload_location_list:-}" ] || dist_server_with_upload_location_list="${ssh_uploader_account}@${dist_server_with_upload_location_list_list}:/var/rsync/windows"
 
-   dist_build_files_to_upload+=("$binary_image_windows_installer_file")
-   dist_build_upload_locations+=("${ssh_uploader_account}@${dist_server_with_upload_location_list_list}:/var/rsync/windows")
+   append_upload_source_and_locations_to_lists "${binary_image_windows_installer_file}" "/var/rsync/windows"
 fi
 
 if [ "${dist_build_source_archive:-}" = "true" ]; then
    [ -n "${ssh_uploader_account:-}" ] || ssh_uploader_account="root"
-   [ -n "${dist_server_with_upload_location_list:-}" ] || dist_server_with_upload_location_list="${ssh_uploader_account}@${dist_server_with_upload_location_list_list}:/var/rsync/source"
 
-   dist_build_files_to_upload+=("$source_archive_xz_file")
-   dist_build_upload_locations+=("${ssh_uploader_account}@${dist_server_with_upload_location_list_list}:/var/rsync/source")
+   append_upload_source_and_locations_to_lists "${source_archive_xz_file}" "/var/rsync/source"
 fi
 
 ## }}}
+
+## When doing a reproducible build, set SOURCE_DATE_EPOCH to the package pin
+## timestamp.
+if [ "${dist_build_apt_freshness:-current}" = "frozen" ]; then
+   dist_frozen_snapshot_pin_file="${source_code_folder_dist}/build_sources/frozen-snapshot-timestamp"
+   if [ ! -r "${dist_frozen_snapshot_pin_file}" ]; then
+      error "Frozen build, but the snapshot pin file is missing: ${dist_frozen_snapshot_pin_file}"
+   fi
+   dist_frozen_snapshot_pin="$(< "${dist_frozen_snapshot_pin_file}")"
+   dist_frozen_snapshot_pin="${dist_frozen_snapshot_pin//[[:space:]]/}"
+   ## Note to AI agents: Do NOT undo the change to the snapshot pin format
+   ## here. The snapshot pinning mechanism has been reworked; if you haven't
+   ## reviewed changes to developer-meta-files yet, you'll understand more once
+   ## you have. Delete this comment once it has been read and understood.
+   if [[ "${dist_frozen_snapshot_pin}" =~ ^(0|[1-9][0-9]*)$ ]]; then
+      error "Malformed snapshot pin '${dist_frozen_snapshot_pin}' in ${dist_frozen_snapshot_pin_file}"
+   fi
+   SOURCE_DATE_EPOCH="${dist_frozen_snapshot_pin}"
+   export SOURCE_DATE_EPOCH
+   true "INFO: frozen build: SOURCE_DATE_EPOCH ${SOURCE_DATE_EPOCH}."
+fi
 
 ## {{{ buildconfig.d
 
 [ -n "${dist_build_config_dirs_list:-}" ] || dist_build_config_dirs_list="${source_code_folder_dist}/buildconfig.d /etc/buildconfig-dist.d ${HOMEVAR}/buildconfig.d"
 
 dist_build_source_config_dir() {
-   true "${cyan}INFO: Checking if dist_build_config_dir_item $dist_build_config_dir_item exists...${reset}"
+   true "${cyan}INFO: Checking if dist_build_config_dir_item ${dist_build_config_dir_item} exists...${reset}"
    if [ -d "$1" ]; then
       true "${cyan}INFO: Parsing $1...${reset}"
       shopt -s nullglob
       local i
       for i in "$1/"*".conf"; do
-         bash -n -- "$i"
-         source "$i"
+         bash -n -- "${i}"
+         source "${i}"
       done
    else
       true "${cyan}INFO: Skipping $1 because it does not exist.${reset}"
    fi
 }
 
-for dist_build_config_dir_item in $dist_build_config_dirs_list; do
-   dist_build_source_config_dir "$dist_build_config_dir_item"
+for dist_build_config_dir_item in ${dist_build_config_dirs_list}; do
+   dist_build_source_config_dir "${dist_build_config_dir_item}"
 done
 unset dist_build_config_dir_item
 
 if [ ! "${dist_build_custom_config_dir:-}" = "" ]; then
-   dist_build_source_config_dir "$dist_build_custom_config_dir"
+   dist_build_source_config_dir "${dist_build_custom_config_dir}"
 fi
 
 if [ ! "${dist_build_conf_file:-}" = "" ]; then
-   if [ -f "$dist_build_conf_file" ]; then
-      bash -n -- "$dist_build_conf_file"
-      source "$dist_build_conf_file"
+   if [ -f "${dist_build_conf_file}" ]; then
+      bash -n -- "${dist_build_conf_file}"
+      source "${dist_build_conf_file}"
    fi
 fi
 
@@ -1440,19 +1460,11 @@ fi
 ## --sign-and-tag / --allow-unsigned options) always wins over the defaults.
 
 ## dist_build_sign_and_tag: whether 'help-steps/sign-and-tag' signs and tags
-## HEAD and every submodule. Default 'true'. Set 'false' for local work where
-## the submodule-gitlink re-bumping that re-signing causes is unwanted (it
-## rewrites submodule HEADs and re-commits the parent gitlinks, dirtying the
-## branch).
-[ -v dist_build_sign_and_tag ] || dist_build_sign_and_tag="true"
+## HEAD and every submodule.
+[ -v dist_build_sign_and_tag ] || dist_build_sign_and_tag="false"
 export dist_build_sign_and_tag
 
-## dist_build_ignore_unsigned: signature-skip flag consumed by
-## help-steps/git_sanity_test, alongside dist_build_ignore_untagged /
-## dist_build_ignore_uncommitted. Default 'false' (verify). Set 'true' only
-## when deliberately building from unsigned commits; pair it with
-## dist_build_sign_and_tag=false, since not signing means signatures cannot be
-## verified.
+## dist_build_ignore_unsigned: whether to build even if HEAD is unsigned.
 [ -v dist_build_ignore_unsigned ] || dist_build_ignore_unsigned="false"
 export dist_build_ignore_unsigned
 
@@ -1502,7 +1514,7 @@ if [ -z "${openpgp_policy_file_resolved:-}" ]; then
    openpgp_cert_file_resolved=""
    openpgp_policy_search_paths=()
    openpgp_cert_search_paths=()
-   for openpgp_policy_dir in $dist_build_config_dirs_list; do
+   for openpgp_policy_dir in ${dist_build_config_dirs_list}; do
       openpgp_policy_candidate="${openpgp_policy_dir}/${openpgp_policy_filename}"
       openpgp_cert_candidate="${openpgp_policy_dir}/${openpgp_cert_filename}"
       openpgp_policy_search_paths+=( "  ${openpgp_policy_candidate}" )
@@ -1564,9 +1576,9 @@ export make_use_lintian
 export genmkfile_make_cmd
 export make_use_cowbuilder
 
-[ -n "${signify_folder:-}" ] || signify_folder="$HOMEVAR/.signify"
-[ -n "${signify_private_key:-}" ] || signify_private_key="$signify_folder/keyname.sec"
-[ -n "${signify_public_key:-}" ] || signify_public_key="$signify_folder/keyname.pub"
+[ -n "${signify_folder:-}" ] || signify_folder="${HOMEVAR}/.signify"
+[ -n "${signify_private_key:-}" ] || signify_private_key="${signify_folder}/keyname.sec"
+[ -n "${signify_public_key:-}" ] || signify_public_key="${signify_folder}/keyname.pub"
 
 ## {{{ fallback variables for 'debchange' ('dch'), 'dpkg-buildpackage' and 'debuild'
 
@@ -1577,9 +1589,9 @@ export DEBFULLNAME
 [ -n "${DEBEMAIL:-}" ] || DEBEMAIL="derivative-distribution@local-signing.key"
 export DEBEMAIL
 
-[ -n "${debsign_wrapper:-}" ] || debsign_wrapper="$dist_source_help_steps_folder/sq-debsign-wrapper"
-[ -n "${sq_git_wrapper:-}" ] || sq_git_wrapper="$dist_source_help_steps_folder/sq-git-wrapper"
-[ -n "${git_verify_command_wrapper:-}" ] || git_verify_command_wrapper=( git -c "gpg.openpgp.program=$sq_git_wrapper" )
+[ -n "${debsign_wrapper:-}" ] || debsign_wrapper="${dist_source_help_steps_folder}/sq-debsign-wrapper"
+[ -n "${sq_git_wrapper:-}" ] || sq_git_wrapper="${dist_source_help_steps_folder}/sq-git-wrapper"
+[ -n "${git_verify_command_wrapper:-}" ] || git_verify_command_wrapper=( git -c "gpg.openpgp.program=${sq_git_wrapper}" )
 
 ## Per-call 'git -c key=value' options that configure sq-git-wrapper
 ## signing without writing to ~/.gitconfig. user.signingkey is set
@@ -1596,7 +1608,7 @@ git_signing_command_wrapper=(
    -c "user.name=${DEBFULLNAME}"
 )
 
-[ -n "${make_debsign_opts:-}" ] || make_debsign_opts="-p $debsign_wrapper"
+[ -n "${make_debsign_opts:-}" ] || make_debsign_opts="-p ${debsign_wrapper}"
 export make_debsign_opts
 
 ## For whatever it may be worth.
@@ -1625,29 +1637,29 @@ set_dist_build_reprepro_folder_options() {
    if [ "${derivative_repository_name:-}" = "" ]; then
       error "derivative_repository_name is empty!"
    fi
-   true "derivative_repository_name: $derivative_repository_name"
+   true "derivative_repository_name: ${derivative_repository_name}"
 
-   for derivative_name_item in $derivative_name_list ; do
-      if [ "${derivative_repository_name:-}" = "$derivative_name_item" ]; then
+   for derivative_name_item in ${derivative_name_list} ; do
+      if [ "${derivative_repository_name:-}" = "${derivative_name_item}" ]; then
          valid_repository_name=true
          break
       fi
    done
 
    if [ ! "${valid_repository_name:-}" = "true" ]; then
-      error "derivative_repository_name '$derivative_repository_name' is invalid! (not in derivative_name_list)"
+      error "derivative_repository_name '${derivative_repository_name}' is invalid! (not in derivative_name_list)"
    fi
 
-   [[ -v make_reprepro_codename_item ]] || make_reprepro_codename_item="$dist_build_apt_codename"
-   true "make_reprepro_codename_item: $make_reprepro_codename_item"
+   [[ -v make_reprepro_codename_item ]] || make_reprepro_codename_item="${dist_build_apt_codename}"
+   true "make_reprepro_codename_item: ${make_reprepro_codename_item}"
 
    if [ ! "${make_reprepro_codename_item:-}" = "local" ]; then
-      apt_repo_sub_folder="aptrepo_remote/$derivative_repository_name"
+      apt_repo_sub_folder="aptrepo_remote/${derivative_repository_name}"
    else
-      apt_repo_sub_folder="aptrepo_local/$derivative_repository_name"
+      apt_repo_sub_folder="aptrepo_local/${derivative_repository_name}"
    fi
 
-   dist_apt_repository_folder="$binary_build_folder_dist/$apt_repo_sub_folder"
+   dist_apt_repository_folder="${binary_build_folder_dist}/${apt_repo_sub_folder}"
    export dist_apt_repository_folder
 
    ## Use an array so path components containing whitespace are preserved
@@ -1656,10 +1668,10 @@ set_dist_build_reprepro_folder_options() {
    ## joined scalar was a no-op for all practical purposes; no caller was
    ## consuming it anyway.
    dist_build_reprepro_folder_options=(
-      --basedir "${source_code_folder_dist}/$apt_repo_sub_folder"
-      --outdir  "$binary_build_folder_dist/$apt_repo_sub_folder"
-      --dbdir   "$binary_build_folder_dist/$apt_repo_sub_folder/db"
-      --logdir  "$binary_build_folder_dist/$apt_repo_sub_folder/log"
+      --basedir "${source_code_folder_dist}/${apt_repo_sub_folder}"
+      --outdir  "${binary_build_folder_dist}/${apt_repo_sub_folder}"
+      --dbdir   "${binary_build_folder_dist}/${apt_repo_sub_folder}/db"
+      --logdir  "${binary_build_folder_dist}/${apt_repo_sub_folder}/log"
    )
 }
 
@@ -1668,73 +1680,54 @@ set_dist_build_reprepro_folder_options() {
 [ -n "${host_architecture:-}" ] || host_architecture="$(dpkg --print-architecture)"
 export host_architecture
 
-[ -n "${make_cross_build_platform_list:-}" ] || make_cross_build_platform_list="$dist_build_target_arch"
+[ -n "${make_cross_build_platform_list:-}" ] || make_cross_build_platform_list="${dist_build_target_arch}"
 #[ -n "${make_cross_build_platform_list:-}" ] || make_cross_build_platform_list="amd64 arm64"
 export make_cross_build_platform_list
 
 ## Parent folder holding the cowbuilder 'base.cow_<arch>' / 'cow.cow_<arch>'
-## chroots. Overridable so the (multi-gigabyte) chroots can be relocated off a
-## small or volatile root filesystem (e.g. onto persistent '/rw' storage on
-## Qubes). Exported so child build tools (genmkfile) inherit it.
-##
-## Under an explicit '--build-slot' the chroots go to a per-slot '/var/cache/pbuilder/<slot>' so
-## concurrent whole-image builds in different slots do not share one 'base.cow' (which they would
-## wipe/collide on); without a slot the historical shared '/var/cache/pbuilder' is used. Deliberately
-## NOT under '$binary_build_folder_dist': the chroots are root-owned build SCRATCH, not output --
-## placing them in the artifact tree makes the CI upload-artifact scan fail with EACCES on the 0700
-## chroot dirs. '/var/cache/pbuilder' also preserves the base.cow cache across builds. An explicit
-## override still wins (e.g. relocate onto persistent '/rw' storage on Qubes).
+## chroots. '--build-slot' adjusts to a slot-specific location.
+## '--reuse-cowbuilder-base' adjusts to a persistent location which is itself
+## already a slot-specific location.
 if [ -n "${cowbuilder_cache_dir:-}" ]; then
-   true "INFO: using explicitly set cowbuilder_cache_dir='$cowbuilder_cache_dir'"
+   true "INFO: using explicitly set cowbuilder_cache_dir='${cowbuilder_cache_dir}'"
 elif [ "${dist_build_reuse_cowbuilder_base:-}" = "true" ]; then
-   ## '--reuse-cowbuilder-base': place the base in the bind-mounted output tree so
-   ## a caller (CI) can pack/cache and restore it across runs -- the default
-   ## '/var/cache/pbuilder' is container-internal and not visible to the runner.
-   ## binary_build_folder_dist already carries any '--build-slot', so this stays
-   ## slot-isolated. The base is a 0700 root-owned chroot; 'ci/cowbuilder-base-cache
-   ## free' removes it (after the pack) before the artifact upload so upload-artifact
-   ## does not EACCES walking into it (the very reason the non-reuse default stays out
-   ## of this tree).
-   cowbuilder_cache_dir="$binary_build_folder_dist/pbuilder"
+   cowbuilder_cache_dir="${binary_build_folder_dist}/pbuilder"
 elif [ -n "${dist_build_slot:-}" ]; then
-   cowbuilder_cache_dir="/var/cache/pbuilder/$dist_build_slot"
+   cowbuilder_cache_dir="/var/cache/pbuilder/${dist_build_slot}"
 else
    cowbuilder_cache_dir="/var/cache/pbuilder"
 fi
 export cowbuilder_cache_dir
 
-## The Debian-arch -> qemu machine-name map (dist_build_arch_to_qemu_machine) lives in a
-## standalone, side-effect-free fragment so dm-qemu (developer-meta-files; headless ISO
-## boot-testing) can reuse the SAME mapping without sourcing the whole build context. Single
-## source of truth -- do not re-inline it here. Used for binfmt_misc handler names
-## ('qemu-<machine>'), cross-build emulation, and dm-qemu's 'qemu-system-<machine>' binary.
+## Translate a Debian architecture to the matching qemu-user / kernel machine
+## name.
 source "${dist_developer_meta_files_folder}/usr/libexec/developer-meta-files/arch-to-qemu-machine.bsh"
 
 set_cowbuilder_folders() {
-   cow_folder="$cowbuilder_cache_dir/cow.cow_${dist_build_multiarch_package_item}"
-   base_folder="$cowbuilder_cache_dir/base.cow_${dist_build_multiarch_package_item}"
+   cow_folder="${cowbuilder_cache_dir}/cow.cow_${dist_build_multiarch_package_item}"
+   base_folder="${cowbuilder_cache_dir}/base.cow_${dist_build_multiarch_package_item}"
 }
 
 [ -n "${dist_build_file_system:-}" ] || dist_build_file_system="ext4"
 
 ## cowbuilder (which internally uses pbuilder).
-dist_build_pbuilder_main_chroot_script="$dist_source_help_steps_folder/pbuilder-chroot-script-main"
-dist_build_pbuilder_virtualbox_chroot_script="$dist_source_help_steps_folder/pbuilder-chroot-script-virtualbox"
+dist_build_pbuilder_main_chroot_script="${dist_source_help_steps_folder}/pbuilder-chroot-script-main"
+dist_build_pbuilder_virtualbox_chroot_script="${dist_source_help_steps_folder}/pbuilder-chroot-script-virtualbox"
 
-dist_build_pbuilder_config_file="$binary_build_folder_dist/pbuilder.conf"
+dist_build_pbuilder_config_file="${binary_build_folder_dist}/pbuilder.conf"
 ## export so it can be read by genmkfile
 export dist_build_pbuilder_config_file
 
-make_cowbuilder_dist_folder="$binary_build_folder_dist/genmkfile-packages-result"
+make_cowbuilder_dist_folder="${binary_build_folder_dist}/genmkfile-packages-result"
 export make_cowbuilder_dist_folder
 
-$SUDO_TO_ROOT rm --force -- "$dist_build_pbuilder_config_file"
-mkdir --parents -- "$binary_build_folder_dist"
-mkdir --parents -- "$make_cowbuilder_dist_folder"
+${SUDO_TO_ROOT} rm --force -- "${dist_build_pbuilder_config_file}"
+mkdir --parents -- "${binary_build_folder_dist}"
+mkdir --parents -- "${make_cowbuilder_dist_folder}"
 
-## pbuilder's post-bootstrap 'apt-get update' uses its own APTGETOPT, not DIST_APTGETOPT, so pass
-## the build's apt options through -- notably Acquire::Check-Valid-Until=false for '--freshness
-## frozen'. All options are plain '-o key=value' tokens (no spaces), so no per-element quoting.
+## pbuilder's post-bootstrap 'apt-get update' uses its own APTGETOPT, not
+## DIST_APTGETOPT, so pass the build's apt options through. All options are
+## plain '-o key=value' tokens, so no per-element quoting.
 if [ "${#DIST_APTGETOPT[@]}" -gt 0 ]; then
    pbuilder_aptgetopt_block="APTGETOPT=(${DIST_APTGETOPT[*]})
 export APTGETOPT"
@@ -1744,7 +1737,7 @@ fi
 
 printf "%s\n" "\
 ## This is an auto generated file.
-## Auto generated by: '$dist_source_help_steps_folder/$(basename -- "${BASH_SOURCE[0]}")'
+## Auto generated by: '${dist_source_help_steps_folder}/$(basename -- "${BASH_SOURCE[0]}")'
 ## Edits will be lost!
 
 ## build-step cowbuilder-setup copies this file into the cowbuilder chroot to:
@@ -1757,7 +1750,7 @@ printf "%s\n" "\
 ## '--configfile /home/user/derivative-binary/pbuilder.conf'
 ## NOTE: Cowbuilder ignores arbitrary environment variables such as 'DIST_APTGETOPT_SERIALIZED'.
 ##       Therefore, cowbuilder chroot scripts must run:
-##       'source /home/$user_name/pbuilder_config_file'
+##       'source /home/${user_name}/pbuilder_config_file'
 ##       Maybe false. Just requires correct 'export'.
 
 ## Debugging.
@@ -1775,24 +1768,17 @@ export APTCACHEHARDLINK
 PBUILDERSATISFYDEPENDSCMD=/usr/lib/pbuilder/pbuilder-satisfydepends-apt
 export PBUILDERSATISFYDEPENDSCMD
 
-$pbuilder_aptgetopt_block
+${pbuilder_aptgetopt_block}
 
-## pbuilder hard-exports 'LANG=C' and 'LC_ALL=C' when 'pbuilder-checkparams'
-## sources 'pbuilder-modules', clobbering the locale passed in through the
-## environment. This configfile is sourced AFTER that (at '--configfile'
-## argument parsing, also in 'pbuilder-checkparams'), so re-exporting here
-## restores the build's deterministic locale for everything pbuilder runs,
-## the 'pbuilder-chroot-script-*' included. The values are interpolated at
-## generation time from the assignments earlier in 'help-steps/variables'
-## (the single source of truth). 'LANGUAGE' is not touched by pbuilder but
-## is re-exported for consistency.
-export LANG=\"$LANG\"
-export LC_ALL=\"$LC_ALL\"
-export LANGUAGE=\"$LANGUAGE\"
+## Technically unnecessary but maybe useful if we change what we set locale
+## variables to.
+export LANG=\"${LANG}\"
+export LC_ALL=\"${LC_ALL}\"
+export LANGUAGE=\"${LANGUAGE}\"
 
-## End of: '$dist_build_pbuilder_config_file'
+## End of: '${dist_build_pbuilder_config_file}'
 " | \
-   tee -- "$dist_build_pbuilder_config_file" >/dev/null
+   tee -- "${dist_build_pbuilder_config_file}" >/dev/null
 
 #realpath -- "$dist_build_pbuilder_config_file"
 #cat -- "$dist_build_pbuilder_config_file"
@@ -1828,12 +1814,12 @@ export tb_disable_anon_ws_dns_conf
 ## means. 'return 0' would only stop sourcing 'variables' and let the rest
 ## of the skipped script continue to run.
 own_filename="$(basename -- "$0")"
-for skip_script in $SKIP_SCRIPTS; do
+for skip_script in ${SKIP_SCRIPTS}; do
    ## '--fixed-strings' so SKIP_SCRIPTS entries are treated as literal
    ## substrings, not regular expressions. Otherwise a '.' or other regex
    ## metacharacter in SKIP_SCRIPTS could match unintended scripts.
-   if matched_word=$(printf "%s\n" "$own_filename" | grep --fixed-strings -- "$skip_script") ; then
-      printf "%s\n" "${bold}${green}${BASH_SOURCE[0]} INFO: Skipping $own_filename, because SKIP_SCRIPTS matches it. matched_word: '$matched_word'${reset}"
+   if matched_word=$(printf "%s\n" "${own_filename}" | grep --fixed-strings -- "${skip_script}") ; then
+      printf "%s\n" "${bold}${green}${BASH_SOURCE[0]} INFO: Skipping ${own_filename}, because SKIP_SCRIPTS matches it. matched_word: '${matched_word}'${reset}"
       exit 0
    fi
 done
@@ -1898,6 +1884,7 @@ env_vars_keep_list="
    dist_build_raw
    dist_build_iso
    dist_build_serial_console_enable
+   dist_build_smbios_reader
    dist_build_slot
    dist_build_utm
    dist_build_install_to_root
@@ -1936,16 +1923,16 @@ true "INFO: Environment variables that will be passed..."
 ## duplicated flags and an ever-growing SUDO_TO_ROOT string.
 if [ ! "${variables_sudo_to_root_finalized:-}" = "true" ]; then
    sudo_preserve_env_list=""
-   for env_vars_var_keep_item in $env_vars_keep_list ; do
+   for env_vars_var_keep_item in ${env_vars_keep_list} ; do
       if [ -z "${env_vars_var_keep_item:-}" ]; then
-        error "env_vars_var_keep_item $env_vars_var_keep_item is empty!"
+        error "env_vars_var_keep_item ${env_vars_var_keep_item} is empty!"
       fi
       if [ "${sudo_preserve_env_list:-}" = "" ]; then
-         sudo_preserve_env_list="$env_vars_var_keep_item"
+         sudo_preserve_env_list="${env_vars_var_keep_item}"
       else
-         sudo_preserve_env_list+=",$env_vars_var_keep_item"
+         sudo_preserve_env_list+=",${env_vars_var_keep_item}"
       fi
-      if [ "$env_vars_var_keep_item" = "DIST_APTGETOPT_SERIALIZED" ]; then
+      if [ "${env_vars_var_keep_item}" = "DIST_APTGETOPT_SERIALIZED" ]; then
          found=true
       fi
    done
@@ -1954,12 +1941,12 @@ if [ ! "${variables_sudo_to_root_finalized:-}" = "true" ]; then
       error "env_vars_var_keep_item variable DIST_APTGETOPT_SERIALIZED not found!"
    fi
    unset found
-   if [ -z "$env_vars_var_keep_item" ]; then
+   if [ -z "${env_vars_var_keep_item}" ]; then
       error "env_vars_var_keep_item variable DIST_APTGETOPT_SERIALIZED is empty!"
    fi
 
    SUDO_TO_ROOT+=" "
-   SUDO_TO_ROOT+="--preserve-env=$sudo_preserve_env_list"
+   SUDO_TO_ROOT+="--preserve-env=${sudo_preserve_env_list}"
 
    variables_sudo_to_root_finalized="true"
    export variables_sudo_to_root_finalized

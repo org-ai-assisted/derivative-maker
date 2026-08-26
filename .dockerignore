@@ -1,0 +1,4 @@
+*
+!docker
+!build_sources/debian_stable_frozen_direct_clearnet.sources.in
+!build_sources/frozen-snapshot-timestamp

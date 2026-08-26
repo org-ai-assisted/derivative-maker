@@ -5,6 +5,13 @@
 
 ## AI-Assisted
 
+## FIXME: This script MUST be deleted entirely. We are migrating away from
+## live-build entirely. Do not make any further changes to this script, simply
+## delete it once porting away from live-build is complete.
+
+## WARNING: This script has not been (and will not be) reviewed by a human, as
+## it is slated for removal.
+
 ## Seed a live-build working directory so that 'lb bootstrap' ADOPTS an
 ## externally built root filesystem instead of bootstrapping a new one.
 ##
@@ -53,8 +60,8 @@ MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 ## 'exit 1', leaving those options in "$@" for the parser below.
 dist_build_source_run="true"
 
-source "$MYDIR/pre"
-source "$MYDIR/variables"
+source "${MYDIR}/pre"
+source "${MYDIR}/variables"
 
 rootfs_dir=""
 lb_dir=""
@@ -113,15 +120,15 @@ main() {
    ## Replace any previous cache so a stale tree cannot be adopted. 'lb clean
    ## --cache' is not used here because it would also drop the package cache
    ## we want to keep; only the bootstrap cache is our concern.
-   $SUDO_TO_ROOT mkdir --parents -- "${lb_dir}/cache"
-   $SUDO_TO_ROOT safe-rm --recursive --force -- "${bootstrap_cache_dir}"
+   ${SUDO_TO_ROOT} mkdir --parents -- "${lb_dir}/cache"
+   ${SUDO_TO_ROOT} safe-rm --one-file-system --recursive --force -- "${bootstrap_cache_dir}"
 
    ## '--archive' (== -dR --preserve=all) so the adopted tree is
    ## byte-for-byte what our own steps produced; '--one-file-system' as a
    ## safety guard so a stray bind mount under the rootfs can never make the
    ## copy cross into the host (see the live-build unmount-lb history).
    true "INFO: Seeding '${bootstrap_cache_dir}' from rootfs '${rootfs_dir}'..."
-   $SUDO_TO_ROOT cp --archive --one-file-system -- "${rootfs_dir}" "${bootstrap_cache_dir}"
+   ${SUDO_TO_ROOT} cp --archive --one-file-system -- "${rootfs_dir}" "${bootstrap_cache_dir}"
 
    sync
 

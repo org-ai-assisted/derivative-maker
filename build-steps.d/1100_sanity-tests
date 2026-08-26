@@ -11,26 +11,25 @@ set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
 
-## style-ok: no-safe-rm -- this is the sanity/bootstrap step that INSTALLS safe-rm (it is in
-## required_packages_list below), so nothing here can depend on safe-rm yet; the few removals
-## use plain 'rm --force'.
-## style-ok: allow-echo -- the only 'echo' occurrences are example commands quoted INSIDE
-## operator-facing diagnostic message strings (e.g. "run: sudo losetup --all ; echo $?"), not
-## echo used as a command.
+## style-ok: no-safe-rm -- this is the sanity/bootstrap step that installs safe-rm.
+## style-ok: allow-echo -- the only 'echo' occurrences are inside strings.
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
 source pre
 source variables
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
+
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/has.sh
+source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/has.sh
 
 test-wc() {
    if ! printf '%s\n' "" | wc -l >/dev/null ; then
@@ -49,7 +48,7 @@ check-redistributable-builds-requirements() {
    ## '~/.gnupg' is required as at least an empty folder for the Qubes
    ## 'split-gpg-2' bug. Auto-create unconditionally; this is independent
    ## of the redistributable folder check below.
-   mkdir --parents -- "$HOME/.gnupg"
+   mkdir --parents -- "${HOME}/.gnupg"
 
    ## Skip the rest for non-redistributable dev builds: '$dist_build_redistributable=false'
    ## means 'help-steps/signing_key' auto-generates keys (see
@@ -62,10 +61,8 @@ check-redistributable-builds-requirements() {
    ## 'signing_key()'); '~/.gnupg' is auto-created above. The
    ## redistributable folder check would otherwise fail before
    ## 'signing-key-create' has a chance to create '~/.signify',
-   ## hence the early return here. (Note: the ansible vault used by
-   ## 'automated_builder' holds the DigitalOcean API token and the
-   ## ssh keypair used to reach the build VPS, NOT release signing
-   ## keys -- those are still auto-generated per build.)
+   ## hence the early return here. Release signing keys are always
+   ## auto-generated per build.
    if [ "${CI:-}" = "true" ]; then
       return 0
    fi
@@ -92,21 +89,86 @@ check-redistributable-builds-requirements() {
    ## Folder '$HOME/.local/share/sequoia/keystore' is optional because
    ## it does not exist if using Qubes 'split-gpg-2'.
    folder_list=(
-      "$HOME/buildconfig.d"
-      "$HOME/.ssh"
-      "$HOME/.signify"
+      "${HOME}/buildconfig.d"
+      "${HOME}/.ssh"
+      "${HOME}/.signify"
    )
    for folder_item in "${folder_list[@]}"; do
-      if [ ! -d "$folder_item" ]; then
-         error "dist_build_redistributable=true, missing required folder: $folder_item"
+      if [ ! -d "${folder_item}" ]; then
+         error "dist_build_redistributable=true, missing required folder: ${folder_item}"
       fi
    done
 }
 
 check-git-folder() {
    ## A few places in the source code use "git clean" or "git describe".
-   if ! test -e "$source_code_folder_dist/.git" ; then
-      error "$source_code_folder_dist/.git does not exist."
+   if ! test -e "${source_code_folder_dist}/.git" ; then
+      error "${source_code_folder_dist}/.git does not exist."
+   fi
+}
+
+## FIXME: This check is both broken and misguided.
+##
+## * No package repo under derivative-maker contains a symlink, by design. Any
+##   symlinks found in those repositories (whether real symlinks or Git-tracked
+##   "symlinks") should result in an error.
+## * There are repos with Git-tracked symlinks that do not and should not show
+##   up in the filesystem as real symlinks (namely qubes-template-whonix and
+##   live-build). We should not error out because of these.
+##
+## Therefore this function is disabled further down.
+# shellcheck disable=SC2317
+check-git-symlinks() {
+   local repo_list repo_rel repo_abs entry mode file_path broken_list broken_count
+
+   ## Every path the index records as a symlink (mode 120000) must be a symlink in
+   ## the working tree.
+   broken_list=""
+   broken_count=0
+
+   repo_list=(".")
+   # shellcheck disable=SC2016
+   mapfile -t -d '' -O "${#repo_list[@]}" repo_list < <(
+      git -C "${source_code_folder_dist}" submodule --quiet foreach --recursive 'printf "%s\0" "${displaypath}"'
+   )
+
+   ## example repo_list:
+   ## ( '.' 'grml-debootstrap' 'packages/kicksecure/helper-scripts' ... )
+
+   for repo_rel in "${repo_list[@]}" ; do
+      repo_abs="${source_code_folder_dist}/${repo_rel}"
+      test -d "${repo_abs}" || continue
+      ## FIXME: This check is broken for two reasons:
+      ##
+      ## * A stray GIT_DIR environment variable could fool it
+      ## * The check will pass even if the directory isn't a repo because the
+      ##   dir is a subdirectory of derivative-maker, which is a git dir
+      if ! git -C "${repo_abs}" rev-parse --git-dir >/dev/null 2>&1 ; then
+         true "${cyan}INFO: ${repo_rel}: not a git repository (submodule not initialized?); no symlinks to verify there.${reset}"
+         continue
+      fi
+      while IFS= read -r -d '' entry ; do
+         mode="${entry%% *}"
+         if [ ! "${mode}" = "120000" ]; then
+            continue
+         fi
+         file_path="${entry#*$'\t'}"
+         if test -L "${repo_abs}/${file_path}" ; then
+            continue
+         fi
+         broken_count=$(( broken_count + 1 ))
+         broken_list="${broken_list}
+  ${repo_rel}/${file_path}"
+      done < <(git -C "${repo_abs}" ls-files --stage -z)
+   done
+
+   if [ "${broken_count}" -gt 0 ]; then
+      error "\
+git materialized ${broken_count} symlink(s) as regular files. This is normal,
+but a function designed to find them was erroneously enabled. Broken symlink
+list:
+
+${broken_list}"
    fi
 }
 
@@ -123,8 +185,8 @@ Are you building on Debian? Only building on Debian is supported."
    fi
 
    codename=$(cat -- /etc/os-release)
-   codename=$(printf '%s\n' "$codename" | grep VERSION_CODENAME)
-   codename=$(printf '%s\n' "$codename" | cut -d= -f2)
+   codename=$(printf '%s\n' "${codename}" | grep VERSION_CODENAME)
+   codename=$(printf '%s\n' "${codename}" | cut -d= -f2)
 
    ## TODO: Debian forky
    #if [ "forky" = "$codename" ]; then
@@ -132,7 +194,7 @@ Are you building on Debian? Only building on Debian is supported."
    #   return 0
    #fi
 
-   if [ "${dist_build_apt_stable_release:-}" = "$codename" ]; then
+   if [ "${dist_build_apt_stable_release:-}" = "${codename}" ]; then
       true "INFO: up-to-date codename OK."
       return 0
    fi
@@ -141,7 +203,7 @@ Are you building on Debian? Only building on Debian is supported."
       ## '--unsupported-os true' opt-out for developer / AI / CI smoke
       ## testing on non-Debian hosts. The mismatch is logged loudly so
       ## it is still obvious in build logs, but does not abort.
-      printf '%s\n' "${yellow:-}${bold:-}WARN: detected codename '$codename' != expected '$dist_build_apt_stable_release'; \
+      printf '%s\n' "${yellow:-}${bold:-}WARN: detected codename '${codename}' != expected '${dist_build_apt_stable_release}'; \
 continuing because --unsupported-os true is set. Resulting image is NOT a release-quality build.${reset:-}" >&2
       return 0
    fi
@@ -154,8 +216,8 @@ You are attempting to build on an unsupported operating system or version.
 Either your version is older or newer than expected. See build documentation
 to learn which operating system is suggested.
 
-detected operating system codename: '$codename'
-expected operating system codename: '$dist_build_apt_stable_release'
+detected operating system codename: '${codename}'
+expected operating system codename: '${dist_build_apt_stable_release}'
 
 To bypass this check (NOT for release builds; dev / AI / CI smoke only):
   --unsupported-os true"
@@ -165,7 +227,7 @@ To bypass this check (NOT for release builds; dev / AI / CI smoke only):
 
 check-sudo() {
    local sudo_test_output
-   sudo_test_output="$($SUDO_TO_ROOT test -d /usr 2>&1)"
+   sudo_test_output="$(${SUDO_TO_ROOT} test -d /usr 2>&1)"
    if [ "${sudo_test_output:-}" = "" ]; then
       true "INFO: sudo_test_output is empty as expected, ok."
       return 0
@@ -185,7 +247,7 @@ check-dpkg() {
    ## dpkg --audit does not return anything, if everything is fine.
    ## Therefore we see if dpkg has to say something, and if yes, the system is
    ## broken and we abort.
-   dpkg_audit_output="$($SUDO_TO_ROOT dpkg --audit 2>&1)" || true
+   dpkg_audit_output="$(${SUDO_TO_ROOT} dpkg --audit 2>&1)" || true
    if [ "${dpkg_audit_output:-}" = "" ]; then
       true "INFO: dpkg_audit_output is empty as expected, ok."
       return 0
@@ -215,8 +277,8 @@ check-hostname() {
       if [ "${local_hostname:-}" = "" ]; then
          error "${bold}${red}ERROR ${BASH_SOURCE[0]}: Running command 'hostname' returned empty output. See above.${reset}"
       fi
-      true "${bold}${cyan}INFO: File /etc/hostname did not exist. Writing $local_hostname to /etc/hostname, ok.${reset}"
-      printf '%s\n' "$local_hostname" | $SUDO_TO_ROOT tee -- /etc/hostname >/dev/null
+      true "${bold}${cyan}INFO: File /etc/hostname did not exist. Writing ${local_hostname} to /etc/hostname, ok.${reset}"
+      printf '%s\n' "${local_hostname}" | ${SUDO_TO_ROOT} tee -- /etc/hostname >/dev/null
    fi
    if ! test -r /etc/hostname ; then
       error "${bold}${red}ERROR ${BASH_SOURCE[0]}: /etc/hostname unreadable on the build system!${reset}"
@@ -236,13 +298,13 @@ check-mailname() {
    ## W: No local /etc/mailname to copy, relying on /var/cache/pbuilder/cow.cow_amd64/cow.950654/etc/mailname to be correct
    if ! test -f /etc/mailname ; then
       true "INFO: File /etc/mailname did not exist. Creating empty one...."
-      $SUDO_TO_ROOT touch /etc/mailname
+      ${SUDO_TO_ROOT} touch /etc/mailname
    fi
 }
 
 check-source-folder-permissions() {
    ## Debugging.
-   true "${bold}${cyan}INFO: PWD: $PWD ${reset}"
+   true "${bold}${cyan}INFO: PWD: ${PWD} ${reset}"
 
    ## Checking if derivative-maker source folder has been obtained (git cloned) as user or root.
 
@@ -259,17 +321,39 @@ Please delete derivative-maker source code folder and get it again as user, not 
 Please delete derivative-maker source code folder and get it again as user, not root!${reset}"
    fi
 
-   test -x "$debsign_wrapper"
-   test -x "$sq_git_wrapper"
+   test -x "${debsign_wrapper}"
+   test -x "${sq_git_wrapper}"
 
    true
+}
+
+check-sufficient-disk() {
+   ## Fail early when the build output folder lacks the disk space a full build
+   ## needs.
+   local build_folder avail_kib avail_gib minimum_gib
+   minimum_gib="${dist_build_min_free_gib:-20}"
+   build_folder="${binary_build_folder_dist:-}"
+   if [ -z "${build_folder}" ] || [ ! -d "${build_folder}" ]; then
+      build_folder="${HOME}"
+   fi
+   avail_kib="$(df --output=avail -k -- "${build_folder}" 2>/dev/null | tail -n 1 | tr -d '[:space:]')"
+   if [ -z "${avail_kib}" ]; then
+      true "${bold}${cyan}INFO: ${BASH_SOURCE[0]}: could not read free disk for '${build_folder}'; skipping the disk check.${reset}"
+      return 0
+   fi
+   avail_gib=$(( avail_kib / 1024 / 1024 ))
+   true "${bold}${cyan}INFO: ${BASH_SOURCE[0]}: ${avail_gib} GiB free in '${build_folder}' (minimum ${minimum_gib} GiB).${reset}"
+   if [ "${avail_gib}" -lt "${minimum_gib}" ]; then
+      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: only ${avail_gib} GiB free in the build output folder \
+'${build_folder}', but at least ${minimum_gib} GiB needed.${reset}"
+   fi
 }
 
 check-stray-loop-devices() {
    true "INFO: Checking for stray loop devices..."
 
    local losetup_output
-   losetup_output=$($SUDO_TO_ROOT losetup --all)
+   losetup_output=$(${SUDO_TO_ROOT} losetup --all)
 
    if [ "${losetup_output:-}" = "" ]; then
       true "INFO: Output of losetup_output is empty. No stray loop devices, OK."
@@ -282,7 +366,7 @@ check-stray-loop-devices() {
 
    true "INFO: Stray loop devices detected!
 
-losetup_output: '$losetup_output'
+losetup_output: '${losetup_output}'
 
 This has been detected by the following command... To reproduce this manually, run...
 
@@ -305,6 +389,87 @@ Recommendation:
    true
 }
 
+check-umask-in-sync() {
+   ## Ensure our umask is the same permissive value that security-misc's
+   ## sudoers config would set.
+   ##
+   ## Don't check for a umask pin by parsing help-steps/variables. Parsing like
+   ## this would be unreliable, and our code shouldn't (and can't) internally
+   ## distrust itself.
+
+   true "INFO: Checking that the build umask matches security-misc..."
+
+   local sudoers_file security_misc_umask current_umask sanity_line
+
+   sudoers_file="${source_code_folder_dist}/packages/kicksecure/security-misc/etc/sudoers.d/security-misc#security-misc-shared"
+   variables_file="${source_code_folder_dist}/help-steps/variables"
+
+   if [ ! -f "${sudoers_file}" ]; then
+      ## This is a fatal error; if the submodule isn't checked out, the build
+      ## would fail later.
+      error "security-misc sudoers drop-in absent! Submodule not checked out?"
+      return 0
+   fi
+
+   security_misc_umask=""
+   while IFS= read -r sanity_line; do
+      case "${sanity_line}" in
+         Defaults*umask=*)
+            security_misc_umask="${sanity_line#*umask=}"
+            security_misc_umask="${security_misc_umask%%[^0-7]*}"
+            break
+            ;;
+      esac
+   done < "${sudoers_file}"
+
+   if [ -z "${security_misc_umask}" ]; then
+      true "INFO: no 'Defaults umask=' found in security-misc; nothing to compare. OK."
+      return 0
+   fi
+   ## Trim off leading zeros. This value will be compared with the output of
+   ## the umask command, and the number of leading zeros it prints can vary.
+   [[ "${security_misc_umask}" =~ ([^0]*)$ ]]
+   security_misc_umask="${BASH_REMATCH[1]}"
+   ## Intentionally do not check for a non-empty security_misc_umask here.
+   ## 0000 is a technically valid umask value, which would make this empty.
+
+   current_umask="$(umask)"
+   ## Also trim leading zeros from the umask command's output.
+   if [ -z "${current_umask}" ]; then
+      error "Cannot get current umask!"
+      return 0
+   fi
+   [[ "${current_umask}" =~ ([^0]*)$ ]]
+   current_umask="${BASH_REMATCH[1]}"
+
+   if [ ! "${current_umask}" = "${security_misc_umask}" ]; then
+      error "Current umask is different from security-misc! Current umask is '${current_umask}', expected umask is '${security_misc_umask}'."
+      return 0
+   fi
+
+   true "INFO: current umask ${current_umask} matches security-misc, OK."
+}
+
+check-stale-nbd() {
+   true "INFO: Checking for stale nbd devices..."
+
+   local nbd_mounts
+
+   if [ ! -e /dev/nbd0 ]; then
+      true "INFO: no nbd devices present, OK."
+      return 0
+   fi
+
+   nbd_mounts="$(${SUDO_TO_ROOT} cat /proc/mounts | grep -- '^/dev/nbd' || true)"
+
+   if [ -z "${nbd_mounts}" ]; then
+      true "INFO: no stale nbd mounts, OK."
+      return 0
+   fi
+
+   error "Stale nbd mount(s) detected! Mounts: '${nbd_mounts}'. Use dm-nbd-cleanup to release them."
+}
+
 check-stray-mounts() {
    true "INFO: Checking for mounts..."
 
@@ -315,9 +480,9 @@ check-stray-mounts() {
       return 0
    fi
 
-   chroot_folder_base_name="$(basename "$CHROOT_FOLDER")"
+   chroot_folder_base_name="$(basename "${CHROOT_FOLDER}")"
 
-   proc_mounts_grep_result=$($SUDO_TO_ROOT cat /proc/mounts | grep -i -- "$chroot_folder_base_name") || true
+   proc_mounts_grep_result=$(${SUDO_TO_ROOT} cat /proc/mounts | grep -i -- "${chroot_folder_base_name}") || true
 
    if [ "${proc_mounts_grep_result:-}" = "" ]; then
       true "INFO: Output of proc_mounts_grep_result is empty. No stray mounts, OK."
@@ -326,11 +491,11 @@ check-stray-mounts() {
 
    error "Stray mounts detected!
 
-proc_mounts_grep_result: '$proc_mounts_grep_result'
+proc_mounts_grep_result: '${proc_mounts_grep_result}'
 
 This has been detected by the following command... To reproduce this manually, run...
 
-sudo cat /proc/mounts | grep '$CHROOT_FOLDER' ; echo $?
+sudo cat /proc/mounts | grep '${CHROOT_FOLDER}' ; echo $?
 
 expected result:
 1
@@ -344,8 +509,6 @@ Recommendation:
    true
 }
 
-## Disabled manual-debugging helper: everything after 'return 0' is intentionally dead code
-## kept for manual reproduction, hence unreachable to shellcheck (SC2317).
 # shellcheck disable=SC2317
 mount-test() {
    ## TODO
@@ -353,112 +516,99 @@ mount-test() {
 
    ## Debugging.
 
-   $SUDO_TO_ROOT mount
+   ${SUDO_TO_ROOT} mount
 
    mkdir --parents /home/user/whonix_binary
 
-   $SUDO_TO_ROOT kpartx -av /home/user/whonix_binary/Whonix-Gateway.img
+   ${SUDO_TO_ROOT} kpartx -av /home/user/whonix_binary/Whonix-Gateway.img
 
-   $SUDO_TO_ROOT mkdir --parents /home/user/whonix_binary/Whonix-Gateway_image
+   ${SUDO_TO_ROOT} mkdir --parents /home/user/whonix_binary/Whonix-Gateway_image
 
-   $SUDO_TO_ROOT mount --verbose /dev/mapper/loop0p1 /home/user/whonix_binary/Whonix-Gateway_image
+   ${SUDO_TO_ROOT} mount --verbose /dev/mapper/loop0p1 /home/user/whonix_binary/Whonix-Gateway_image
 
    ## TODO
-   $SUDO_TO_ROOT umount --verbose /home/user/whonix_binary/Whonix-Gateway_image/etc/resolv.conf || true
+   ${SUDO_TO_ROOT} umount --verbose /home/user/whonix_binary/Whonix-Gateway_image/etc/resolv.conf || true
 
-   $SUDO_TO_ROOT umount --verbose /home/user/whonix_binary/Whonix-Gateway_image
+   ${SUDO_TO_ROOT} umount --verbose /home/user/whonix_binary/Whonix-Gateway_image
 
-   $SUDO_TO_ROOT kpartx -dv /home/user/whonix_binary/Whonix-Gateway.img
+   ${SUDO_TO_ROOT} kpartx -dv /home/user/whonix_binary/Whonix-Gateway.img
 
-   $SUDO_TO_ROOT rmdir -- /home/user/whonix_binary/Whonix-Gateway_image
+   ${SUDO_TO_ROOT} rmdir -- /home/user/whonix_binary/Whonix-Gateway_image
 
-   $SUDO_TO_ROOT mount
+   ${SUDO_TO_ROOT} mount
 
    true
 }
 
 check-build-primitives() {
-   ## Fail FAST on a broken build /dev / mount BEFORE the expensive stages. These
-   ## primitives break silently and only surface ~45min into a build -- the container's
-   ## isolated /dev hides freshly-created loop/device-mapper nodes, so kpartx in
-   ## create-raw-image (step 3200) fails; and a non-functional /dev/null makes every
-   ## '> /dev/null' in the live-build binary stage (step 3600) fail. Catching them here
-   ## (step 1100) turns a 45-minute dead-end into a few-second, clearly-explained abort.
+   ## Fail fast on a broken build /dev mount.
    local loop_test_file="" loop_dev="" loop_rc mount_test_dir=""
 
-   ## Idempotent teardown of the privileged test resources. Every fatal 'error' path and the normal
-   ## completion below call it, and it clears each var so a repeat call is a no-op -- so a leaked
-   ## loop device / tmpfs mount can never block the next build. (A RETURN trap would not help: under
-   ## errexit an uncaught failure exits the script, so RETURN never fires; explicit calls do.)
+   ## Idempotent cleanup function.
    _cbp_cleanup() {
       if [ -n "${mount_test_dir}" ]; then
-         $SUDO_TO_ROOT umount -- "${mount_test_dir}" 2>/dev/null || true
-         $SUDO_TO_ROOT rmdir -- "${mount_test_dir}" 2>/dev/null || true
+         ${SUDO_TO_ROOT} umount -- "${mount_test_dir}" 2>/dev/null || true
+         ${SUDO_TO_ROOT} rmdir -- "${mount_test_dir}" 2>/dev/null || true
          mount_test_dir=""
       fi
       if [ -n "${loop_dev}" ]; then
-         $SUDO_TO_ROOT losetup --detach "${loop_dev}" 2>/dev/null || true
+         ${SUDO_TO_ROOT} losetup --detach "${loop_dev}" 2>/dev/null || true
          loop_dev=""
       fi
       if [ -n "${loop_test_file}" ]; then
-         $SUDO_TO_ROOT rm --force -- "${loop_test_file}" 2>/dev/null || true
+         ${SUDO_TO_ROOT} rm --force -- "${loop_test_file}" 2>/dev/null || true
          loop_test_file=""
       fi
    }
 
-   ## 1) /dev/null must be a writable character device.
+   ## /dev/null must be a writable character device.
    if [ ! -c /dev/null ]; then
       error "${bold}${red}ERROR ${BASH_SOURCE[0]}: /dev/null is not a character device on \
-the build host. Every '> /dev/null' in the build (chroot operations, live-build's binary \
-stage) will fail. Fix the build environment's /dev.${reset}"
+the build host. Fix the build environment's /dev.${reset}"
    fi
-   if ! printf 'test\n' > /dev/null 2>&1; then
-      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: writing to /dev/null failed -- the \
-build's chroot operations will fail. Fix /dev on the build host.${reset}"
+   if ! printf '%s\n' "test" > /dev/null 2>&1; then
+      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: writing to /dev/null failed. \
+Fix the build environment's /dev.${reset}"
    fi
 
-   ## 2) A newly-created loop device's /dev node must actually APPEAR. In a container
-   ## with an isolated /dev this is exactly what fails: losetup 'succeeds' but the node
-   ## is missing, so kpartx in create-raw-image cannot see the partitions. The fix is a
-   ## host /dev in the container ('docker run --privileged --volume /dev:/dev').
-   ## Create the backing file (and the mount dir below) as ROOT via mktemp: security-misc
+   ## A newly-created loop device's /dev node must actually appear.
+   ##
+   ## Create the backing file (and the mount dir below) as root via mktemp: security-misc
    ## sets fs.protected_regular=2, which blocks even root from opening a file it does not
-   ## own for writing inside the sticky /tmp -- so a user-owned mktemp file + '$SUDO_TO_ROOT
-   ## truncate' fails with EACCES. Root-owned (owner == opener) is allowed.
-   loop_test_file="$($SUDO_TO_ROOT mktemp)"
-   if ! $SUDO_TO_ROOT truncate --size=10M -- "$loop_test_file"; then
+   ## own for writing inside the sticky /tmp.
+   loop_test_file="$(${SUDO_TO_ROOT} mktemp)"
+   if ! ${SUDO_TO_ROOT} truncate --size=10M -- "${loop_test_file}"; then
       _cbp_cleanup
       error "${bold}${red}ERROR ${BASH_SOURCE[0]}: could not size the loop backing file (truncate) \
 on the build host.${reset}"
    fi
    loop_rc=0
-   loop_dev="$($SUDO_TO_ROOT losetup --find --show -- "$loop_test_file" 2>/dev/null)" || loop_rc="$?"
-   if [ "$loop_rc" != "0" ] || [ -z "${loop_dev:-}" ]; then
+   loop_dev="$(${SUDO_TO_ROOT} losetup --find --show -- "${loop_test_file}" 2>/dev/null)" || loop_rc="$?"
+   if [ "${loop_rc}" != "0" ] || [ -z "${loop_dev:-}" ]; then
       _cbp_cleanup
       error "${bold}${red}ERROR ${BASH_SOURCE[0]}: could not allocate a loop device \
 (losetup --find --show). In a container the build needs a host /dev + privileges \
-('docker run --privileged --volume /dev:/dev'); otherwise create-raw-image (kpartx) fails \
-~45min in.${reset}"
+('docker run --privileged --volume /dev:/dev').${reset}"
    fi
-   if [ ! -b "$loop_dev" ]; then
+   if [ ! -b "${loop_dev}" ]; then
       _cbp_cleanup
-      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: loop device '$loop_dev' was allocated \
-but its /dev node is MISSING -- the container /dev is isolated. kpartx in create-raw-image \
-would fail. Provide a host /dev ('docker run --privileged --volume /dev:/dev').${reset}"
+      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: loop device '${loop_dev}' was allocated \
+but its /dev node is missing (container /dev isolated?). In a container the build needs a \
+host /dev + privileges ('docker run --privileged --volume /dev:/dev').${reset}"
    fi
    _cbp_cleanup
 
-   ## 3) mount must work -- the build does many bind/loop mounts.
-   mount_test_dir="$($SUDO_TO_ROOT mktemp --directory)"
-   if ! $SUDO_TO_ROOT mount --types tmpfs --options size=1M -- tmpfs "$mount_test_dir" 2>/dev/null; then
+   ## mount must work.
+   mount_test_dir="$(${SUDO_TO_ROOT} mktemp --directory)"
+   if ! ${SUDO_TO_ROOT} mount --types tmpfs --options size=1M -- tmpfs "${mount_test_dir}" 2>/dev/null; then
       _cbp_cleanup
-      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: a tmpfs mount failed -- the build's \
-bind/loop mounts will fail. The container needs --privileged (or the appropriate mount \
-capabilities).${reset}"
+      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: a tmpfs mount failed, the build's \
+bind/loop mounts will fail. In a container the build needs --privileged (or the appropriate \
+mount capabilities).${reset}"
    fi
    _cbp_cleanup
 
-   true "${bold}${cyan}INFO: build-primitives check OK (/dev/null, loop-device node, mount).${reset}"
+   true "${bold}${cyan}INFO: build-primitives check OK.${reset}"
 }
 
 check-copy-vms-into-raw() {
@@ -483,27 +633,27 @@ check-copy-vms-into-raw() {
 ##########
 If you want to do a debug build, perhaps create empty files?
 
-qemu-img create -f qcow2 $copy_vms_into_raw_file_one 1M
-qemu-img create -f qcow2 $copy_vms_into_raw_file_two 1M
+qemu-img create -f qcow2 ${copy_vms_into_raw_file_one} 1M
+qemu-img create -f qcow2 ${copy_vms_into_raw_file_two} 1M
 ##########
 If you want to do a debug build, manually set which files you like to copy into the raw image using build configuration variables?
 
-copy_vms_into_raw_file_one=$binary_build_folder_dist/Whonix-Gateway.qcow2 copy_vms_into_raw_file_two=$binary_build_folder_dist/Whonix-Workstation.qcow2
+copy_vms_into_raw_file_one=${binary_build_folder_dist}/Whonix-Gateway.qcow2 copy_vms_into_raw_file_two=${binary_build_folder_dist}/Whonix-Workstation.qcow2
 ##########"
 
-   if [ ! -f "$copy_vms_into_raw_file_one" ]; then
+   if [ ! -f "${copy_vms_into_raw_file_one}" ]; then
       error "Whonix VMs need to be build first before Whonix host can be build.
 
-copy_vms_into_raw_file_one '$copy_vms_into_raw_file_one' does not exist!
+copy_vms_into_raw_file_one '${copy_vms_into_raw_file_one}' does not exist!
 
-$help_text"
+${help_text}"
    fi
-   if [ ! -f "$copy_vms_into_raw_file_two" ]; then
+   if [ ! -f "${copy_vms_into_raw_file_two}" ]; then
       error "Whonix VMs need to be build first before Whonix host can be build
 
-copy_vms_into_raw_file_two '$copy_vms_into_raw_file_two' does not exist!
+copy_vms_into_raw_file_two '${copy_vms_into_raw_file_two}' does not exist!
 
-$help_text"
+${help_text}"
    fi
 
    true
@@ -521,34 +671,31 @@ install_required_packages() {
    #-o Dir::Etc::sourceparts="-" \
    ## Because dist_build_sources_list_primary requires approx.
 
-   $SUDO_TO_ROOT \
+   ${SUDO_TO_ROOT} \
       apt-get \
          "${DIST_APTGETOPT_WITHOUT_APT_CACHE[@]}" \
          update
 
-   ## SC2086: intentional word-splitting of $apt_unattended_opts and the space-separated
-   ## $required_packages_list into individual apt-get arguments.
    # shellcheck disable=SC2086
-   $SUDO_TO_ROOT \
+   ${SUDO_TO_ROOT} \
       apt-get \
          "${DIST_APTGETOPT_WITHOUT_APT_CACHE[@]}" \
-         $apt_unattended_opts \
+         ${apt_unattended_opts} \
          --no-install-recommends \
          --yes \
          install \
-         $required_packages_list
+         ${required_packages_list}
 }
 
 check_required_packages_installed() {
-   required_packages_list="git time curl approx lsb-release fakeroot fasttrack-archive-keyring safe-rm gpg-sq"
+   required_packages_list="git time curl approx lsb-release fakeroot fasttrack-archive-keyring safe-rm gpg-sq kmod qemu-utils kpartx parted"
    local required_package_item
 
-   ## SC2086: intentional word-splitting of the space-separated package list.
    # shellcheck disable=SC2086
-   for required_package_item in $required_packages_list ; do
+   for required_package_item in ${required_packages_list} ; do
       ## 'dpkg-query' does not exit non-zero if package is absent on the system.
-      if [ "$(dpkg-query --show --showformat='${Version}' "$required_package_item")" = "" ] ; then
-         true "INFO: Required package '$required_package_item' missing."
+      if [ "$(dpkg-query --show --showformat='${Version}' "${required_package_item}")" = "" ] ; then
+         true "INFO: Required package '${required_package_item}' missing."
          install_required_packages
          break
       fi
@@ -559,20 +706,25 @@ main() {
    test-wc "$@"
    check-redistributable-builds-requirements "$@"
    check-git-folder "$@"
+   ## Broken, see FIXME above function
+   # check-git-symlinks "$@"
    check-operating-system-version "$@"
    check-sudo "$@"
    check-dpkg "$@"
    check-hostname "$@"
    check-mailname "$@"
    check-source-folder-permissions "$@"
+   check-sufficient-disk "$@"
    check-stray-loop-devices "$@"
+   check-umask-in-sync "$@"
+   check-stale-nbd "$@"
    check-stray-mounts "$@"
    mount-test "$@"
    check-build-primitives "$@"
    check-copy-vms-into-raw "$@"
    check_required_packages_installed "$@"
 
-   "$dist_source_help_steps_folder/git_sanity_test" --mode all --context "main repo"
+   "${dist_source_help_steps_folder}/git_sanity_test" --mode all --context "main repo"
 
    true
 }

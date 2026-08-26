@@ -1,0 +1,259 @@
+#!/bin/bash
+
+## Copyright (C) 2026 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## See the file COPYING for copying conditions.
+
+set -x
+set -o errexit
+set -o nounset
+set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+
+true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
+
+MYDIR="$( cd "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
+
+cd "${MYDIR}"
+cd ..
+cd help-steps
+
+source pre
+source variables
+
+## Rebuild the ext4 root filesystem deterministically.
+
+reimage_cleanup() {
+   if [ -n "${reimage_mnt:-}" ]; then
+      ${SUDO_TO_ROOT} umount "${reimage_mnt}" 2>/dev/null || true
+      rmdir -- "${reimage_mnt}" 2>/dev/null || true
+   fi
+   if [ -n "${reimage_tree:-}" ]; then
+      ${SUDO_TO_ROOT} safe-rm --one-file-system --recursive --force -- "${reimage_tree}" 2>/dev/null || true
+   fi
+   "${dist_source_help_steps_folder}"/unmount-raw 2>/dev/null || true
+}
+
+reimage_raw() {
+   ## SOURCE_DATE_EPOCH is exported unconditionally by help-steps/variables; an empty
+   ## value here is a build bug, not a supported non-reproducible mode -- fail loud.
+   ##
+   ## FIXME: Reproducible builds by default is dangerous for users who build
+   ## ISOs so they can use ISO live mode in production. Make reproducible
+   ## builds opt-in, and skip this script entirely when they are not explicitly
+   ## enabled.
+   if [ -z "${SOURCE_DATE_EPOCH:-}" ]; then
+      printf '%s\n' "ERROR: ${BASH_SOURCE[0]}: SOURCE_DATE_EPOCH is unset; the reproducible reimage requires it." >&2
+      return 1
+   fi
+
+   local dev_mapper_device fs_uuid fs_hashseed fs_blocksize fs_inodes fs_isize fs_features
+   local reimage_parent sde_hex sde_cmd dd_err debugfs_err dumpe2fs_out
+   local loop_mapping_base esp_device esp_candidate
+   export kpartx_only=true
+   source "${dist_source_help_steps_folder}"/mount-raw
+
+   ## Arm the cleanup trap BEFORE mount_raw: mount_raw runs kpartx -a early and can fail afterwards,
+   ## so the mapping must be torn down even then.
+   ##
+   ## FIXME: This breaks the exithandler mechanism in help-steps/pre. Add a
+   ## mechanism to exithandler that can call cleanup functions that are
+   ## registered with it, then register reimage_cleanup with that mechanism.
+   ## Alternatively, if there is already a global cleanup mechanism, simply
+   ## extend that to be able to handle the cleanup reimage_cleanup does.
+   reimage_mnt=""
+   reimage_tree=""
+   trap 'reimage_cleanup' EXIT
+
+   mount_raw
+
+   ## Preserve the pinned identifiers AND geometry of the current filesystem so the rebuilt filesystem
+   ## matches the one grml-debootstrap created.
+   dumpe2fs_out="$(${SUDO_TO_ROOT} dumpe2fs -h "${dev_mapper_device}" 2>/dev/null)"
+   fs_uuid="$(${SUDO_TO_ROOT} blkid --output value --match-tag UUID "${dev_mapper_device}")"
+   fs_hashseed="$(printf '%s\n' "${dumpe2fs_out}" | sed -n 's/^Directory Hash Seed:[[:space:]]*//p')"
+   fs_blocksize="$(printf '%s\n' "${dumpe2fs_out}" | sed -n 's/^Block size:[[:space:]]*//p')"
+   fs_inodes="$(printf '%s\n' "${dumpe2fs_out}" | sed -n 's/^Inode count:[[:space:]]*//p')"
+   fs_isize="$(printf '%s\n' "${dumpe2fs_out}" | sed -n 's/^Inode size:[[:space:]]*//p')"
+   ## FIXME: The features enabled in ext4 by default depend on the contents of
+   ## the host's /etc/mke2fs.conf and may also vary depending on host OS. We
+   ## should hardcode the features we want our images build with somewhere in
+   ## derivative-maker's configuration, and update that list as part of every
+   ## update to the next major Debian release. Then we should use that list
+   ## here instead of depending on what is recorded in the original filesystem.
+   fs_features="$(printf '%s\n' "${dumpe2fs_out}" | sed -n 's/^Filesystem features:[[:space:]]*//p' | tr ' ' ',')"
+   if [ -z "${fs_uuid}" ]; then
+      printf '%s\n' "ERROR: ${BASH_SOURCE[0]}: could not read 'Filesystem UUID' of ${dev_mapper_device}." >&2
+      return 1
+   fi
+   if [ -z "${fs_hashseed}" ]; then
+      printf '%s\n' "ERROR: ${BASH_SOURCE[0]}: could not read 'Directory Hash Seed' of ${dev_mapper_device}." >&2
+      return 1
+   fi
+   if [ -z "${fs_blocksize}" ]; then
+      printf '%s\n' "ERROR: ${BASH_SOURCE[0]}: could not read 'Block size' of ${dev_mapper_device}." >&2
+      return 1
+   fi
+   if [ -z "${fs_inodes}" ]; then
+      printf '%s\n' "ERROR: ${BASH_SOURCE[0]}: could not read 'Inode count' of ${dev_mapper_device}." >&2
+      return 1
+   fi
+   if [ -z "${fs_isize}" ]; then
+      printf '%s\n' "ERROR: ${BASH_SOURCE[0]}: could not read 'Inode size' of ${dev_mapper_device}." >&2
+      return 1
+   fi
+   if [ -z "${fs_features}" ]; then
+      printf '%s\n' "ERROR: ${BASH_SOURCE[0]}: could not read 'Filesystem features' of ${dev_mapper_device}." >&2
+      return 1
+   fi
+
+   reimage_mnt="$(mktemp -d)"
+   ## Stage the copied tree next to the image mount_raw mapped, so we have room
+   ## for a full rootfs copy.
+   if [ -n "${dist_build_mount_raw_file:-}" ]; then
+      reimage_parent="$(dirname -- "${dist_build_mount_raw_file}")"
+   else
+      reimage_parent="$(dirname -- "${binary_image_raw_file}")"
+   fi
+   reimage_tree="$(${SUDO_TO_ROOT} mktemp --directory --tmpdir="${reimage_parent}")"
+
+   ## Copy out all the files so we can rewrite them with mke2fs.
+   ${SUDO_TO_ROOT} mount -o ro "${dev_mapper_device}" "${reimage_mnt}"
+   ${SUDO_TO_ROOT} cp -a -- "${reimage_mnt}/." "${reimage_tree}/"
+   ${SUDO_TO_ROOT} umount "${reimage_mnt}"
+   rmdir -- "${reimage_mnt}"
+   reimage_mnt=""
+
+   ## Strip runtime artifacts whose content embeds the build's wall-clock time.
+   ##
+   ## TODO: Shouldn't we be zeroing out all standard log files and deleting
+   ## rotated-out log files? Logs are very likely to contain non-deterministic
+   ## data.
+   ${SUDO_TO_ROOT} truncate --size=0 -- "${reimage_tree}/var/log/alternatives.log" 2>/dev/null || true
+   ${SUDO_TO_ROOT} safe-rm --force -- "${reimage_tree}/var/cache/ldconfig/aux-cache"
+
+   ## Empty /run entirely, it isn't supposed to contain anything but sometimes
+   ## it does.
+   ##
+   ## We have to use `find` here since the shell may not be able to enumerate
+   ## the contents of /run for something like `safe-rm -rf -- .../run/*`.
+   ${SUDO_TO_ROOT} find "${reimage_tree}/run" -mindepth 1 -maxdepth 1 -exec safe-rm --recursive --force -- {} +
+
+   ## Strip DKMS build logs.
+   ${SUDO_TO_ROOT} find "${reimage_tree}/var/lib/dkms" -type f -name 'make.log' -exec safe-rm --force -- {} \; 2>/dev/null || true
+
+   ## update-locale writes /etc/locale.conf in a non-deterministic order.
+   ## Sort it.
+   if ${SUDO_TO_ROOT} test -f "${reimage_tree}/etc/locale.conf"; then
+      ${SUDO_TO_ROOT} sort -o "${reimage_tree}/etc/locale.conf" -- "${reimage_tree}/etc/locale.conf"
+   fi
+
+   ## Sometimes debconf will list the same package multiple times in an
+   ## 'Owners:' field, once with an arch qualifier and once without. We never
+   ## build images with mixed-arch packages, so we can and should deduplicate
+   ## these since they sometimes vary between builds.
+   if ${SUDO_TO_ROOT} test -f "${reimage_tree}/var/cache/debconf/config.dat"; then
+      ${SUDO_TO_ROOT} "${dist_developer_meta_files_folder}/usr/bin/dm-debconf-normalize-owners" \
+         "${reimage_tree}/var/cache/debconf/config.dat"
+   fi
+
+   ## Pin symlink mtimes to SOURCE_DATE_EPOCH, update-alternatives creates
+   ## symlinks with non-deterministic mtimes. So far regular file and directory
+   ## mtimes have proven to be deterministic.
+   ##
+   ## TODO: Trusting regular file mtimes to be deterministic seems fragile at
+   ## best. Maybe pin everything? Is there anything that can break if we pin
+   ## everything?
+   ${SUDO_TO_ROOT} find "${reimage_tree}" -type l \
+      -exec touch --no-dereference --date="@${SOURCE_DATE_EPOCH}" -- {} +
+
+   ## Discard the partition's contents so free-block slack can't mess up
+   ## reproducibility. We intentionally do not use --zeroout here; Linux
+   ## supports discard operations on loopback devices, meaning that when
+   ## --zeroout is not passed, not only is the partition zeroed out, but the
+   ## disk space it previously consumed is freed. --zeroout on the other hand
+   ## may bloat a disk image to its maximum possible size (approximately 100GB
+   ## here).
+   ##
+   ## We used to have a fallback to dd here if blkdiscard wasn't available,
+   ## but blkdiscard has been part of util-linux since somewhere around 2014.
+   ##
+   ## TODO: `-f` is here because it is used in grml-debootstrap, but it might
+   ## not be needed here. If we don't need it here though, why is it needed
+   ## there?
+   ${SUDO_TO_ROOT} blkdiscard -f -- "${dev_mapper_device}"
+
+   ## Rebuild the root filesystem deterministically.
+   ##
+   ## TODO: Should we force the block size to always be 4096 here? That is the
+   ## largest supported block size on x86 systems, and it's the default block
+   ## size on Debian 13. Even if larger sizes work on some architectures with
+   ## some kernels, that would result in a filesystem that can't be opened on
+   ## most systems.
+   ##
+   ## TODO: "${fs_features}" probably needs prefixed by `none,`, otherwise the
+   ## provided feature list will be overlayed on top of the defaults, allowing
+   ## non-determinism to be introduced.
+   # shellcheck disable=SC2086
+   ${SUDO_TO_ROOT} mke2fs -F -q -t ext4 \
+      -b "${fs_blocksize}" -N "${fs_inodes}" -I "${fs_isize}" -O "${fs_features}" \
+      -U "${fs_uuid}" -E hash_seed="${fs_hashseed}" \
+      -d "${reimage_tree}" "${dev_mapper_device}"
+
+   ${SUDO_TO_ROOT} safe-rm --one-file-system --recursive --force -- "${reimage_tree}"
+   reimage_tree=""
+
+   ## It is not necessary to pin superblock timestamps with debugfs here.
+   ## mke2fs generates a reproducible image on its own when SOURCE_DATE_EPOCH
+   ## is present in the environment. Confirmed on a Debian Trixie VM running
+   ## under Qubes OS. Do not reintroduce timestamp pinning code here. If its
+   ## removal introduces nondeterminism in CI, fix the broken CI build
+   ## environment.
+
+   ## Rebuild the EFI System Partition deterministically.
+   loop_mapping_base="${dev_mapper_device%p*}"
+   esp_device=""
+   for esp_candidate in "${loop_mapping_base}"p*; do
+      if [ "${esp_candidate}" = "${dev_mapper_device}" ]; then
+         continue
+      fi
+      if [ "$(${SUDO_TO_ROOT} blkid --output value --match-tag TYPE "${esp_candidate}" 2>/dev/null)" = "vfat" ]; then
+         esp_device="${esp_candidate}"
+         break
+      fi
+   done
+   if [ -n "${esp_device}" ]; then
+      ${SUDO_TO_ROOT} "${dist_developer_meta_files_folder}/usr/bin/dm-normalize-fat-partition" \
+         "${esp_device}"
+   else
+      printf '%s\n' "INFO: ${BASH_SOURCE[0]}: no vfat ESP found on ${loop_mapping_base}; nothing to normalize." >&2
+   fi
+
+   "${dist_source_help_steps_folder}"/unmount-raw "$@"
+   ## FIXME: The below line needs removed once the exithandler breakage issue
+   ## mentioned above is fixed.
+   trap - EXIT
+}
+
+main() {
+   if [ "${build_dry_run:-}" = "true" ]; then
+      true "${bold}${cyan}INFO: dry-run, skipping ${BASH_SOURCE[0]}.${reset}"
+      return 0
+   fi
+
+   if [ "${dist_build_iso:-}" = "true" ]; then
+      true "${green}INFO: Skipping ${BASH_SOURCE[0]}, because dist_build_iso is set to true.${reset}"
+      return 0
+   fi
+
+   if [ "${dist_build_install_to_root:-}" = "true" ]; then
+      true "${green}INFO: Skipping ${BASH_SOURCE[0]}, because dist_build_install_to_root is set to true.${reset}"
+   elif [ "${dist_build_type_long:-}" = "custom-workstation" ]; then
+      true "${green}INFO: Skipping ${BASH_SOURCE[0]}, because dist_build_type_long is set to ${dist_build_type_long}.${reset}"
+   else
+      reimage_raw "$@"
+   fi
+}
+
+main "$@"

@@ -20,7 +20,7 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
@@ -31,9 +31,9 @@ source variables
 apt_get_parse_unmet_dependency() {
    local pkg_unmet
    pkg_unmet="$1"
-   true "INFO: Running \"dpkg -l | grep -- $pkg_unmet\"..."
-   chroot_run dpkg -l | grep -- "$pkg_unmet" || true
-   chroot_run apt-cache policy -- "$pkg_unmet" || true
+   true "INFO: Running \"dpkg -l | grep -- ${pkg_unmet}\"..."
+   chroot_run dpkg -l | grep -- "${pkg_unmet}" || true
+   chroot_run apt-cache policy -- "${pkg_unmet}" || true
 
    local line
 
@@ -46,28 +46,28 @@ apt_get_parse_unmet_dependency() {
 
    while read -r -d $'\n' line; do
       local unmet_dependency=""
-      unmet_dependency="$(printf "%s\n" "$line" | grep -o "Depends:.*" | awk '{print $2}')" || true
+      unmet_dependency="$(printf "%s\n" "${line}" | grep -o "Depends:.*" | awk '{print $2}')" || true
       if [ "${unmet_dependency:-}" = "" ]; then
          ## no match
          continue
       else
          ## match
-         if [ "${remember_pkg[$unmet_dependency]}" = "true" ]; then
+         if [ "${remember_pkg[${unmet_dependency}]}" = "true" ]; then
             continue
          fi
-         printf "%s\n" "${bold}${cyan}INFO: Found unmet dependency: $unmet_dependency. \
+         printf "%s\n" "${bold}${cyan}INFO: Found unmet dependency: ${unmet_dependency}. \
 Will try to manually install it for debugging...${reset}"
-         remember_pkg[$unmet_dependency]="true"
+         remember_pkg[${unmet_dependency}]="true"
          set -x
-         true "INFO: Running \"dpkg -l | grep $unmet_dependency\"..."
-         chroot_run dpkg -l | grep -- "$unmet_dependency" || true
-         chroot_run apt-cache policy -- "$unmet_dependency" || true
-         pkg-install "$unmet_dependency" || true
+         true "INFO: Running \"dpkg -l | grep ${unmet_dependency}\"..."
+         chroot_run dpkg -l | grep -- "${unmet_dependency}" || true
+         chroot_run apt-cache policy -- "${unmet_dependency}" || true
+         pkg-install "${unmet_dependency}" || true
          set +x
-         printf "%s\n" "${bold}${cyan}INFO: Attempt to install unmet_dependency: $unmet_dependency done.${reset}"
+         printf "%s\n" "${bold}${cyan}INFO: Attempt to install unmet_dependency: ${unmet_dependency} done.${reset}"
          continue
       fi
-   done < <( printf "%s\n" "$apt_get_output" )
+   done < <( printf "%s\n" "${apt_get_output}" )
 
    set -x
 }
@@ -78,10 +78,10 @@ pkg-install() {
    local pkg_install_item
    pkg_install_item="$1"
    local skip_package
-   for skip_package in $dist_build_script_skip_package_install; do
-      if [ "${skip_package:-}" = "$pkg_install_item" ]; then
+   for skip_package in ${dist_build_script_skip_package_install}; do
+      if [ "${skip_package:-}" = "${pkg_install_item}" ]; then
          unset skip_package
-         true "${bold}${cyan}INFO: Skipping installation of '$pkg_install_item', because variable dist_build_script_skip_package_install includes it.${reset}"
+         true "${bold}${cyan}INFO: Skipping installation of '${pkg_install_item}', because variable dist_build_script_skip_package_install includes it.${reset}"
          return 0
       fi
    done
@@ -101,9 +101,9 @@ This may take a while...${reset}"
       chroot_run \
          apt-get-noninteractive \
             "${DIST_APTGETOPT[@]}" \
-            $apt_sourcelist_empty \
-            $apt_sourceparts \
-            $apt_unattended_opts \
+            ${apt_sourcelist_empty} \
+            ${apt_sourceparts} \
+            ${apt_unattended_opts} \
             --yes \
             --no-install-recommends \
             install \
@@ -111,7 +111,7 @@ This may take a while...${reset}"
             || { apt_get_exit_code="$?" ; true; };
 
    chroot_run sync
-   $SUDO_TO_ROOT sync
+   ${SUDO_TO_ROOT} sync
 
    if [ "${apt_get_exit_code:-}" = "0" ]; then
       true "${cyan}INFO: Installed '$*', no error detected.${reset}"
@@ -120,7 +120,7 @@ This may take a while...${reset}"
 
    ## retry_run already retried transient failures; a failure here is
    ## non-transient or persisted after all retries.
-   true "${bold}${red}ERROR: Failed to install '$*'. (apt_get_exit_code: $apt_get_exit_code) \
+   true "${bold}${red}ERROR: Failed to install '$*'. (apt_get_exit_code: ${apt_get_exit_code}) \
 Attempting to gather debug output to diagnose the problem...${reset}"
 
    ## Re-run the install once more, capturing its combined output into
@@ -136,9 +136,9 @@ variable for debugging. This may take a while...${reset}"
             chroot_run \
                   apt-get-noninteractive \
                      "${DIST_APTGETOPT[@]}" \
-                     $apt_sourcelist_empty \
-                     $apt_sourceparts \
-                     $apt_unattended_opts \
+                     ${apt_sourcelist_empty} \
+                     ${apt_sourceparts} \
+                     ${apt_unattended_opts} \
                      --yes \
                      --no-install-recommends \
                      install \
@@ -157,7 +157,7 @@ variable for debugging. This may take a while...${reset}"
       return 0
    fi
 
-   true "${bold}${red}ERROR: As expected, failed again to install '$*'. (apt_get_exit_code: $apt_get_exit_code) \
+   true "${bold}${red}ERROR: As expected, failed again to install '$*'. (apt_get_exit_code: ${apt_get_exit_code}) \
 Trying to diagnose the problem using function apt_get_parse_unmet_dependency...${reset}"
 
    apt_get_parse_unmet_dependency "$@"
@@ -174,24 +174,24 @@ pkg-add-to-install-list() {
    local pkg_install_item
    pkg_install_item="$1"
    local skip_package
-   for skip_package in $dist_build_script_skip_package_install; do
-      if [ "${skip_package:-}" = "$pkg_install_item" ]; then
+   for skip_package in ${dist_build_script_skip_package_install}; do
+      if [ "${skip_package:-}" = "${pkg_install_item}" ]; then
          unset skip_package
-         true "${bold}${cyan}INFO: Skipping package $pkg_install_item, because dist_build_script_skip_package_install includes it.${reset}"
+         true "${bold}${cyan}INFO: Skipping package ${pkg_install_item}, because dist_build_script_skip_package_install includes it.${reset}"
          return 0
       fi
    done
    unset skip_package
 
    if [ "${pkg_install_item:-}" = "none" ]; then
-      true "${bold}${cyan}INFO: Skipping package $pkg_install_item (none).${reset}"
+      true "${bold}${cyan}INFO: Skipping package ${pkg_install_item} (none).${reset}"
       return 0
    fi
 
    if [ "${pkg_install_debug:-}" = "true" ]; then
-      pkg-install "$pkg_install_item"
+      pkg-install "${pkg_install_item}"
    else
-      pkg_install_list+=" $pkg_install_item "
+      pkg_install_list+=" ${pkg_install_item} "
    fi
 }
 
@@ -202,7 +202,7 @@ pkg-list-install() {
       true "INFO: pkg_install_list still empty, ok."
       return 0
    else
-      pkg-install $pkg_install_list
+      pkg-install ${pkg_install_list}
    fi
 }
 
@@ -211,18 +211,20 @@ install-packages() {
 
    sync
 
-   "$dist_source_help_steps_folder/mount-raw" "$@"
+   "${dist_source_help_steps_folder}/mount-raw" "$@"
 
    ## Sanity test.
-   test -d "$CHROOT_FOLDER/etc/default/grub.d"
+   test -d "${CHROOT_FOLDER}/etc/default/grub.d"
    ## /etc/default/grub.d/20_dist-base-files.cfg
    ## https://www.kicksecure.com/wiki/Dev/boot#/etc/default/grub.d/20_dist-base-files.cfg
    ## https://www.kicksecure.com/wiki/Grub#/etc/default/grub.d/20_dist-base-files.cfg
-   $SUDO_TO_ROOT cp -- "$source_code_folder_dist/packages/kicksecure/dist-base-files/usr/share/derivative-base-files/20_dist-base-files.cfg" "$CHROOT_FOLDER/etc/default/grub.d/20_dist-base-files.cfg"
+   ## We use 'install' rather than 'cp' to keep the host's umask applied to
+   ## files in Git from applying to the image being built.
+   ${SUDO_TO_ROOT} install --mode=0644 -- "${source_code_folder_dist}/packages/kicksecure/dist-base-files/usr/share/derivative-base-files/20_dist-base-files.cfg" "${CHROOT_FOLDER}/etc/default/grub.d/20_dist-base-files.cfg"
 
-   $SUDO_TO_ROOT cp -- "$source_code_folder_dist/packages/kicksecure/helper-scripts/usr/bin/apt-get-noninteractive" "$CHROOT_FOLDER/usr/bin/apt-get-noninteractive"
+   ${SUDO_TO_ROOT} install --mode=0755 -- "${source_code_folder_dist}/packages/kicksecure/helper-scripts/usr/bin/apt-get-noninteractive" "${CHROOT_FOLDER}/usr/bin/apt-get-noninteractive"
 
-   "$dist_source_help_steps_folder/prevent-daemons-from-starting" "$@"
+   "${dist_source_help_steps_folder}/prevent-daemons-from-starting" "$@"
 
    sync
 
@@ -232,28 +234,28 @@ install-packages() {
 
    sync
 
-   "$dist_source_help_steps_folder/chroot-raw" "$@"
-   "$dist_source_help_steps_folder/create-local-temp-apt-repo" "$@"
+   "${dist_source_help_steps_folder}/chroot-raw" "$@"
+   "${dist_source_help_steps_folder}/create-local-temp-apt-repo" "$@"
 
    ## Debugging.
    ## XXX: hardcoded
-   chroot_run ls -la -- "/$DEB_INSTALL_FOLDER/kicksecure/dists/local/" || true
-   chroot_run ls -la -- "/$DEB_INSTALL_FOLDER/kicksecure/dists/local/InRelease" || true
-   chroot_run ls -la -- "/$DEB_INSTALL_FOLDER/kicksecure/dists/local/main/" || true
-   chroot_run ls -la -- "/$DEB_INSTALL_FOLDER/kicksecure/dists/local/non-free/" || true
-   chroot_run ls -la -- "/$DEB_INSTALL_FOLDER/kicksecure/dists/local/non-free/source" || true
-   chroot_run ls -la -- "/$DEB_INSTALL_FOLDER/kicksecure/dists/local/non-free/binary-$dist_build_target_arch/" || true
-   chroot_run ls -la -- "/$DEB_INSTALL_FOLDER/kicksecure/dists/local/non-free/binary-$dist_build_target_arch/Packages" || true
+   chroot_run ls -la -- "/${DEB_INSTALL_FOLDER}/kicksecure/dists/local/" || true
+   chroot_run ls -la -- "/${DEB_INSTALL_FOLDER}/kicksecure/dists/local/InRelease" || true
+   chroot_run ls -la -- "/${DEB_INSTALL_FOLDER}/kicksecure/dists/local/main/" || true
+   chroot_run ls -la -- "/${DEB_INSTALL_FOLDER}/kicksecure/dists/local/non-free/" || true
+   chroot_run ls -la -- "/${DEB_INSTALL_FOLDER}/kicksecure/dists/local/non-free/source" || true
+   chroot_run ls -la -- "/${DEB_INSTALL_FOLDER}/kicksecure/dists/local/non-free/binary-${dist_build_target_arch}/" || true
+   chroot_run ls -la -- "/${DEB_INSTALL_FOLDER}/kicksecure/dists/local/non-free/binary-${dist_build_target_arch}/Packages" || true
 
-   "$dist_source_help_steps_folder/unchroot-raw" "$@"
+   "${dist_source_help_steps_folder}/unchroot-raw" "$@"
 
    ## {{ controversy of: /etc/resolv.conf /etc/hosts /etc/hostname,
    ##    see help-steps/chroot-raw for more information.
 
-   dist_chroot_mount_resolv_conf="0" "$dist_source_help_steps_folder/chroot-raw" "$@"
-   "$dist_source_help_steps_folder/create-local-temp-apt-repo" "$@"
+   dist_chroot_mount_resolv_conf="0" "${dist_source_help_steps_folder}/chroot-raw" "$@"
+   "${dist_source_help_steps_folder}/create-local-temp-apt-repo" "$@"
 
-   retry_run --tries 4 --delay 15 -- chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" $apt_sourcelist_empty $apt_sourceparts $apt_unattended_opts update
+   retry_run --tries 4 --delay 15 -- chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" ${apt_sourcelist_empty} ${apt_sourceparts} ${apt_unattended_opts} update
 
 #    if [ "${dist_build_target_arch:-}" = "arm64" ]; then
 #       ## Install package helper-scripts first so pre.bsh and initramfs-debug-enable is available.
@@ -264,30 +266,31 @@ install-packages() {
 #    fi
 
    true "INFO: Prevent Secure Boot MOK keys from being generated. This avoids a situation where all users use the same MOK keys."
-   $SUDO_TO_ROOT -- mkdir --parents -- "$(dirname "$target_dkms_suppress_mok_snippet")"
-   $SUDO_TO_ROOT -- cp --verbose -- "$source_dkms_suppress_mok_snippet" "$target_dkms_suppress_mok_snippet"
+   ${SUDO_TO_ROOT} -- mkdir --parents -- "$(dirname "${target_dkms_suppress_mok_snippet}")"
+   ${SUDO_TO_ROOT} -- cp --verbose -- "${source_dkms_suppress_mok_snippet}" "${target_dkms_suppress_mok_snippet}"
 
    if printf "%s\n" "${BUILD_INITRAMFS_PKGS}" | grep "dracut" >/dev/null ; then
       true "INFO: Prevent running dracut needlessly. Will be run at the end. This is only to speed up the build."
-      $SUDO_TO_ROOT -- mkdir --parents -- "$(dirname "$target_dracut_disable_config_snippet")"
-      $SUDO_TO_ROOT -- cp --verbose -- "$source_dracut_disable_config_snippet" "$target_dracut_disable_config_snippet"
+      ${SUDO_TO_ROOT} -- mkdir --parents -- "$(dirname "${target_dracut_disable_config_snippet}")"
+      ${SUDO_TO_ROOT} -- cp --verbose -- "${source_dracut_disable_config_snippet}" "${target_dracut_disable_config_snippet}"
    fi
 
    if [ "${dist_build_iso:-}" = "true" ]; then
-      ## ISO builds install their packages HERE (into the shared raw image),
-      ## then 'build-steps.d/*_convert-raw-to-iso' packs the rootfs into an
-      ## ISO. Mark this as a live-build BEFORE any package is installed, so
+      ## Mark this as a live-build BEFORE any package is installed, so
       ## package postinsts take the live path rather than the VM/disk path.
-      ## Notably 'initializer-dist/75_growfs' skips systemd-repart when this
-      ## marker exists (repart does not work on the ISO's MBR layout), and
-      ## dist-base-files / vm-config-dist / vbox-guest-installer / user_create
-      ## all branch on it. The old ISO flow set this before 'lb chroot'
-      ## installed the packages; the install now lives here. The marker is
-      ## removed again by '*_convert-raw-to-iso' before the ISO is finalized.
-      $SUDO_TO_ROOT -- mkdir --parents -- "$CHROOT_FOLDER/var/lib/dist-base-files"
-      $SUDO_TO_ROOT -- touch -- "$CHROOT_FOLDER/var/lib/dist-base-files/live_build"
-      $SUDO_TO_ROOT -- mkdir --parents -- "$CHROOT_FOLDER/var/lib/security-misc"
-      $SUDO_TO_ROOT -- touch -- "$CHROOT_FOLDER/var/lib/security-misc/skip_install_check"
+      ##
+      ## FIXME: The ISO live build path and the VM/disk path should be
+      ## identical. The only reason they historically weren't is because
+      ## live-build didn't allow the build scripts to inherit the caller's
+      ## environment, and that issue no longer exists here. Therefore, these
+      ## files should not be created, and code paths in package postinsts that
+      ## reference flag files should be removed or converted to environment
+      ## variable checks. (If any conversion is needed, the appropriate
+      ## environment variables should be exported here.)
+      ${SUDO_TO_ROOT} -- mkdir --parents -- "${CHROOT_FOLDER}/var/lib/dist-base-files"
+      ${SUDO_TO_ROOT} -- touch -- "${CHROOT_FOLDER}/var/lib/dist-base-files/live_build"
+      ${SUDO_TO_ROOT} -- mkdir --parents -- "${CHROOT_FOLDER}/var/lib/security-misc"
+      ${SUDO_TO_ROOT} -- touch -- "${CHROOT_FOLDER}/var/lib/security-misc/skip_install_check"
    fi
 
    ## Install legacy-dist earlier so debconf questions are answered before
@@ -305,7 +308,7 @@ install-packages() {
          true "${bold}${cyan}INFO: No packages-dependencies-pre package, ok.${reset}"
       fi
    else
-      error "ERROR: Invalid dist_build_type_short '$dist_build_type_short'. Please report this bug!"
+      error "ERROR: Invalid dist_build_type_short '${dist_build_type_short}'. Please report this bug!"
    fi
 
    ## Install mate-polkit before we install anything GUI-related, since
@@ -318,31 +321,31 @@ install-packages() {
      pkg-install mate-polkit
    fi
 
-   "$dist_source_help_steps_folder/unchroot-raw" "$@"
+   "${dist_source_help_steps_folder}/unchroot-raw" "$@"
 
    ## }}
 
-   "$dist_source_help_steps_folder/chroot-raw" "$@"
-   "$dist_source_help_steps_folder/create-local-temp-apt-repo" "$@"
+   "${dist_source_help_steps_folder}/chroot-raw" "$@"
+   "${dist_source_help_steps_folder}/create-local-temp-apt-repo" "$@"
 
    ## Reading Debian apt repository and local repository containing derivative packages.
-   retry_run --tries 4 --delay 15 -- chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" $apt_sourcelist_empty $apt_sourceparts $apt_unattended_opts update
+   retry_run --tries 4 --delay 15 -- chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" ${apt_sourcelist_empty} ${apt_sourceparts} ${apt_unattended_opts} update
 
    ## Debugging.
-   chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" $apt_sourcelist_empty $apt_sourceparts $apt_unattended_opts clean
-   chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" $apt_sourcelist_empty $apt_sourceparts $apt_unattended_opts autoclean
-   retry_run --tries 4 --delay 15 -- chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" $apt_sourcelist_empty $apt_sourceparts $apt_unattended_opts --fix-broken --yes install
-   retry_run --tries 4 --delay 15 -- chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" $apt_sourcelist_empty $apt_sourceparts $apt_unattended_opts --fix-missing --yes install
-   retry_run --tries 4 --delay 15 -- chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" $apt_sourcelist_empty $apt_sourceparts $apt_unattended_opts --fix-broken --fix-missing --yes install
+   chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" ${apt_sourcelist_empty} ${apt_sourceparts} ${apt_unattended_opts} clean
+   chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" ${apt_sourcelist_empty} ${apt_sourceparts} ${apt_unattended_opts} autoclean
+   retry_run --tries 4 --delay 15 -- chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" ${apt_sourcelist_empty} ${apt_sourceparts} ${apt_unattended_opts} --fix-broken --yes install
+   retry_run --tries 4 --delay 15 -- chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" ${apt_sourcelist_empty} ${apt_sourceparts} ${apt_unattended_opts} --fix-missing --yes install
+   retry_run --tries 4 --delay 15 -- chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" ${apt_sourcelist_empty} ${apt_sourceparts} ${apt_unattended_opts} --fix-broken --fix-missing --yes install
    chroot_run dpkg --configure -a
    chroot_run dpkg --audit
 
    ## XXX: once installed a newer kernel, which then messed up /boot/grub/grub.cfg to then include root=/dev/mapper which will fail to boot.
-   retry_run --tries 4 --delay 15 -- chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" $apt_sourcelist_empty $apt_sourceparts $apt_unattended_opts --yes dist-upgrade
+   retry_run --tries 4 --delay 15 -- chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" ${apt_sourcelist_empty} ${apt_sourceparts} ${apt_unattended_opts} --yes dist-upgrade
 
    ## Debugging.
-   chroot_run apt-cache "${DIST_APTGETOPT[@]}" $apt_sourcelist_empty $apt_sourceparts $apt_unattended_opts show nano || true
-   chroot_run apt-cache "${DIST_APTGETOPT[@]}" $apt_sourcelist_empty $apt_sourceparts $apt_unattended_opts show helper-scripts || true
+   chroot_run apt-cache "${DIST_APTGETOPT[@]}" ${apt_sourcelist_empty} ${apt_sourceparts} ${apt_unattended_opts} show nano || true
+   chroot_run apt-cache "${DIST_APTGETOPT[@]}" ${apt_sourcelist_empty} ${apt_sourceparts} ${apt_unattended_opts} show helper-scripts || true
 
    if [ "${dist_build_script_skip_package_install:-}" = "" ]; then
       true "${bold}${cyan}INFO ${BASH_SOURCE[0]}: Variable dist_build_script_skip_package_install is empty. \
@@ -351,7 +354,7 @@ skipping packages such as Terminal-Only.${reset}"
    else
       true "${bold}${cyan}INFO ${BASH_SOURCE[0]}: List of packages to be excluded from installation. This information is relevant for \
 builders using custom configurations, skipping packages such as Terminal-Only. dist_build_script_skip_package_install: \
-$dist_build_script_skip_package_install${reset}"
+${dist_build_script_skip_package_install}${reset}"
    fi
 
    if [ "${dist_build_install_to_root:-}" = "true" ]; then
@@ -364,8 +367,8 @@ $dist_build_script_skip_package_install${reset}"
          true "${bold}${cyan}INFO: dist_build_install_to_root is not set to true. Add initramfs tool to installation list...${reset}"
          true "${bold}${cyan}INFO: BUILD_INITRAMFS_PKGS: ${BUILD_INITRAMFS_PKGS}${reset}"
          local build_header
-         for build_initramfs in $BUILD_INITRAMFS_PKGS; do
-            pkg-add-to-install-list "$build_initramfs"
+         for build_initramfs in ${BUILD_INITRAMFS_PKGS}; do
+            pkg-add-to-install-list "${build_initramfs}"
          done
       fi
       if [ "${BUILD_KERNEL_PKGS:-}" = "none" ]; then
@@ -374,8 +377,8 @@ $dist_build_script_skip_package_install${reset}"
          true "${bold}${cyan}INFO: dist_build_install_to_root is not set to true. Add to kernel image to installation list...${reset}"
          true "${bold}${cyan}INFO: BUILD_KERNEL_PKGS: ${BUILD_KERNEL_PKGS}${reset}"
          local build_kernel
-         for build_kernel in $BUILD_KERNEL_PKGS; do
-            pkg-add-to-install-list "$build_kernel"
+         for build_kernel in ${BUILD_KERNEL_PKGS}; do
+            pkg-add-to-install-list "${build_kernel}"
          done
       fi
       if [ "${BUILD_HEADER_PKGS:-}" = "none" ]; then
@@ -384,8 +387,8 @@ $dist_build_script_skip_package_install${reset}"
          true "${bold}${cyan}INFO: dist_build_install_to_root is not set to true. Add kernel header to installation list...${reset}"
          true "${bold}${cyan}INFO: BUILD_HEADER_PKGS: ${BUILD_HEADER_PKGS}${reset}"
          local build_header
-         for build_header in $BUILD_HEADER_PKGS; do
-            pkg-add-to-install-list "$build_header"
+         for build_header in ${BUILD_HEADER_PKGS}; do
+            pkg-add-to-install-list "${build_header}"
          done
       fi
    fi
@@ -416,10 +419,10 @@ $dist_build_script_skip_package_install${reset}"
       #true "${cyan}INFO: skipping installation of weak recommended guest additions, because not using --target virtualbox, ok.${reset}"
    #fi
 
-   true "VMNAME: $VMNAME"
-   true "dist_build_gui: $dist_build_gui"
-   true "dist_build_type_short: $dist_build_type_short"
-   true "dist_build_type_long: $dist_build_type_long"
+   true "VMNAME: ${VMNAME}"
+   true "dist_build_gui: ${dist_build_gui}"
+   true "dist_build_type_short: ${dist_build_type_short}"
+   true "dist_build_type_long: ${dist_build_type_long}"
 
    if [ "${dist_build_gui:-}" = "true" ]; then
       true "dist_build_gui detected."
@@ -453,30 +456,27 @@ $dist_build_script_skip_package_install${reset}"
    ## Availability (and usefulness) is architecture specific.
    efi_weak_recommended_packages_list="sbsigntool efibootmgr keyutils shim-signed-common efivar fwupd fwupd-signed"
 
-   for iso_weak_recommended_packages_item in $efi_weak_recommended_packages_list ; do
+   for efi_weak_recommended_packages_item in ${efi_weak_recommended_packages_list} ; do
       ## Test if available. Might be unavailable (and unneeded) on some architectures.
-      if chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" $apt_sourcelist_empty $apt_sourceparts $apt_unattended_opts --yes --dry-run install "$iso_weak_recommended_packages_item" &>/dev/null ; then
-         true "INFO: Yes, adding weak recommended package to the installation list: $iso_weak_recommended_packages_item"
-         pkg-add-to-install-list "$iso_weak_recommended_packages_item"
+      if chroot_run apt-get-noninteractive "${DIST_APTGETOPT[@]}" ${apt_sourcelist_empty} ${apt_sourceparts} ${apt_unattended_opts} --yes --dry-run install "${efi_weak_recommended_packages_item}" &>/dev/null ; then
+         true "INFO: Yes, adding weak recommended package to the installation list: ${efi_weak_recommended_packages_item}"
+         pkg-add-to-install-list "${efi_weak_recommended_packages_item}"
       else
-         true "INFO: No, not adding weak recommended package to the installation list: $iso_weak_recommended_packages_item"
+         true "INFO: No, not adding weak recommended package to the installation list: ${efi_weak_recommended_packages_item}"
       fi
    done
 
    if [ "${dist_build_raw:-}" = "true" ]; then
       ## XXX: Superfluous for non-libvirt raw image builds.
       pkg-add-to-install-list spice-vdagent
-      #pkg-add-to-install-list serial-console-enable
    elif [ "${dist_build_qcow2:-}" = "true" ]; then
       pkg-add-to-install-list spice-vdagent
-      #pkg-add-to-install-list serial-console-enable
    else
       true "${cyan}INFO: skipping installation of weak recommended guest additions packages spice-vdagent because not using --target qcow2, ok.${reset}"
    fi
 
    ## '--serial-console-enable true': install the serial-console-enable package
-   ## (GRUB serial terminal config + serial-getty@ttyS0) so the image can be
-   ## driven headless over a serial line. Target-independent.
+   ## so the image can be driven headless over a serial line.
    if [ "${dist_build_serial_console_enable:-}" = "true" ]; then
       true "${cyan}INFO: --serial-console-enable true: adding serial-console-enable.${reset}"
       pkg-add-to-install-list serial-console-enable
@@ -499,39 +499,30 @@ $dist_build_script_skip_package_install${reset}"
    #pkg-add-to-install-list debug-misc
 
    if [ "${flavor_meta_packages_to_install:-}" = "none" ] || [ "${flavor_meta_packages_to_install:-}" = "" ] || [ "${flavor_meta_packages_to_install:-}" = " " ]; then
-      true "${cyan}INFO: variable flavor_meta_packages_to_install is set to '$flavor_meta_packages_to_install', skipping.${reset}"
+      true "${cyan}INFO: variable flavor_meta_packages_to_install is set to '${flavor_meta_packages_to_install}', skipping.${reset}"
    else
-      for flavor_meta_package_item in $flavor_meta_packages_to_install ; do
-         true "${cyan}INFO: flavor_meta_packages_to_install: '$flavor_meta_packages_to_install'${reset}"
-         pkg-add-to-install-list "$flavor_meta_package_item"
+      for flavor_meta_package_item in ${flavor_meta_packages_to_install} ; do
+         true "${cyan}INFO: flavor_meta_packages_to_install: '${flavor_meta_packages_to_install}'${reset}"
+         pkg-add-to-install-list "${flavor_meta_package_item}"
       done
    fi
 
    if [ "${install_package_list:-}" = "none" ] || [ "${install_package_list:-}" = "" ] || [ "${install_package_list:-}" = " " ]; then
-      true "${cyan}INFO: variable install_package_list (custom additional packages list) is set to '$install_package_list', skipping, ok.${reset}"
+      true "${cyan}INFO: variable install_package_list (custom additional packages list) is set to '${install_package_list}', skipping, ok.${reset}"
    else
-      for install_package_item in $install_package_list ; do
-         true "${cyan}INFO: install_package_item: '$install_package_item'${reset}"
-         pkg-add-to-install-list "$install_package_item"
+      for install_package_item in ${install_package_list} ; do
+         true "${cyan}INFO: install_package_item: '${install_package_item}'${reset}"
+         pkg-add-to-install-list "${install_package_item}"
       done
    fi
 
-   ## ISO-only extras: the live-boot / installer / live-bootloader packages
-   ## the ISO needs on top of the shared VM package set (live-config, calamares,
-   ## grub-live, isomd5sum, memtest86+, the live bootloader variants, ...).
-   ## 'build-steps.d/*_convert-raw-to-iso' then packs this rootfs into an ISO.
-   ## These are added to 'pkg_install_list' and installed together with the VM
-   ## set by 'pkg-list-install' (a single apt transaction). The extras must
-   ## therefore not conflict with the VM set: the deprecated
-   ## 'virtualbox-guest-utils' / '-x11' (which the baremetal-gui meta Breaks)
-   ## are already dropped from the live package list, so no conflict remains.
    if [ "${dist_build_iso:-}" = "true" ]; then
       if [ "${dist_build_iso_extra_packages:-}" = "" ] || [ "${dist_build_iso_extra_packages:-}" = "none" ]; then
          true "${cyan}INFO: variable dist_build_iso_extra_packages is empty, skipping ISO extras.${reset}"
       else
-         for dist_build_iso_extra_package_item in $dist_build_iso_extra_packages ; do
-            true "${cyan}INFO: ISO extra package: '$dist_build_iso_extra_package_item'${reset}"
-            pkg-add-to-install-list "$dist_build_iso_extra_package_item"
+         for dist_build_iso_extra_package_item in ${dist_build_iso_extra_packages} ; do
+            true "${cyan}INFO: ISO extra package: '${dist_build_iso_extra_package_item}'${reset}"
+            pkg-add-to-install-list "${dist_build_iso_extra_package_item}"
          done
       fi
    fi
@@ -560,7 +551,7 @@ $dist_build_script_skip_package_install${reset}"
       ## Debian package triggers might break the boot process. Re-running dracut with
       ## the correct command line parameters is required in order to fix that.
 
-      $SUDO_TO_ROOT safe-rm --force --verbose -- "$target_dracut_disable_config_snippet"
+      ${SUDO_TO_ROOT} safe-rm --force --verbose -- "${target_dracut_disable_config_snippet}"
 
       ## Debugging.
       chroot_run cat -- /etc/fstab || true
@@ -570,8 +561,8 @@ $dist_build_script_skip_package_install${reset}"
       ## https://github.com/dracutdevs/dracut/issues/1596
 
       KERNELIMG="$(chroot_run ls -1 -- "/boot/")"
-      KERNELIMG="$(printf "%s\n" "$KERNELIMG" | grep "vmlinuz")"
-      KERNELIMG="$(printf "%s\n" "$KERNELIMG" | sed -n '1p')"
+      KERNELIMG="$(printf "%s\n" "${KERNELIMG}" | grep "vmlinuz")"
+      KERNELIMG="$(printf "%s\n" "${KERNELIMG}" | sed -n '1p')"
       ## example KERNELIMG:
       ## vmlinuz-6.1.0-9-amd64
 
@@ -586,16 +577,16 @@ $dist_build_script_skip_package_install${reset}"
       chroot_run \
             dracut \
                --no-hostonly \
-               --kver "$KERNELVER" \
+               --kver "${KERNELVER}" \
                --force \
                --reproducible \
                --verbose \
-               $INITRD_GENERATOR_OPTS
+               ${INITRD_GENERATOR_OPTS}
    fi
 
    ## Undo disabling of DKMS MOK generation, so MOK keys will be generated for
    ## the end user.
-   $SUDO_TO_ROOT safe-rm --force --verbose -- "$target_dkms_suppress_mok_snippet"
+   ${SUDO_TO_ROOT} safe-rm --force --verbose -- "${target_dkms_suppress_mok_snippet}"
 
    ## grub-mkconfig does this.
    local grub_probe_main_device_output grub_probe_boot_device_output grub_probe_target_device
@@ -613,6 +604,15 @@ $dist_build_script_skip_package_install${reset}"
    ## which results in:
    ## root=/dev/mapper/loop0p2
    ## which then results in an unbootable system.
+
+   ## '--smbios-reader true': let vm-config-dist's etc/grub.d/01_smbios-reader and
+   ## etc/default/grub.d/99_smbios-cmdline.cfg emit the SMBIOS cmdline reader.
+   if [ "${dist_build_smbios_reader:-}" = "true" ]; then
+      true "${cyan}INFO: --smbios-reader true: enabling the GRUB SMBIOS cmdline reader.${reset}"
+      ${SUDO_TO_ROOT} install --mode=0644 -- "${source_code_folder_dist}/packages/kicksecure/vm-config-dist/usr/share/vm-config-dist/50_dm-smbios-reader.cfg" "${CHROOT_FOLDER}/etc/default/grub.d/50_dm-smbios-reader.cfg"
+   else
+      ${SUDO_TO_ROOT} safe-rm --force -- "${CHROOT_FOLDER}/etc/default/grub.d/50_dm-smbios-reader.cfg"
+   fi
 
    ## Debugging.
    ## update-grub is a wrapper that essentially runs:
@@ -643,11 +643,11 @@ $dist_build_script_skip_package_install${reset}"
       if [ -z "${grub_probe_target_device}" ]; then
         error '/boot/grub/grub.cfg contains root=/dev/mapper and cannot find boot device UUID - image most likely unbootable!'
       fi
-      $SUDO_TO_ROOT sed -i "s;root=[^ ]\\+;root=UUID=${grub_probe_target_device};" $CHROOT_FOLDER/boot/grub/grub.cfg
+      ${SUDO_TO_ROOT} sed -i "s;root=[^ ]\\+;root=UUID=${grub_probe_target_device};" ${CHROOT_FOLDER}/boot/grub/grub.cfg
    fi
 
-   "$dist_source_help_steps_folder/remove-local-temp-apt-repo" "$@"
-   "$dist_source_help_steps_folder/unprevent-daemons-from-starting" "$@"
+   "${dist_source_help_steps_folder}/remove-local-temp-apt-repo" "$@"
+   "${dist_source_help_steps_folder}/unprevent-daemons-from-starting" "$@"
 
    ## Forget about local repository containing derivative packages.
    #chroot_run apt-get-noninteractive --no-download --list-cleanup update
@@ -655,8 +655,8 @@ $dist_build_script_skip_package_install${reset}"
    chroot_run sync
    sync
 
-   "$dist_source_help_steps_folder/unchroot-raw" "$@"
-   "$dist_source_help_steps_folder/unmount-raw" "$@"
+   "${dist_source_help_steps_folder}/unchroot-raw" "$@"
+   "${dist_source_help_steps_folder}/unmount-raw" "$@"
 
    sync
 }
@@ -667,14 +667,8 @@ main() {
       return 0
    fi
 
-   ## ISO builds now share this step: packages are installed into the same
-   ## base raw image the VM path uses (see 'build-steps.d/*_create-raw-image'),
-   ## then 'build-steps.d/*_convert-raw-to-iso' packs that rootfs into an ISO.
-   ## The ISO-only extras (live-config, calamares, grub-live, the live
-   ## bootloaders, ...) are added via 'dist_build_iso_extra_packages' below.
-
    if [ "${dist_build_flavor:-}" = "whonix-custom-workstation" ]; then
-      true "${cyan}INFO: Skipping installing packages for $VMNAME.${reset}"
+      true "${cyan}INFO: Skipping installing packages for ${VMNAME}.${reset}"
    else
       install-packages "$@"
    fi

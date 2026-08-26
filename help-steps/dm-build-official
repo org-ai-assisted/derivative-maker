@@ -13,9 +13,11 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
 
 MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
-cd -- "$MYDIR"
+cd -- "${MYDIR}"
 cd ..
 
 true "$0: START"
@@ -32,7 +34,17 @@ pwd
 if [ "${CI:-}" = "true" ]; then
   ## fetch/merge git submodules
   ## CI testing of 'derivative-update'.
-  ./derivative-update --update-only
+  derivative_update_args=()
+  previous_arg=""
+  for arg_item in "$@"; do
+    case "${previous_arg}" in
+      --allow-uncommitted|--allow-untagged)
+        derivative_update_args+=( "${previous_arg}" "${arg_item}" )
+        ;;
+    esac
+    previous_arg="${arg_item}"
+  done
+  ./derivative-update --update-only "${derivative_update_args[@]}"
 fi
 
 true "$0: --------------------"

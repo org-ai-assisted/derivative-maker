@@ -7,6 +7,11 @@ shellcheck targets, ...) is hosted canonically in
 [`developer-meta-files:agents/bash-style-guide.md`](https://github.com/Kicksecure/developer-meta-files/blob/master/agents/bash-style-guide.md).
 We do not duplicate it.
 
+Do NOT create a `docs/` directory. Do NOT write feature documentation for
+end-users. Documentation belongs on the official Kicksecure and Whonix wikis,
+and will be written by humans. If creating documentation for future reference
+by AI agents, store it under `agents/`.
+
 Comprehensive, high-volume regression, fuzz, and end-to-end tests -- too
 much for humans to review -- live in the AI-maintained `dist-ai` repo
 (https://github.com/org-ai-assisted/dist-ai), not here. Keep only basic
@@ -16,13 +21,12 @@ at a local checkout (for example `ONION_GRATER_REPO="$PWD" onion-grater-tests`).
 
 ## Tests
 
-This repo's comprehensive suite lives in the AI-maintained `dist-ai` repo
-(https://github.com/org-ai-assisted/dist-ai): `dm-help-steps-tests`
-(functional tests for `help-steps/umount_kill.sh`, the /proc-based process
-reaper). Run it against this checkout with:
+This repo's comprehensive suite is hosted canonically in the AI-maintained
+[`dist-ai`](https://github.com/org-ai-assisted/dist-ai) repo. We do not
+duplicate it. Run it against this checkout with:
 
-    UMOUNT_KILL_SH="$PWD/help-steps/umount_kill.sh" dm-help-steps-tests
+    UMOUNT_KILL_SH="$PWD/help-steps/mount-cleanup" dm-help-steps-tests
 
-It requires root (unprivileged runs SKIP) and kills processes, so run it in
-a throwaway container or sandbox VM, never on a workstation session. CI
-runs it on every PR via `.github/workflows/consumer-dist-ai-tests.yml`.
+Needs root and kills processes -- sandbox VM or throwaway container only.
+
+FIXME: Fix the `UMOUNT_KILL_SH` variable name.

@@ -18,29 +18,32 @@ shopt -s inherit_errexit
 shopt -s shift_verbose
 
 image_kind="${IMAGE_KIND:-}"
-if [ -z "$image_kind" ]; then
+if [ -z "${image_kind}" ]; then
    printf '%s\n' "${0##*/}: IMAGE_KIND must be set" >&2
    exit 64
 fi
 
-case "$image_kind" in
+case "${image_kind}" in
    iso)
-      find_glob='Kicksecure-*.iso'
+      find_glob='*.iso'
       ;;
    vbox)
-      find_glob='Kicksecure-*.ova'
+      find_glob='*.ova'
       ;;
    *)
       ## The qcow2 is shipped xz-packed ('.qcow2.libvirt.xz'); the bare '.qcow2'
       ## is removed after packing. dm-boot-test extracts the tar.xz.
-      find_glob='Kicksecure-*.qcow2.libvirt.xz'
+      ##
+      ## TODO: Maybe we should explicitly check for an image_kind of qcow2
+      ## here, and error out on an unrecognized image_kind.
+      find_glob='*.qcow2.libvirt.xz'
       ;;
 esac
 
-image_path="$(find boot-image -type f -name "$find_glob" | head --lines=1)"
-if [ -z "$image_path" ]; then
+image_path="$(find boot-image -type f -name "${find_glob}" | head --lines=1)"
+if [ -z "${image_path}" ]; then
    printf '%s\n' "${0##*/}: no ${image_kind} image found under boot-image/" >&2
    exit 1
 fi
 
-printf 'path=%s\n' "$image_path" >> "${GITHUB_OUTPUT}"
+printf '%s\n' "path=${image_path}" >> "${GITHUB_OUTPUT}"

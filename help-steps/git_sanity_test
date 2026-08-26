@@ -151,7 +151,7 @@ done
 
 ## Default: --mode all (most thorough check).
 [ -n "${mode:-}" ] || mode="all"
-case "$mode" in
+case "${mode}" in
    all|working-tree)
       [ -n "${context:-}" ] || context="main repo"
       ;;
@@ -162,12 +162,12 @@ esac
 ## See agents/git_sanity_test_design.md for why this is conditional.
 ## ----------------------------------------------------------------------------
 if [ "${dist_build_one_parsed:-}" != "true" ]; then
-   orig_pwd="$PWD"
+   orig_pwd="${PWD}"
    set -- "${forwarded_args[@]}"
    dist_build_source_run="true"
-   source "$MYDIR/pre"
-   source "$MYDIR/variables"
-   cd -- "$orig_pwd" || die 1 "cannot restore original cwd: $orig_pwd"
+   source "${MYDIR}/pre"
+   source "${MYDIR}/variables"
+   cd -- "${orig_pwd}" || die 1 "cannot restore original cwd: ${orig_pwd}"
    unset orig_pwd
 elif [ "${#forwarded_args[@]}" -gt 0 ]; then
    ## Not re-running parse-cmd in build context.
@@ -284,7 +284,7 @@ classify_tag() {
       die 1 "cannot inspect tag ref '${tag_ref}' in ${context_label}"
    fi
 
-   case "$tag_objtype" in
+   case "${tag_objtype}" in
       commit)
          ## lightweight
          return 1
@@ -300,7 +300,7 @@ classify_tag() {
       die 1 "cannot read tag object for '${tag_ref}' in ${context_label}"
    fi
    ## Only OpenPGP signatures are supported (not SSH, not PGP MESSAGE).
-   case "$tag_body" in
+   case "${tag_body}" in
       *'-----BEGIN PGP SIGNATURE-----'*)
          ## annotated and signed, but not yet verified
          ;;
@@ -377,7 +377,7 @@ mode_working_tree() {
       die 1 "'${git_tags_cmd[*]}' failed in ${context}"
    fi
    if [ -n "${git_tags_output:-}" ]; then
-      readarray -t tags_at_head <<< "$git_tags_output"
+      readarray -t tags_at_head <<< "${git_tags_output}"
    else
       tags_at_head=()
    fi
@@ -401,7 +401,7 @@ mode_working_tree() {
          ## above).
          local cls=0
          classify_tag "${tags_at_head[0]}" "${context}" || cls=$?
-         case "$cls" in
+         case "${cls}" in
             0)
                ## annotated-signed: accept
                ;;
@@ -465,7 +465,7 @@ mode_working_tree() {
 mode_ref() {
    [ -n "${ref:-}" ]      || die 1 "--ref is required for --mode ref"
    [ -n "${ref_type:-}" ] || die 1 "--ref-type is required for --mode ref"
-   case "$ref_type" in
+   case "${ref_type}" in
       tag|commit) ;;
       *) die 1 "--ref-type must be 'tag' or 'commit'" ;;
    esac
@@ -475,8 +475,8 @@ mode_ref() {
    ## For --ref-type tag: normalize to refs/tags/..., verify exists, classify.
    ## For --ref-type commit: accept any commit-ish, skip tag classification.
    if [ "${ref_type:-}" = 'tag' ]; then
-      case "$ref" in
-         refs/tags/*)  resolve_ref="$ref" ;;
+      case "${ref}" in
+         refs/tags/*)  resolve_ref="${ref}" ;;
          refs/*)       die 1 "ref '${ref}' is declared as --ref-type tag but is not under refs/tags/" ;;
          *)            resolve_ref="refs/tags/${ref}" ;;
       esac
@@ -484,7 +484,7 @@ mode_ref() {
          || die 1 "tag ref not found: '${resolve_ref}'"
       local cls=0
       classify_tag "${resolve_ref}" "ref '${ref}'" || cls=$?
-      case "$cls" in
+      case "${cls}" in
          0) : ;;
          1) die 1 "ref '${resolve_ref}' is a lightweight tag - not an annotated signed tag" ;;
          2) die 1 "ref '${resolve_ref}' is annotated but not signed by a trusted developer - release tags must be signed" ;;
@@ -536,10 +536,10 @@ mode_all() {
    mode_submodules
 }
 
-case "$mode" in
+case "${mode}" in
    working-tree) mode_working_tree ;;
    ref)          mode_ref ;;
    submodules)   mode_submodules ;;
    all)          mode_all ;;
-   *) die 1 "unknown mode '$mode' (expected one of working-tree, ref, submodules, all)" ;;
+   *) die 1 "unknown mode '${mode}' (expected one of working-tree, ref, submodules, all)" ;;
 esac

@@ -5,20 +5,9 @@
 
 ## AI-Assisted
 
-## Terminal step: on CI, free THIS flavor's per-flavor working raw image right
+## Terminal step: on CI, free this flavor's per-flavor working raw image right
 ## after the flavor's image(s) are finalized, so disk is reclaimed and the upload
-## does not carry it. Runs last in the per-flavor './derivative-maker' sequence
-## (after every raw consumer: 3600 iso, 4350 reimage, 4400 qcow2, 4600 vbox), so
-## the raw is no longer needed. Never prunes a developer's local tree (CI-guarded;
-## a local build keeps its raw for inspection).
-##
-## Scope is deliberately narrow: only the per-flavor 'binary_image_raw_file' (a
-## copy of the shared base, user-owned). The CROSS-flavor 'base-image.raw' and the
-## root-owned cowbuilder 'pbuilder' base + any residual '*_image' chroot are freed
-## at the workflow level (after the last flavor / the cache-pack step), NOT here --
-## a per-flavor step must not delete the shared base still needed by later flavors,
-## and Phase 2's shared-base create-raw-image call runs create-raw-image directly
-## (not this full sequence), so this step never runs with --base-image-role create.
+## does not carry it.
 
 set -x
 set -o errexit
@@ -30,9 +19,9 @@ shopt -s shift_verbose
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
-MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
@@ -51,14 +40,13 @@ main() {
       return 0
    fi
 
-   ## Defensive: never delete the shared base here (it should be impossible -- this
-   ## step is not in Phase 2's create-only sequence -- but guard anyway).
+   ## Never delete the shared base here.
    if [ "${dist_build_base_image_role:-}" = "create" ]; then
       true "${cyan}INFO: ${BASH_SOURCE[0]}: --base-image-role create, leaving the shared base.${reset}"
       return 0
    fi
 
-   if [ -n "${binary_image_raw_file:-}" ] && [ -e "${binary_image_raw_file}" ]; then
+   if [ -n "${binary_image_raw_file:-}" ] && [ -f "${binary_image_raw_file}" ]; then
       true "${cyan}INFO: ${BASH_SOURCE[0]}: freeing per-flavor raw '${binary_image_raw_file}'.${reset}"
       safe-rm --force -- "${binary_image_raw_file}" || true
    fi

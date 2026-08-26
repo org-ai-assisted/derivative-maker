@@ -1,6 +1,6 @@
 ![o,age](https://i.postimg.cc/1tvBZfYQ/prototypes.png)
 
-With the convenience of a debian:trixie docker container, `derivative-maker-docker` automatically builds Whonix/Kicksecure images, incorporating the official derivative-maker build scripts, while including environment variables and intuitive ways to customize every available build option, container behavior and final build command. Additionally, log files of the entire build, git and key verification process are automatically generated. All necessary files already ship with the current derivative-maker source code, allowing for quick and simple deployment with a variety of pre-defined user scripts.
+With the convenience of a debian:trixie docker container, `derivative-maker-docker` automatically builds Whonix/Kicksecure images, incorporating the official derivative-maker build scripts, while including environment variables and intuitive ways to customize every available build option, container behavior and final build command. Additionally, log files of the entire build, git and key verification process are automatically generated. All necessary files already ship with the current derivative-maker source code, allowing for quick and simple deployment with a variety of pre-defined user scripts. The docker image's apt is pinned to the same snapshot.debian.org timestamp a `--freshness frozen` build uses, so the builder and built image use the same packages during reproducible builds.
 
 ## Roadmap
 - [x] Read documentation
@@ -26,6 +26,7 @@ With the convenience of a debian:trixie docker container, `derivative-maker-dock
 - [x] Install docker engine
 - [x] Cloning derivative-maker
 - [x] (Re)build the docker image
+
 ### Docker Image
 1. Locate your [desired tag](https://github.com/Whonix/derivative-maker/tags)
 2. Clone it
@@ -49,8 +50,8 @@ manifest list, and arch-specific packages (e.g. `grub-efi-arm64`,
 **build time** based on `--arch`, not baked into the image. To target a
 specific platform, pass `--platform` to buildx:
 ```sh
-docker buildx build --platform linux/arm64 -t derivative-maker/derivative-maker-docker:latest ./docker
-docker buildx build --platform linux/amd64 -t derivative-maker/derivative-maker-docker:latest ./docker
+docker buildx build --platform linux/arm64 --file docker/Dockerfile -t derivative-maker/derivative-maker-docker:latest .
+docker buildx build --platform linux/amd64 --file docker/Dockerfile -t derivative-maker/derivative-maker-docker:latest .
 ```
 On Apple Silicon hosts, the default platform already matches
 (`linux/arm64`); no extra flags needed. Cross-arch builds require
@@ -67,6 +68,7 @@ On Apple Silicon hosts, the default platform already matches
   + `CACHER_VOLUME` is the mount point of the container's `/var/cache/apt-cacher-ng`
   * `KEY_VOLUME` is the mount point of the container's `/home/user/.gnupg`
 2. To change folder names or locations use the container params `--*-mount`
+
 ### Container parameters
 - [x] Choose container parameters
 - [x] (Optional) Add custom volumes
@@ -78,6 +80,7 @@ On Apple Silicon hosts, the default platform already matches
 | `--key-mount` | Configure custom keystore directory | /home/user/whonix/keys
 
 The command to run in the container is explicit, after `--`.
+
 #### Sample Commands
 1. Build a Kicksecure or Whonix image
    ```sh
@@ -95,12 +98,15 @@ The command to run in the container is explicit, after `--`.
    ```sh
    ./derivative-maker-docker-run --binary-mount /home/user/whonix/dm-binary --cacher-mount /home/user/whonix/apt-cache -- ./derivative-maker <build arguments>
    ```
+
 #### Hints
 * Multiple custom commands can be chained with `&&` or `;`
 * Using end of options `--` is recommended
+
 ### Build Command
 - [x] Read the [Build Documentation](https://www.whonix.org/wiki/Dev/Build_Documentation/VM#Build)
 - [x] Craft a build command
+
 #### Mandatory Build Parameters
 1. Target
 
@@ -120,4 +126,3 @@ The command to run in the container is explicit, after `--`.
  | Whonix-Gateway LXQt | `--flavor whonix-gateway-lxqt ` |
  | Whonix-Workstation CLI  | `--flavor whonix-workstation-cli` |
  | Whonix-Workstation LXQt 	  | `--flavor whonix-workstation-lxqt`  |
-

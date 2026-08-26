@@ -23,13 +23,13 @@ debian/*.substvars
 debian/*.init
 debian/*.default
 
-# ignore ansible configuration and log files
-ansible_vault_password
-automated_builder/logs/
-
 # ignore Docker built binaries and logs
 derivative-binary/
 docker/logs/
 
 # ignore JetBrains IDE state
 .idea
+
+# ignore generated frozen sources files
+build_sources/debian_stable_frozen_clearnet.sources
+build_sources/debian_stable_frozen_direct_clearnet.sources

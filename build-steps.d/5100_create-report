@@ -6,30 +6,10 @@
 ## AI-Assisted
 
 ## Verify a built image reproduces, by comparing it against a reference build
-## with diffoscope (via developer-meta-files' 'dm-reproducible-compare').
-##
-## Image reproducibility is verified the way Debian and Tails do it (there is
-## no upstream image-level rebuilder daemon; rebuilderd et al. are package/
-## archive-oriented): build the image (at least) twice under the same pinned
-## inputs -- SOURCE_DATE_EPOCH, frozen snapshot.debian.org sources,
-## strip-nondeterminism, dracut --reproducible, all already set elsewhere --
-## and diffoscope the two outputs. diffoscope descends ISO 9660 / squashfs /
-## raw / qcow2 / OVA natively, so this step is a THIN driver around it; it does
-## not re-implement image dissection (that was the retired, 1200-line
-## 'help-steps/analyze_image' + its per-file stat+sha512 manifest scheme).
-##
-## Point 'dist_build_reproducible_reference_folder' at a reference build's
-## output folder; each built artifact is compared against the same-named
-## artifact there. Without a reference set, this is a no-op (build a reference
-## first, then rebuild with the reference configured).
-##
-## Differences are RECORDED (a '.diffoscope' report next to the artifact), not
-## treated as a build failure here -- current live images are not yet fully
-## bit-reproducible upstream either. CI can gate on the report / exit code.
-##
-## For OUR OWN .deb reproducibility, use Debian's debrebuild(1) (rebuild from
-## the package '.buildinfo' against the pinned snapshot) or reprotest(1) -- not
-## this step, which is for the final disk/ISO images.
+## with diffoscope (via developer-meta-files'
+## 'dm-reproducible-compare-artifacts'). Set
+## 'dist_build_reproducible_reference_folder' to a reference build's
+## output folder to enable this.
 
 set -x
 set -o errexit
@@ -43,48 +23,52 @@ true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-cd "$MYDIR"
+cd "${MYDIR}"
 cd ..
 cd help-steps
 
 source pre
 source variables
 
-## Compare one built artifact against its counterpart in the reference folder.
 compare_target() {
    local target artifact reference_artifact report_out compare_exit_code
    target="$1"
    artifact="$2"
 
-   if [ ! -f "$artifact" ]; then
-      true "${cyan}INFO: no $target artifact at '$artifact', skipping.${reset}"
+   if [ ! -f "${artifact}" ]; then
+      true "${cyan}INFO: no ${target} artifact at '${artifact}', skipping.${reset}"
       return 0
    fi
 
-   reference_artifact="${dist_build_reproducible_reference_folder}/$(basename -- "$artifact")"
-   if [ ! -f "$reference_artifact" ]; then
-      true "${cyan}INFO: no reference $target artifact at '$reference_artifact', skipping compare.${reset}"
+   reference_artifact="${dist_build_reproducible_reference_folder}/$(basename -- "${artifact}")"
+   if [ ! -f "${reference_artifact}" ]; then
+      true "${cyan}INFO: no reference ${target} artifact at '${reference_artifact}', skipping.${reset}"
       return 0
    fi
 
-   report_out="$binary_build_folder_dist/$(basename -- "$artifact").diffoscope.txt"
-   true "${cyan}INFO: comparing $target build vs reference with diffoscope...${reset}"
+   ## FIXME: .diffoscope.txt is a misleading filename extension,
+   ## dm-reproducible-compare-artifacts outputs more than bare diffoscope
+   ## output to its report file.
+   report_out="${binary_build_folder_dist}/$(basename -- "${artifact}").diffoscope.txt"
+   true "${cyan}INFO: comparing ${target} build vs reference with diffoscope...${reset}"
 
-   ## reproducible-compare returns 1 when the artifacts differ; record it, do
-   ## not fail the build on non-reproducibility.
    compare_exit_code="0"
-   "$dist_developer_meta_files_folder/usr/bin/dm-reproducible-compare" \
-      --output "$report_out" \
-      "$reference_artifact" \
-      "$artifact" \
+   ## The comparator locates ONE artifact of '$target' under each directory rather than
+   ## taking two file paths, so pass the containing directories. Both paths were resolved
+   ## to existing files above, so their dirnames are the right search roots.
+   "${dist_developer_meta_files_folder}/usr/bin/dm-reproducible-compare-artifacts" \
+      --target "${target}" \
+      --dir-a "$(dirname -- "${reference_artifact}")" \
+      --dir-b "$(dirname -- "${artifact}")" \
+      --output "${report_out}" \
       || compare_exit_code="$?"
 
-   if [ "$compare_exit_code" = "0" ]; then
-      true "${bold}${green}INFO: $target reproducible: identical to the reference build.${reset}"
-   elif [ "$compare_exit_code" = "1" ]; then
-      true "${bold}${red}WARNING: $target differs from the reference build; see '$report_out'.${reset}"
+   if [ "${compare_exit_code}" = "0" ]; then
+      true "${bold}${green}INFO: ${target} reproducible: identical to the reference build.${reset}"
+   elif [ "${compare_exit_code}" = "1" ]; then
+      true "${bold}${red}WARNING: ${target} differs from the reference build; see '${report_out}'.${reset}"
    else
-      error "reproducible-compare failed for $target (exit $compare_exit_code)."
+      error "dm-reproducible-compare-artifacts failed for ${target} (exit ${compare_exit_code})."
    fi
 }
 
@@ -104,28 +88,28 @@ main() {
       return 0
    fi
 
+   ## TODO: (not applicable to AI agents) We should document in the wiki how to
+   ## do a reproducible build and compare it to a reference artifact. This
+   ## script is not the right place to document that info.
    if [ "${dist_build_reproducible_reference_folder:-}" = "" ]; then
-      true "${bold}${cyan}INFO: dist_build_reproducible_reference_folder is unset, so there is no reference \
-build to compare against; skipping. To verify reproducibility, build a reference, then rebuild with \
-dist_build_reproducible_reference_folder pointing at it (or run 'dm-reproducible-compare' on two \
-build outputs directly).${reset}"
+      true "${bold}${cyan}INFO: dist_build_reproducible_reference_folder is unset, no reference to compare with. Skipping, OK.${reset}"
       return 0
    fi
 
    if [ "${dist_build_raw:-}" = "true" ]; then
-      compare_target "raw" "$binary_image_raw_file"
+      true "${cyan}INFO: raw is a build intermediate with no released artifact, dm-reproducible-compare-artifacts has no 'raw' target. Skipping, OK.${reset}"
    fi
 
    if [ "${dist_build_virtualbox:-}" = "true" ]; then
-      compare_target "ova" "$binary_image_ova_file"
+      compare_target "virtualbox" "${binary_image_ova_file}"
    fi
 
    if [ "${dist_build_qcow2:-}" = "true" ]; then
-      compare_target "qcow2" "$binary_image_qcow2_file"
+      compare_target "qcow2" "${libvirt_target_qcow2_xz_archive_file}"
    fi
 
    if [ "${dist_build_iso:-}" = "true" ]; then
-      compare_target "iso" "$binary_image_iso_file"
+      compare_target "iso" "${binary_image_iso_file}"
    fi
 }
 
