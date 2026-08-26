@@ -16,6 +16,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 image_kind="${IMAGE_KIND:-}"
 if [ -z "${image_kind}" ]; then
@@ -30,10 +31,14 @@ case "${image_kind}" in
    vbox)
       find_glob='*.ova'
       ;;
-   *)
+   qcow2)
       ## The qcow2 is shipped xz-packed ('.qcow2.libvirt.xz'); the bare '.qcow2'
       ## is removed after packing. dm-boot-test extracts the tar.xz.
       find_glob='*.qcow2.libvirt.xz'
+      ;;
+   *)
+      printf '%s\n' "${0##*/}: unrecognized IMAGE_KIND '${image_kind}' (expected iso|vbox|qcow2)" >&2
+      exit 64
       ;;
 esac
 
