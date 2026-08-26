@@ -10,6 +10,8 @@
 # shellcheck disable=SC2086,SC2004
 ## style-ok: no-safe-rm
 
+## FIXME: Mention of 'lb' that must be changed/removed.
+##
 ## ERR path:
 ##   exception_handler_general | exception_handler_unchroot_unmount | exception_handler_unmount | exception_handler_unmount_lb
 ##   -> exception_handler_process_shared -> function_trace -> process_backtrace -> exception_handler_shell -> exception_handler_retry -> exception_handler_maybe_exit
@@ -31,6 +33,7 @@ set -o errtrace
 ## mode errexit is disabled further down anyway.
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "${BASH_SOURCE[0]} INFO: begin"
 
@@ -143,29 +146,8 @@ fi
 args=()
 
 ## Wrapper that runs a command as the init process of a private PID
-## namespace: when the command exits, the kernel SIGKILLs every process
-## still alive in the namespace. Used by ALL cowbuilder call sites
-## ('build-steps.d/*_cowbuilder-setup', '*_create-debian-packages',
-## '*_create-vbox-vm'; 'dm-prepare-release', 'dm-tor-update-repository' and
-## 'dm-virtualbox-guest-additions-iso-update' in developer-meta-files;
-## 'make-helper-one.bsh' in genmkfile via the exported environment) to
-## guarantee that nothing started inside a chroot session (a lingering
-## 'VBoxSVC', a stray 'gpg-agent', any daemon) outlives the build step;
-## upstream pbuilder deliberately has no process reaper (its unmount handler
-## asks the operator to "check and kill these processes manually"). SIGKILL
-## cannot remove stale IPC socket FILES; the VBox chroot scripts unlink
-## those separately ('vbox_stale_ipc_cleanup' in
-## 'help-steps/vbox-chroot-shared', which explains the split). Correct
-## in-namespace '/proc' is guaranteed because pbuilder mounts a fresh 'proc'
-## instance from inside the namespace ('mount -t proc' in pbuilder-modules
-## 'mountproc'); the environment passes through 'unshare' unchanged.
-## Needs CAP_SYS_ADMIN: call sites run it under '$SUDO_TO_ROOT' (the CI
-## container is '--privileged', see 'docker/derivative-maker-docker-run').
-## Overridable ('[ -v ]'): set to the empty string to run without a private
-## PID namespace (e.g. in an unprivileged environment). At 'sudo' call
-## sites that pass 'VAR=val' words, the expansion must come AFTER those:
-## sudo consumes them as environment assignments only while they precede
-## the command; 'unshare' itself would not accept them.
+## namespace. When the command exits, the kernel SIGKILLs every process
+## still alive in the namespace.
 [ -v UNSHARE_PID_NS ] || UNSHARE_PID_NS="unshare --pid --fork --kill-child --"
 export UNSHARE_PID_NS
 
@@ -195,12 +177,8 @@ error() {
    ${output_cmd} "${blue}############################################################${reset}"
    error_reason="${bold}message:${reset} $*
 "
-   ## 'fatal_error_no_retry' is INTENTIONALLY not defined as a command. Calling a
-   ## non-existent command raises exit code 127 ("command not found"), which trips
-   ## the ERR trap and enters the exception handler; exception_handler_retry matches
-   ## this exact name in last_failed_bash_command and skips auto-retry, because a
-   ## deliberate error() is a real failure, not a transient one worth retrying. Do
-   ## NOT define it -- the "command not found" IS the mechanism.
+   ## 'fatal_error_no_retry' is intentionally not defined as a command, so it
+   ## trips the ERR trap.
    fatal_error_no_retry "See above! (There should be a bold, red message surrounded by blue hashtags (#).)"
    true
 }
@@ -346,7 +324,7 @@ ${cyan}${bold}############################################################${rese
       [ -n "${dist_build_auto_retry:-}" ] || dist_build_auto_retry="2"
       [ -n "${dist_build_wait_auto_retry:-}" ] || dist_build_wait_auto_retry="5"
       if [ "${first:-}" = "fatal_error_no_retry" ]; then
-         ${output_cmd} 'INFO: No auto retry: last_failed_bash_command is the deliberate-error sentinel "fatal_error_no_retry" (see error() -- an intentionally undefined command).'
+         ${output_cmd} 'INFO: No auto retry, last_failed_bash_command is "fatal_error_no_retry".'
       elif [ "${dist_build_auto_retry_counter:-0}" -gt "${dist_build_auto_retry}" ]; then
          ${output_cmd} "${cyan}${bold}INFO: Auto retried (--retry-max) already ${dist_build_auto_retry} times. No more auto retry. ${reset}"
       else
@@ -477,18 +455,22 @@ exception_handler_general() {
    ${output_cmd} "${cyan}INFO: End of function ${FUNCNAME[0]} of $0.${reset}"
 }
 
-## The cleanup steps for one variant. Single definition, run by BOTH the ERR
-## handlers and exception_handler_signal, so the two paths cannot drift.
-##
-## $1 = cleanup kind: general | unchroot_unmount | unmount | unmount_lb
-## $2 = 'true' to continue past a failing step. The signal path is already on
-##      its way out, so a failing cleanup step there must not mask the signal;
-##      the ERR path lets the failure propagate.
 exception_handler_cleanup_run() {
    local cleanup_kind tolerate_failure cleanup_step cleanup_step_list
 
    cleanup_kind="$1"
-   tolerate_failure="$2"
+   ## Descriptive failure mode rather than a bare true/false boolean trap.
+   case "$2" in
+      tolerate-failure)
+         tolerate_failure="true"
+         ;;
+      abort-on-failure)
+         tolerate_failure="false"
+         ;;
+      *)
+         error "${BASH_SOURCE[0]}: exception_handler_cleanup_run: unknown failure mode '$2' (expected tolerate-failure|abort-on-failure)"
+         ;;
+   esac
    cleanup_step_list=()
 
    case "${cleanup_kind}" in
@@ -503,13 +485,12 @@ exception_handler_cleanup_run() {
       unmount)
          cleanup_step_list=( unmount-raw )
          ;;
+      ## FIXME: Unacceptable reference to 'lb'.
       unmount_lb)
-         ## Unmount the host /dev, /sys, /proc bind-mounts a mid-step abort
-         ## leaves behind under the live-build tree; see 'help-steps/unmount-lb'.
          cleanup_step_list=( unmount-lb )
          ;;
-      general | *)
-         ## No cleanup for the general variant.
+      general|*)
+         ## No cleanup.
          return 0
          ;;
    esac
@@ -518,20 +499,12 @@ exception_handler_cleanup_run() {
       if [ "${tolerate_failure}" = "true" ]; then
          "${dist_source_help_steps_folder}/${cleanup_step}" "${args[@]}" || true
       else
-         ## Explicit rather than leaning on errexit: a trap handler can be
-         ## reached from a context where errexit is disarmed (any '||'-guarded
-         ## caller), and there the loop would run on past a failed step.
+         ## errexit might be disarmed here, thus we need '|| return ...'.
          "${dist_source_help_steps_folder}/${cleanup_step}" "${args[@]}" || return "$?"
       fi
    done
 }
 
-## Shared ERR-handler body. The per-kind wrappers below exist because
-## '$?' and '$BASH_COMMAND' must be captured before anything else runs, and
-## because exception_handler_setup derives the signal cleanup kind from the
-## handler's NAME.
-##
-## $1 = cleanup kind, $2 = trap signal type
 exception_handler_variant() {
    local cleanup_kind signal_type
 
@@ -541,7 +514,7 @@ exception_handler_variant() {
    output_cmd_set
    exception_handler_process_shared "${signal_type}"
    if [ "${ignore_error:-}" = "false" ]; then
-      exception_handler_cleanup_run "${cleanup_kind}" "false"
+      exception_handler_cleanup_run "${cleanup_kind}" "abort-on-failure"
    fi
    exception_handler_maybe_exit "${signal_type}"
 }
@@ -565,15 +538,7 @@ exception_handler_unmount_lb() {
 }
 
 ## Simple signal (INT/TERM) handler. Unlike the ERR path this does not
-## retry, does not open an interactive menu, and does not recurse: we were
-## asked to stop, so we run the variant-specific cleanup and exit with
-## 128+signum. The ERR path remains untouched and keeps its auto-retry and
-## interactive-menu machinery.
-##
-## $1 = signal name (INT or TERM)
-## $2 = cleanup kind, derived from the ERR handler name by
-##      exception_handler_setup; the steps per kind are in
-##      exception_handler_cleanup_run.
+## retry, does not open an interactive menu, and does not recurse.
 exception_handler_signal() {
    local signal kind signum exit_code
    signal="$1"
@@ -595,7 +560,7 @@ exception_handler_signal() {
    ${output_cmd} "${red}${bold}INFO: Signal ${signal} received in ${under}$0${eunder}. Running cleanup (kind: ${kind})...${reset}"
    ## 'true': already exiting, so a failing cleanup step must not mask the
    ## signal.
-   exception_handler_cleanup_run "${kind}" "true"
+   exception_handler_cleanup_run "${kind}" "tolerate-failure"
    ${output_cmd} "${red}${bold}INFO: Exiting $0 due to signal ${signal} with exit code ${exit_code}.${reset}"
    ${output_cmd} "${cyan}${bold}############################################################${reset}"
    ## Remove the EXIT trap so exithandler's generic "non-zero exit code"
@@ -640,9 +605,6 @@ exception_handler_setup "exception_handler_general" ERR INT TERM
 if [ "${dist_build_auto_retry:-}" = "0" ]; then
    true "${BASH_SOURCE[0]} INFO: fail-fast mode (retry-max 0); keeping errexit on."
 else
-   ## R-011 targets the capture-an-exit-code toggle anti-pattern; this is a
-   ## deliberate GLOBAL mode switch instead (see the comment above), so it
-   ## carries the gate's script-wide waiver:
    ## style-ok: allow-errexit-toggle
    set +o errexit
 fi
