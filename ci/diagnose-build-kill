@@ -30,6 +30,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 section() {
    ## No blank-line separator (R-042): the marker line is the separator.
@@ -55,7 +56,7 @@ section "kernel OOM / kill records"
 ## Two sources: the ring buffer and the journal. Either may be empty depending on
 ## how the runner is configured, so both are tried.
 dmesg_oom="$( sudo --non-interactive -- dmesg 2>/dev/null \
-   | grep --extended-regexp --ignore-case 'out of memory|oom-kill|killed process|oom_reaper' \
+   | grep --extended-regexp --ignore-case 'out of memory|oom-kill|killed process' \
    | tail -n 20 || true )"
 if [ -n "${dmesg_oom}" ]; then
    printf '%s\n' "${dmesg_oom}"
@@ -63,7 +64,9 @@ else
    printf '%s\n' "no OOM records in dmesg"
 fi
 
-## TODO: Why is "oom_reaper" omitted from the list of possible matches below?
+## Same token set as the dmesg grep above: a real OOM kill always logs one of
+## these; the "oom_reaper: reaped" line is only a redundant follow-up, never sole
+## evidence (kernel mm/oom_kill.c).
 journal_oom="$( sudo --non-interactive -- journalctl --dmesg --no-pager 2>/dev/null \
    | grep --extended-regexp --ignore-case 'out of memory|oom-kill|killed process' \
    | tail -n 20 || true )"
