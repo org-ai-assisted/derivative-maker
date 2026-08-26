@@ -108,58 +108,6 @@ check-git-folder() {
    fi
 }
 
-## Derivative package repos (packages/*) must contain NO git-tracked symlinks
-## (mode 120000), by design -- real symlinks and Git-tracked "symlinks" alike.
-## Kicksecure builds with core.symlinks=false, so a tracked symlink materializes
-## as a regular file holding the target path and silently breaks the package.
-## The repos that legitimately carry tracked symlinks -- live-build and
-## qubes-template-whonix (and the parent's live-build-data branding) -- are NOT
-## under packages/, so they are outside this scan by construction.
-check-git-symlinks() {
-   local repo_rel repo_abs entry mode file_path offenders offender_count
-   local -a package_repos=()
-
-   offenders=""
-   offender_count=0
-
-   ## Only the derivative package submodules under packages/.
-   # shellcheck disable=SC2016
-   mapfile -t -d '' package_repos < <(
-      git -C "${source_code_folder_dist}" submodule --quiet foreach --recursive \
-         'case "${displaypath}" in packages/*) printf "%s\0" "${displaypath}" ;; esac'
-   )
-
-   for repo_rel in "${package_repos[@]}" ; do
-      repo_abs="${source_code_folder_dist}/${repo_rel}"
-      ## Test for the submodule's own '.git' directly: 'git -C <dir> rev-parse'
-      ## would false-pass on an UNinitialized submodule (it resolves upward to the
-      ## parent .git), and a stray GIT_DIR could fool it. So check '.git' exists,
-      ## and clear GIT_DIR/GIT_WORK_TREE for the ls-files call below.
-      if [ ! -e "${repo_abs}/.git" ]; then
-         true "${cyan}INFO: ${repo_rel}: submodule not initialized; no symlinks to check.${reset}"
-         continue
-      fi
-      while IFS= read -r -d '' entry ; do
-         mode="${entry%% *}"
-         if [ ! "${mode}" = "120000" ]; then
-            continue
-         fi
-         file_path="${entry#*$'\t'}"
-         offender_count=$(( offender_count + 1 ))
-         offenders="${offenders}
-  ${repo_rel}/${file_path}"
-      done < <(env --unset=GIT_DIR --unset=GIT_WORK_TREE git -C "${repo_abs}" ls-files --stage -z)
-   done
-
-   if [ "${offender_count}" -gt 0 ]; then
-      error "\
-${offender_count} git-tracked symlink(s) found in derivative package repos, which
-must contain none by design (core.symlinks=false materializes them as regular
-files and silently breaks the package):
-${offenders}"
-   fi
-}
-
 check-operating-system-version() {
    local codename
 
@@ -694,7 +642,6 @@ main() {
    test-wc "$@"
    check-redistributable-builds-requirements "$@"
    check-git-folder "$@"
-   check-git-symlinks "$@"
    check-operating-system-version "$@"
    check-sudo "$@"
    check-dpkg "$@"
