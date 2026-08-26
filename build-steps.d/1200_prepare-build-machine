@@ -496,9 +496,12 @@ normalize-symlinks() {
    done < <(
       printf '%s\n' "${source_code_folder_dist}"
       ## Single quotes deliberate: ${PWD} must be expanded by foreach's OWN
-      ## shell in each submodule, not by this one.
+      ## shell in each submodule, not by this one. env --unset clears any inherited
+      ## GIT_DIR/GIT_WORK_TREE (e.g. exported by an enclosing 'git submodule
+      ## foreach') that would otherwise override -C and enumerate the wrong repo.
       # shellcheck disable=SC2016
-      git -C "${source_code_folder_dist}" submodule --quiet foreach --recursive \
+      env --unset=GIT_DIR --unset=GIT_WORK_TREE --unset=GIT_INDEX_FILE \
+         git -C "${source_code_folder_dist}" submodule --quiet foreach --recursive \
          'printf "%s\n" "${PWD}"' 2>/dev/null || true
    )
 }
@@ -531,7 +534,7 @@ normalize_file_modes_in_tree() {
       [ -f "${file_path}" ] || continue
       [ -L "${file_path}" ] && continue
       chmod -- "${target_mode}" "${file_path}" 2>/dev/null || true
-   done < <( git -C "${tree}" ls-files --stage -z 2>/dev/null || true )
+   done < <( env --unset=GIT_DIR --unset=GIT_WORK_TREE --unset=GIT_INDEX_FILE git -C "${tree}" ls-files --stage -z 2>/dev/null || true )
 }
 
 normalize_symlinks_in_tree() {
@@ -556,7 +559,11 @@ normalize_symlinks_in_tree() {
          continue
       fi
       [ -f "${link_path}" ] || continue
-      link_target="$(cat -- "${link_path}")"
+      ## Append+strip a sentinel so command substitution does not eat a trailing
+      ## newline: a target ending in '\n' (or a mistagged real file ending in one)
+      ## would otherwise slip past the multi-line guard below and be mis-converted.
+      link_target="$(cat -- "${link_path}"; printf '%s' x)"
+      link_target="${link_target%x}"
       ## A materialised symlink is a single line naming a relative path. An empty
       ## or multi-line file is a real file whose mode is recorded wrongly; leave
       ## it rather than guess.
@@ -567,7 +574,7 @@ normalize_symlinks_in_tree() {
       esac
       safe-rm --force -- "${link_path}"
       ln --symbolic -- "${link_target}" "${link_path}"
-   done < <( git -C "${tree}" ls-files --stage -z 2>/dev/null || true )
+   done < <( env --unset=GIT_DIR --unset=GIT_WORK_TREE --unset=GIT_INDEX_FILE git -C "${tree}" ls-files --stage -z 2>/dev/null || true )
 }
 
 main() {
