@@ -201,8 +201,8 @@ Environment Variables:
 
 Advanced Options:
   --report [true|false]           : Enable or disable build reports (default: false).
-  --serial-console-enable [true|false] : Install serial-console-enable, enable serial console on ISO builds (default: false).
-  --smbios-reader [true|false]    : DANGEROUS, DO NOT USE. Allow injecting kernel parameters via the SMBIOS serial number field. This will allow attackers with physical access to inject arbitrary kernel parameters into the boot process! Only useful for CI.
+  --serial-console-enable [true|false] : Install serial-console-enable and add a serial console (ttyS0) to the boot cmdline / GRUB menu, so the image can be driven headless over serial (default: false).
+  --smbios-reader [true|false]    : Ship the GRUB SMBIOS kernel-cmdline reader, so a boot-tester can inject cmdline via 'qemu -smbios' (dm-qemu --smbios-append). Boot-test images only -- it turns a firmware-supplied string into kernel cmdline, which Secure Boot does not authenticate (default: false).
   --sanity-tests [true|false]     : Enable or disable chroot script sanity tests for faster build speed (default: false).
   --only-packages 'p1 p2'         : Rebuild only listed packages into the persistent local repo, reuse the rest from the prior build.
   --skip-packages                 : Skip package building entirely and reuse the whole local package repo from the prior build.
@@ -597,9 +597,8 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
            --smbios-reader)
-               error_dangerous_option_maybe '--smbios-reader'
                if [ "${2:-}" = "true" ]; then
-                  true "${cyan}INFO: SMBIOS kernel parameter injection enabled.${reset}"
+                  true "${cyan}INFO: SMBIOS cmdline reader enabled: the image's GRUB will append the SMBIOS Type 1 serial number (after a 'dm-cmdline=' sentinel) to the kernel command line. For boot-test images only.${reset}"
                   export dist_build_smbios_reader="true"
                elif [ "${2:-}" = "false" ]; then
                   export dist_build_smbios_reader="false"
