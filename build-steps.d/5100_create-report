@@ -18,6 +18,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -88,9 +89,8 @@ main() {
       return 0
    fi
 
-   ## TODO: (not applicable to AI agents) We should document in the wiki how to
-   ## do a reproducible build and compare it to a reference artifact. This
-   ## script is not the right place to document that info.
+   ## REMINDER (not applicable to AI agents): document in the wiki how to do a
+   ## reproducible build and compare it to a reference artifact; not here.
    if [ "${dist_build_reproducible_reference_folder:-}" = "" ]; then
       true "${bold}${cyan}INFO: dist_build_reproducible_reference_folder is unset, no reference to compare with. Skipping, OK.${reset}"
       return 0
