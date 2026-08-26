@@ -10,6 +10,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -204,8 +205,7 @@ create-debian-raw-image() {
    ## Sanity test.
    test -n "${dist_build_hostname}"
 
-   ## TODO: We need to pass --no-reimage here once our fork of
-   ## grml-debootstrap supports it.
+   ## REMINDER: pass --no-reimage here once our grml-debootstrap fork supports it.
    ##
    ## '$DEBOOTSTRAP_PREFIX', '$UNSHARE_PID_NS' and '$use_vmefi_maybe' are
    ## intentionally unquoted: each holds zero or more words that must split
