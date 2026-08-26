@@ -35,6 +35,8 @@ convert_raw_to_qcow2() {
 
    ## Create qcow2 image form raw image.
    ## VMSIZE defaults to 100G as per help-steps/variables.
+   ##
+   ## TODO: Why did we get rid of '-o cluster_size=2M'?
    qemu-img \
       convert \
          -p \

@@ -11,12 +11,8 @@ set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
 
-## style-ok: no-safe-rm -- this is the sanity/bootstrap step that INSTALLS safe-rm (it is in
-## required_packages_list below), so nothing here can depend on safe-rm yet; the few removals
-## use plain 'rm --force'.
-## style-ok: allow-echo -- the only 'echo' occurrences are example commands quoted INSIDE
-## operator-facing diagnostic message strings (e.g. "run: sudo losetup --all ; echo $?"), not
-## echo used as a command.
+## style-ok: no-safe-rm -- this is the sanity/bootstrap step that installs safe-rm.
+## style-ok: allow-echo -- the only 'echo' occurrences are inside strings.
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -32,9 +28,6 @@ source variables
 cd "${MYDIR}"
 cd ..
 
-## 'has' rather than 'command -v' (R-090): it verifies the hit is executable and
-## is not an alias or shell function. 'pre' sets HELPER_SCRIPTS_PATH to the
-## in-tree submodule, so this resolves before helper-scripts is installed.
 # shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/has.sh
 source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/has.sh
 
@@ -69,7 +62,7 @@ check-redistributable-builds-requirements() {
    ## redistributable folder check would otherwise fail before
    ## 'signing-key-create' has a chance to create '~/.signify',
    ## hence the early return here. Release signing keys are always
-   ## auto-generated per build; no stored key material is involved.
+   ## auto-generated per build.
    if [ "${CI:-}" = "true" ]; then
       return 0
    fi
@@ -114,45 +107,46 @@ check-git-folder() {
    fi
 }
 
+## FIXME: This check is both broken and misguided.
+##
+## * No package repo under derivative-maker contains a symlink, by design. Any
+##   symlinks found in those repositories (whether real symlinks or Git-tracked
+##   "symlinks") should result in an error.
+## * There are repos with Git-tracked symlinks that do not and should not show
+##   up in the filesystem as real symlinks (namely qubes-template-whonix and
+##   live-build). We should not error out because of these.
+##
+## Therefore this function is disabled further down.
+# shellcheck disable=SC2317
 check-git-symlinks() {
    local repo_list repo_rel repo_abs entry mode file_path broken_list broken_count
 
-   ## Every path the index records as a symlink (mode 120000) must BE a symlink in
-   ## the working tree. When 'core.symlinks' is false git writes a regular file
-   ## holding the link target instead -- and considers that correct, so
-   ## 'git status' reports the tree CLEAN and nothing else in the build notices.
-   ## Kicksecure and Whonix (the project's own operating systems, so a very
-   ## likely build host) ship /etc/gitconfig with 'core.symlinks = false' via
-   ## security-misc-shared, which makes this the DEFAULT there. The image then
-   ## ships text files where it should ship symlinks.
+   ## Every path the index records as a symlink (mode 120000) must be a symlink in
+   ## the working tree.
    broken_list=""
    broken_count=0
 
-   ## The parent plus every submodule. 'displaypath' under 'foreach --recursive'
-   ## is relative to the top level, so it composes with the source folder.
-   ## NUL-separated, like the 'ls-files' loop below: a newline in a submodule path
-   ## would otherwise split one path into fragments, and each fragment would fail
-   ## the 'test -d' below and be skipped -- silently leaving that submodule
-   ## unchecked, which is the one outcome this test must not produce.
    repo_list=(".")
    # shellcheck disable=SC2016
    mapfile -t -d '' -O "${#repo_list[@]}" repo_list < <(
       git -C "${source_code_folder_dist}" submodule --quiet foreach --recursive 'printf "%s\0" "${displaypath}"'
    )
 
+   ## example repo_list:
+   ## ( '.' 'grml-debootstrap' 'packages/kicksecure/helper-scripts' ... )
+
    for repo_rel in "${repo_list[@]}" ; do
       repo_abs="${source_code_folder_dist}/${repo_rel}"
       test -d "${repo_abs}" || continue
-      ## 'ls-files' below runs in a process substitution, whose exit status the
-      ## loop cannot see: a directory git refuses to read would yield zero entries
-      ## and pass as "no symlinks here". Since silently skipping a repo is the one
-      ## outcome this check must not produce, establish it IS a repository first,
-      ## and say so when it is not rather than passing quietly.
+      ## FIXME: This check is broken for two reasons:
+      ##
+      ## * A stray GIT_DIR environment variable could fool it
+      ## * The check will pass even if the directory isn't a repo because the
+      ##   dir is a subdirectory of derivative-maker, which is a git dir
       if ! git -C "${repo_abs}" rev-parse --git-dir >/dev/null 2>&1 ; then
          true "${cyan}INFO: ${repo_rel}: not a git repository (submodule not initialized?); no symlinks to verify there.${reset}"
          continue
       fi
-      ## -z, so a path containing a space, quote or newline is not mangled.
       while IFS= read -r -d '' entry ; do
          mode="${entry%% *}"
          if [ ! "${mode}" = "120000" ]; then
@@ -170,23 +164,11 @@ check-git-symlinks() {
 
    if [ "${broken_count}" -gt 0 ]; then
       error "\
-git materialized ${broken_count} symlink(s) as regular files.
+git materialized ${broken_count} symlink(s) as regular files. This is normal,
+but a function designed to find them was erroneously enabled. Broken symlink
+list:
 
-These paths are recorded in the index as symlinks but exist in the working
-tree as regular files holding the link target:
-${broken_list}
-
-CAUSE: core.symlinks is false for this checkout. Kicksecure and Whonix ship
-/etc/gitconfig with 'core.symlinks = false' (package security-misc-shared), so
-on such a build host EVERY checkout is affected and git reports the tree as
-clean -- the build would otherwise emit an image whose symlinks are wrong,
-with nothing naming the reason.
-
-FIX, per repository (leave the packaged system-wide file alone):
-  git config core.symlinks true
-  git submodule foreach --recursive 'git config core.symlinks true'
-then re-materialize each path above:
-  rm --force -- PATH ; git checkout --force -- PATH"
+${broken_list}"
    fi
 }
 
@@ -346,12 +328,8 @@ Please delete derivative-maker source code folder and get it again as user, not 
 }
 
 check-sufficient-disk() {
-   ## Fail EARLY and CLEARLY when the build output folder lacks the disk a full
-   ## build needs, instead of the cryptic 'No space left on device' that surfaces
-   ## deep in a later step (e.g. 3600 live-build's bootstrap_cache restore) after
-   ## ~40 minutes. A full ISO+qcow2 build writes a ~1.3 GB sparse raw, a
-   ## live-build chroot, the qcow2, and working copies; 20 GiB free is a
-   ## conservative floor below which a build reliably runs out.
+   ## Fail early when the build output folder lacks the disk space a full build
+   ## needs.
    local build_folder avail_kib avail_gib minimum_gib
    minimum_gib="${dist_build_min_free_gib:-20}"
    build_folder="${binary_build_folder_dist:-}"
@@ -367,9 +345,7 @@ check-sufficient-disk() {
    true "${bold}${cyan}INFO: ${BASH_SOURCE[0]}: ${avail_gib} GiB free in '${build_folder}' (minimum ${minimum_gib} GiB).${reset}"
    if [ "${avail_gib}" -lt "${minimum_gib}" ]; then
       error "${bold}${red}ERROR ${BASH_SOURCE[0]}: only ${avail_gib} GiB free in the build output folder \
-'${build_folder}', but a full build needs at least ${minimum_gib} GiB and would otherwise fail deep in a \
-later step with 'No space left on device'. Free space (old build outputs, caches) and retry, or set \
-dist_build_min_free_gib to override this floor.${reset}"
+'${build_folder}', but at least ${minimum_gib} GiB needed.${reset}"
    fi
 }
 
@@ -414,30 +390,27 @@ Recommendation:
 }
 
 check-umask-in-sync() {
-   ## help-steps/variables pins the build umask so file modes in the image do not
-   ## depend on who ran the build. That value is not arbitrary: it mirrors what
-   ## security-misc already grants sudo, precisely so system files do not inherit
-   ## a user's restrictive umask. If the two drift apart the build silently goes
-   ## back to producing host-dependent permissions, which is invisible until two
-   ## images are compared byte for byte.
+   ## Ensure our umask is the same permissive value that security-misc's
+   ## sudoers config would set.
+   ##
+   ## Don't check for a umask pin by parsing help-steps/variables. Parsing like
+   ## this would be unreliable, and our code shouldn't (and can't) internally
+   ## distrust itself.
+
    true "INFO: Checking that the build umask matches security-misc..."
 
-   local sudoers_file variables_file security_misc_umask variables_umask sanity_line
+   local sudoers_file security_misc_umask current_umask sanity_line
 
    sudoers_file="${source_code_folder_dist}/packages/kicksecure/security-misc/etc/sudoers.d/security-misc#security-misc-shared"
    variables_file="${source_code_folder_dist}/help-steps/variables"
 
    if [ ! -f "${sudoers_file}" ]; then
-      true "INFO: security-misc sudoers drop-in absent (submodule not checked out?). Skipping, OK."
+      ## This is a fatal error; if the submodule isn't checked out, the build
+      ## would fail later.
+      error "security-misc sudoers drop-in absent! Submodule not checked out?"
       return 0
    fi
 
-   ## Read with a bash loop rather than 'sed ... | head -n 1'. Under errexit and
-   ## pipefail, head exiting after the first line gives sed SIGPIPE once the
-   ## output exceeds the pipe buffer, and the pipeline's 141 aborts the whole
-   ## build with NO message and no error handler. Verified: 141 and a silent
-   ## exit on a large input. Not reachable with these small config files, but the
-   ## shape is a trap and a loop costs nothing.
    security_misc_umask=""
    while IFS= read -r sanity_line; do
       case "${sanity_line}" in
@@ -449,53 +422,35 @@ check-umask-in-sync() {
       esac
    done < "${sudoers_file}"
 
-   variables_umask=""
-   while IFS= read -r sanity_line; do
-      case "${sanity_line}" in
-         umask[[:space:]]*)
-            variables_umask="${sanity_line#umask}"
-            variables_umask="${variables_umask#"${variables_umask%%[![:space:]]*}"}"
-            variables_umask="${variables_umask%%[^0-7]*}"
-            break
-            ;;
-      esac
-   done < "${variables_file}"
-
-   if [ -z "${variables_umask}" ]; then
-      error "help-steps/variables pins no umask.
-
-Without it every file the build creates inherits the BUILDER's umask, so the
-same commit yields different permissions in the image depending on who built it."
-      return 0
-   fi
-
    if [ -z "${security_misc_umask}" ]; then
       true "INFO: no 'Defaults umask=' found in security-misc; nothing to compare. OK."
       return 0
    fi
+   ## Trim off leading zeros. This value will be compared with the output of
+   ## the umask command, and the number of leading zeros it prints can vary.
+   [[ "${security_misc_umask}" =~ ([^0]*)$ ]]
+   security_misc_umask="${BASH_REMATCH[1]}"
+   ## Intentionally do not check for a non-empty security_misc_umask here.
+   ## 0000 is a technically valid umask value, which would make this empty.
 
-   if [ ! "${variables_umask}" = "${security_misc_umask}" ]; then
-      error "Build umask drifted from security-misc.
+   current_umask="$(umask)"
+   ## Also trim leading zeros from the umask command's output.
+   if [ -z "${current_umask}" ]; then
+      error "Cannot get current umask!"
+      return 0
+   fi
+   [[ "${current_umask}" =~ ([^0]*)$ ]]
+   current_umask="${BASH_REMATCH[1]}"
 
-help-steps/variables: umask ${variables_umask}
-security-misc:        Defaults umask=${security_misc_umask}
-
-These must agree. security-misc grants that umask to sudo so system files do not
-inherit a restrictive user umask; the build pins the same value so image
-permissions do not depend on the builder."
+   if [ ! "${current_umask}" = "${security_misc_umask}" ]; then
+      error "Current umask is different from security-misc! Current umask is '${current_umask}', expected umask is '${security_misc_umask}'."
       return 0
    fi
 
-   true "INFO: build umask ${variables_umask} matches security-misc, OK."
+   true "INFO: current umask ${current_umask} matches security-misc, OK."
 }
 
 check-stale-nbd() {
-   ## A previous inspection or comparison can leave an nbd device attached with a
-   ## mount still on it -- image tooling runs in a container that is torn down
-   ## with SIGKILL, so its cleanup traps never run, and the mounts survive in this
-   ## namespace. The build needs nbd itself (4350 reimage), and attaching a new
-   ## image to a device that still carries a stale mount makes every read return
-   ## EIO, which presents as a CORRUPT IMAGE rather than as a stale mount.
    true "INFO: Checking for stale nbd devices..."
 
    local nbd_mounts
@@ -512,14 +467,7 @@ check-stale-nbd() {
       return 0
    fi
 
-   error "Stale nbd mount(s) detected:
-
-${nbd_mounts}
-
-Attaching an image to a device that still carries one of these makes every read
-fail with EIO, which looks like a corrupt image. Release them first:
-  dm-nbd-cleanup            ## reports
-  dm-nbd-cleanup --release  ## acts"
+   error "Stale nbd mount(s) detected! Mounts: '${nbd_mounts}'. Use dm-nbd-cleanup to release them."
 }
 
 check-stray-mounts() {
@@ -561,8 +509,6 @@ Recommendation:
    true
 }
 
-## Disabled manual-debugging helper: everything after 'return 0' is intentionally dead code
-## kept for manual reproduction, hence unreachable to shellcheck (SC2317).
 # shellcheck disable=SC2317
 mount-test() {
    ## TODO
@@ -595,18 +541,10 @@ mount-test() {
 }
 
 check-build-primitives() {
-   ## Fail FAST on a broken build /dev / mount BEFORE the expensive stages. These
-   ## primitives break silently and only surface ~45min into a build -- the container's
-   ## isolated /dev hides freshly-created loop/device-mapper nodes, so kpartx in
-   ## create-raw-image (step 3200) fails; and a non-functional /dev/null makes every
-   ## '> /dev/null' in the live-build binary stage (step 3600) fail. Catching them here
-   ## (step 1100) turns a 45-minute dead-end into a few-second, clearly-explained abort.
+   ## Fail fast on a broken build /dev mount.
    local loop_test_file="" loop_dev="" loop_rc mount_test_dir=""
 
-   ## Idempotent teardown of the privileged test resources. Every fatal 'error' path and the normal
-   ## completion below call it, and it clears each var so a repeat call is a no-op -- so a leaked
-   ## loop device / tmpfs mount can never block the next build. (A RETURN trap would not help: under
-   ## errexit an uncaught failure exits the script, so RETURN never fires; explicit calls do.)
+   ## Idempotent cleanup function.
    _cbp_cleanup() {
       if [ -n "${mount_test_dir}" ]; then
          ${SUDO_TO_ROOT} umount -- "${mount_test_dir}" 2>/dev/null || true
@@ -623,25 +561,21 @@ check-build-primitives() {
       fi
    }
 
-   ## 1) /dev/null must be a writable character device.
+   ## /dev/null must be a writable character device.
    if [ ! -c /dev/null ]; then
       error "${bold}${red}ERROR ${BASH_SOURCE[0]}: /dev/null is not a character device on \
-the build host. Every '> /dev/null' in the build (chroot operations, live-build's binary \
-stage) will fail. Fix the build environment's /dev.${reset}"
+the build host. Fix the build environment's /dev.${reset}"
    fi
    if ! printf '%s\n' "test" > /dev/null 2>&1; then
-      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: writing to /dev/null failed -- the \
-build's chroot operations will fail. Fix /dev on the build host.${reset}"
+      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: writing to /dev/null failed. \
+Fix the build environment's /dev.${reset}"
    fi
 
-   ## 2) A newly-created loop device's /dev node must actually APPEAR. In a container
-   ## with an isolated /dev this is exactly what fails: losetup 'succeeds' but the node
-   ## is missing, so kpartx in create-raw-image cannot see the partitions. The fix is a
-   ## host /dev in the container ('docker run --privileged --volume /dev:/dev').
-   ## Create the backing file (and the mount dir below) as ROOT via mktemp: security-misc
+   ## A newly-created loop device's /dev node must actually appear.
+   ##
+   ## Create the backing file (and the mount dir below) as root via mktemp: security-misc
    ## sets fs.protected_regular=2, which blocks even root from opening a file it does not
-   ## own for writing inside the sticky /tmp -- so a user-owned mktemp file + '$SUDO_TO_ROOT
-   ## truncate' fails with EACCES. Root-owned (owner == opener) is allowed.
+   ## own for writing inside the sticky /tmp.
    loop_test_file="$(${SUDO_TO_ROOT} mktemp)"
    if ! ${SUDO_TO_ROOT} truncate --size=10M -- "${loop_test_file}"; then
       _cbp_cleanup
@@ -654,28 +588,27 @@ on the build host.${reset}"
       _cbp_cleanup
       error "${bold}${red}ERROR ${BASH_SOURCE[0]}: could not allocate a loop device \
 (losetup --find --show). In a container the build needs a host /dev + privileges \
-('docker run --privileged --volume /dev:/dev'); otherwise create-raw-image (kpartx) fails \
-~45min in.${reset}"
+('docker run --privileged --volume /dev:/dev').${reset}"
    fi
    if [ ! -b "${loop_dev}" ]; then
       _cbp_cleanup
       error "${bold}${red}ERROR ${BASH_SOURCE[0]}: loop device '${loop_dev}' was allocated \
-but its /dev node is MISSING -- the container /dev is isolated. kpartx in create-raw-image \
-would fail. Provide a host /dev ('docker run --privileged --volume /dev:/dev').${reset}"
+but its /dev node is missing (container /dev isolated?). In a container the build needs a \
+host /dev + privileges ('docker run --privileged --volume /dev:/dev').${reset}"
    fi
    _cbp_cleanup
 
-   ## 3) mount must work -- the build does many bind/loop mounts.
+   ## mount must work.
    mount_test_dir="$(${SUDO_TO_ROOT} mktemp --directory)"
    if ! ${SUDO_TO_ROOT} mount --types tmpfs --options size=1M -- tmpfs "${mount_test_dir}" 2>/dev/null; then
       _cbp_cleanup
-      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: a tmpfs mount failed -- the build's \
-bind/loop mounts will fail. The container needs --privileged (or the appropriate mount \
-capabilities).${reset}"
+      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: a tmpfs mount failed, the build's \
+bind/loop mounts will fail. In a container the build needs --privileged (or the appropriate \
+mount capabilities).${reset}"
    fi
    _cbp_cleanup
 
-   true "${bold}${cyan}INFO: build-primitives check OK (/dev/null, loop-device node, mount).${reset}"
+   true "${bold}${cyan}INFO: build-primitives check OK.${reset}"
 }
 
 check-copy-vms-into-raw() {
@@ -743,8 +676,6 @@ install_required_packages() {
          "${DIST_APTGETOPT_WITHOUT_APT_CACHE[@]}" \
          update
 
-   ## SC2086: intentional word-splitting of $apt_unattended_opts and the space-separated
-   ## $required_packages_list into individual apt-get arguments.
    # shellcheck disable=SC2086
    ${SUDO_TO_ROOT} \
       apt-get \
@@ -757,26 +688,9 @@ install_required_packages() {
 }
 
 check_required_packages_installed() {
-   ## kmod / qemu-utils / kpartx / parted are bootstrapped HERE, not left to
-   ## '*_prepare-build-machine': the container image ships none of them, and this
-   ## step runs first. They are also declared in
-   ## buildconfig.d/30_dependencies.conf, which is what keeps them installed for
-   ## the rest of the build.
-   ##
-   ## 'kmod' is the one that has already bitten: without 'modprobe' the
-   ## reproducibility comparison cannot attach an image through nbd, and silently
-   ## fell back to comparing the packed artifacts, which OOMs on a multi-gigabyte
-   ## image. The run then reported only "diffoscope could not explain the diff",
-   ## hours in, naming neither the tool nor the package.
-   ##
-   ## 'diffoscope' is deliberately NOT here: ci/reproducible-install-deps pulls it
-   ## from trixie-backports because the version in trixie OOMs on these artifacts,
-   ## so declaring it a plain build dependency would install the known-bad one.
-   ## That one asserts itself at its own install site.
    required_packages_list="git time curl approx lsb-release fakeroot fasttrack-archive-keyring safe-rm gpg-sq kmod qemu-utils kpartx parted"
    local required_package_item
 
-   ## SC2086: intentional word-splitting of the space-separated package list.
    # shellcheck disable=SC2086
    for required_package_item in ${required_packages_list} ; do
       ## 'dpkg-query' does not exit non-zero if package is absent on the system.
@@ -792,7 +706,8 @@ main() {
    test-wc "$@"
    check-redistributable-builds-requirements "$@"
    check-git-folder "$@"
-   check-git-symlinks "$@"
+   ## Broken, see FIXME above function
+   # check-git-symlinks "$@"
    check-operating-system-version "$@"
    check-sudo "$@"
    check-dpkg "$@"

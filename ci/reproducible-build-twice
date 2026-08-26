@@ -25,9 +25,7 @@
 ## --output-dir  where the two images + report are collected (default a fresh
 ##               directory beside the repo). The collected images are ~0.5 GB each,
 ##               but the BUILD needs far more transient room on the same
-##               filesystem: 4350_reimage-raw-reproducible zero-fills the image's
-##               free space, which allocates the sparse raw, so a qcow2 run peaks
-##               around 32 GB before dropping back. Budget ~40 GB free.
+##               filesystem.
 ##
 ## The two builds run SEQUENTIALLY, never concurrently: two full image builds at
 ## once exhaust RAM/disk on a modest host. The verdict is NOT re-implemented here:
@@ -160,6 +158,7 @@ dist_build_version="$( git describe --always --abbrev=1000000000 --exclude '*_*_
 dist_build_version="${dist_build_version//-developers-only/}"
 dist_build_version="${dist_build_version//-testers-only/}"
 dist_build_version="${dist_build_version//-stable/}"
+
 ## dm-build-official does NOT sign, and the build's sq-git check rejects an unsigned
 ## HEAD, so mint an ephemeral key and sign+tag HEAD here -- BEFORE either build and
 ## after the version is pinned.
@@ -186,19 +185,17 @@ export dist_build_sign_and_tag=true
 popd >/dev/null
 export dist_build_version
 
-## Remove this build's emitted-image directory so 'find' below sees only the current
-## build's output. Scoped to the per-version directory: its siblings under
-## '$binary_build_folder_dist' are the cowbuilder base, the local apt repo and the
-## package caches, which a build legitimately reuses and must not lose.
-clean_binary() {
-   safe-rm --recursive --force -- "${binary_build_folder_dist}/${dist_build_version}" 2>/dev/null || true
-}
-
 ## Run one build and collect its artifact into $output_dir/<tag>/.
 build_one() {
-   local tag="$1" dest="${output_dir}/$2" build_rc found
+   local tag="${1}" dest="${output_dir}/${2}" build_rc found
    printf '%s\n' "=== build ${tag}: ${flavor} ${target} ${arch} (freshness=${freshness}) ==="
-   clean_binary
+
+   ## Remove this build's emitted-image directory so 'find' below sees only the current
+   ## build's output. Scoped to the per-version directory: its siblings under
+   ## '$binary_build_folder_dist' are the cowbuilder base, the local apt repo and the
+   ## package caches, which a build legitimately reuses and must not lose.
+   safe-rm --recursive --force -- "${binary_build_folder_dist}/${dist_build_version}" 2>/dev/null || true
+
    build_rc=0
    ## pushd/popd rather than a '( cd && ... )' subshell: scopes the cd without a
    ## subshell (and dodges the errexit-in-conditional-subshell footgun).
@@ -209,12 +206,12 @@ build_one() {
    ## CI=true is what mocks the upload -- without it dm-prepare-release's rsync is
    ## LIVE, and a local reproducibility check must never publish. It also skips the
    ## ~/.ssh requirement. It does NOT force a dry run: parse-cmd only injects
-   ## build_dry_run for a CROSS-build, and dist_build_target_arch is set here.
+   ## build_dry_run for a CI CROSS-build, and dist_build_target_arch is set here.
    CI=true \
-   dist_build_target_arch="${arch}" \
-   flavors_list="${flavor}" \
-   dist_build_multi_target_list="${target}" \
-   ./help-steps/dm-build-official --freshness "${freshness}" || build_rc="$?"
+     dist_build_target_arch="${arch}" \
+     flavors_list="${flavor}" \
+     dist_build_multi_target_list="${target}" \
+     ./help-steps/dm-build-official --freshness "${freshness}" || build_rc="$?"
    popd >/dev/null
    if [ "${build_rc}" -ne 0 ]; then
       printf '%s\n' "${0##*/}: build ${tag} failed (exit ${build_rc})" >&2

@@ -2,8 +2,7 @@
 name: Build
 
 ## Repo-private native reproducibility lane (G-A-005 'local-' prefix): builds
-## the same image TWICE as two INDEPENDENT jobs (separate runner VMs, the
-## reproducible-builds gold standard -- not one job building twice), then a
+## the same image TWICE as two INDEPENDENT jobs (in separate runner VMs), then a
 ## third job compares the two images with diffoscope via developer-meta-files'
 ## dm-reproducible-compare-artifacts. Every difference is reported (no allowlist).
 ## The two builds ARE the build test, so a green run means the image both builds
@@ -16,9 +15,12 @@ name: Build
 ## the official orchestration (help-steps/dm-build-official) with a single-flavor smoke
 ## (kicksecure-debug, the flavor local-boot-test.yml also builds), so there is
 ## ONE build path and no duplicate build
-## logic; all compare logic lives in developer-meta-files' dm-reproducible-compare-artifacts,
-## so the shell stays lint-covered and locally runnable. See
-## agents/github-actions-security.md for the pinning / permissions patterns.
+## logic; all compare logic lives in developer-meta-files'
+## dm-reproducible-compare-artifacts, so the shell stays lint-covered and
+## locally runnable. See agents/github-actions-security.md for the pinning
+## / permissions patterns.
+
+## TODO: This file is now poorly named; rename to reproducible-build-test.yml?
 
 on:
   workflow_dispatch:
@@ -29,9 +31,9 @@ on:
         ## A choice input defaults to the first option (qcow2); the env fallback
         ## below ('inputs.target || qcow2') covers schedule/push.
         ## 'virtualbox' exports the .ova through helper-scripts'
-        ## vbox-ova-reproducible-normalize (run in-build), which is present at the
-        ## pinned helper-scripts gitlink, so the .ova build completes and the two
-        ## runners' .ova are compared byte-for-byte like qcow2 / iso.
+        ## vbox-ova-reproducible-normalize (run in-build), so the .ova build
+        ## completes and the two runners' .ova are compared byte-for-byte like
+        ## qcow2 / iso.
         options:
           - qcow2
           - iso
@@ -101,6 +103,12 @@ env:
   ## 2100 advises capping around nproc-2; ubuntu-24.04 runners have 4 vCPU. Both
   ## copies get the same value, so it cannot skew the a-vs-b comparison -- and
   ## nondeterminism introduced by it is what this lane exists to report.
+  ##
+  ## TODO: The only reason to not use all cores is to ensure a system stays
+  ## responsive while building an image. But the CI system doesn't need to be
+  ## responsive, so using less than all available cores wastes resources.
+  ## Consider bumping this up to 4 (or better yet, automatically detect how
+  ## many cores we have and always use that).
   REPRO_PACKAGE_JOBS: "2"
 
 jobs:
@@ -174,11 +182,11 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.dm-docker-image
-          ## The frozen sources file is part of the key because the image's apt
+          ## The frozen sources.in file is part of the key because the image's apt
           ## is pinned to the timestamp it carries: without it a snapshot bump
           ## would reuse an image built against the previous snapshot, silently
           ## restoring the mismatch the pin exists to prevent.
-          key: ${{ runner.os }}-repro-${{ matrix.copy }}-dmimg-${{ hashFiles('docker/**', 'build_sources/frozen-snapshot-timestamp', 'build_sources/debian_stable_frozen_direct_clearnet.sources') }}
+          key: ${{ runner.os }}-repro-${{ matrix.copy }}-dmimg-${{ hashFiles('docker/**', 'build_sources/frozen-snapshot-timestamp', 'build_sources/debian_stable_frozen_direct_clearnet.sources.in') }}
 
       - name: Seed approx cache from sidecar
         run: ./ci/approx-cache-sidecar seed
@@ -235,7 +243,7 @@ jobs:
         ## so this describe carries the SAME '--exclude' -- otherwise a checkout that
         ## already has an ephemeral '<tag>_<commit>_<key>' tag from an earlier signed
         ## build pins the version to that tag. Fresh in CI, not on a reused workspace.
-        ## rule 4: shell vars from env, never ${{ }} interpolation into run:.
+        ## rule 4: shell vars from env, never ${{ }} interpolation into "run:".
         env:
           CI: "true"
           ARCH: ${{ env.REPRO_ARCH }}
@@ -258,7 +266,6 @@ jobs:
           trap 'kill "${memory_sampler_pid}" 2>/dev/null || true' EXIT
           ./docker/derivative-maker-docker-run -- bash -c "export dist_build_version=\"\$(git describe --always --abbrev=1000000000 --exclude '*_*_*')\" && export dist_build_sign_and_tag=true && ./help-steps/signing-key-create && ./help-steps/sign-and-tag && env dist_build_target_arch='${ARCH}' flavors_list='${FLAVOR}' dist_build_multi_target_list='${MULTI}' ./help-steps/dm-build-official --freshness '${FRESHNESS}' --package-jobs '${PKG_JOBS}' ${COWBASE_REUSE_FLAG}"
 
-      ## Pack the cowbuilder base into its tarball BEFORE freeing it: under
       ## Runs only when the build FAILED but the runner survived -- e.g. a
       ## container OOM-killed inside an otherwise healthy job, where docker's
       ## OOMKilled flag is decisive. It cannot help when the runner itself dies:
@@ -268,6 +275,7 @@ jobs:
         if: failure()
         run: ./ci/diagnose-build-kill
 
+      ## Pack the cowbuilder base into its tarball BEFORE freeing it: under
       ## --reuse-cowbuilder-base the base lives in this tree, and the upload glob
       ## below scandirs binary_mnt, where a root-owned 0700 chroot would EACCES.
       ## No-op when there is no base in the tree.
@@ -362,6 +370,10 @@ jobs:
       ## (5200_prepare-release exports the signify '.pub' and the OpenPGP cert
       ## next to the images) so a verifier can check the signatures without the
       ## operator's keys. Public keys only -- never a secret half.
+      ##
+      ## TODO: Maybe don't include the torrent file? It isn't useful for
+      ## verification unless one is downloading an image using BitTorrent
+      ## software, and no one will download a CI image over BitTorrent.
       - name: Upload build ${{ matrix.copy }} checksums, signatures and public keys
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -401,8 +413,9 @@ jobs:
       - name: Report which steps never ran
         env:
           GH_TOKEN: ${{ github.token }}
+          NEEDS_BUILD_RESULT: ${{ needs.build.result }}
         run: |
-          printf '%s\n' "===== BUILD DID NOT SUCCEED: ${{ needs.build.result }} ====="
+          printf '%s\n' "===== BUILD DID NOT SUCCEED: ${NEEDS_BUILD_RESULT} ====="
           printf '%s\n' "A step recorded as 'none' never ran. If the BUILD step is 'none'"
           printf '%s\n' "and everything after it is too, the runner died rather than the"
           printf '%s\n' "build failing -- look at the MEMSAMPLE lines in the build log."

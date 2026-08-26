@@ -44,6 +44,8 @@ case "${mode}" in
          exit 0
       fi
       mkdir --parents -- "${cache_dir}"
+      ## TODO: Does --preserve-permissions even do anything when creating an
+      ## archive?
       sudo tar --create --preserve-permissions --xattrs --acls --numeric-owner \
          --file "${base_tar}" --directory "${pbuilder_dir}" "${base_name}"
       sudo chown --recursive -- "${runner_owner}" "${cache_dir}"

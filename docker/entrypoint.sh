@@ -58,7 +58,5 @@ declare -a systemd_args=(
 
 printf '%s\n' "$0: starting ${systemd} ${systemd_args[*]}"
 
-## style-ok: allow-exec -- this IS the container entrypoint: systemd must BECOME pid 1,
-## not run as a child of it. Running it as a child would leave this shell as pid 1, so
-## systemd would refuse to boot and signal handling / reaping would be wrong.
+## style-ok: allow-exec -- systemd must become pid 1 to work.
 exec "${systemd}" "${systemd_args[@]}"

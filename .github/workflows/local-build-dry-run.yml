@@ -100,7 +100,7 @@ jobs:
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: ~/.dm-docker-image
-          key: ${{ runner.os }}-dryrun-dmimg-${{ hashFiles('docker/**', 'build_sources/frozen-snapshot-timestamp', 'build_sources/debian_stable_frozen_direct_clearnet.sources') }}
+          key: ${{ runner.os }}-dryrun-dmimg-${{ hashFiles('docker/**', 'build_sources/frozen-snapshot-timestamp', 'build_sources/debian_stable_frozen_direct_clearnet.sources.in') }}
 
       - name: Load cached docker image
         if: steps.dmimg-cache.outputs.cache-hit == 'true'
@@ -135,6 +135,10 @@ jobs:
           image: ${{ steps.dmimg-ref.outputs.ref }}
           wait-seconds: '90'
 
+      ## FIXME: Let's use a more intuitive name than "dry-run". dry-run implies
+      ## that the code does nothing, whereas our "dry-run" does quite a lot of
+      ## file generation, commit amending, etc. "quick-blank-build" would be
+      ## more suitable.
       - name: Run dry-run inside container
         ## --workdir /workspace: the action mounts ${{ github.workspace }}
         ## at /workspace inside the container; the dry-run script is

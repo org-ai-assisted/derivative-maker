@@ -9,14 +9,14 @@
 ##   refuses when they disagree. Keep timestamp-shaped strings out of these comments:
 ##   the pin is read from the 'URIs:' lines.
 Types: deb
-URIs: https://snapshot.debian.org/archive/debian/20260730T083809Z
+URIs: https://snapshot.debian.org/archive/debian/XXX_TS_XXX
 Suites: trixie trixie-updates
 Components: main contrib non-free non-free-firmware
 Enabled: yes
 Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
 
 Types: deb
-URIs: https://snapshot.debian.org/archive/debian-security/20260730T083809Z
+URIs: https://snapshot.debian.org/archive/debian-security/XXX_TS_XXX
 Suites: trixie-security
 Components: main contrib non-free non-free-firmware
 Enabled: yes
