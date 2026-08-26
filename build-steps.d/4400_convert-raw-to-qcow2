@@ -8,6 +8,9 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -36,7 +39,8 @@ convert_raw_to_qcow2() {
    ## Create qcow2 image form raw image.
    ## VMSIZE defaults to 100G as per help-steps/variables.
    ##
-   ## TODO: Why did we get rid of '-o cluster_size=2M'?
+   ## Cluster size is set by the extended_l2 line below (extended_l2=on requires a
+   ## 128k cluster); an earlier '-o cluster_size' would be overridden -- last -o wins.
    qemu-img \
       convert \
          -p \

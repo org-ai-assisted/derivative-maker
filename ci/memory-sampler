@@ -27,6 +27,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 sample_interval="${1:-30}"
 
@@ -36,6 +37,8 @@ mem_field() {
    while IFS= read -r line; do
       case "${line}" in
          "${field_name}:"*)
+            ## Normalize "<pad><int> kB" to a bare integer (strip unit + whitespace);
+            ## the "kB" unit is re-added in fixed format at the output line below.
             line="${line#*:}"
             line="${line%%kB*}"
             printf '%s' "${line//[[:space:]]/}"
