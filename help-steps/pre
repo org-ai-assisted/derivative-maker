@@ -33,6 +33,7 @@ set -o errtrace
 ## mode errexit is disabled further down anyway.
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "${BASH_SOURCE[0]} INFO: begin"
 
@@ -458,7 +459,18 @@ exception_handler_cleanup_run() {
    local cleanup_kind tolerate_failure cleanup_step cleanup_step_list
 
    cleanup_kind="$1"
-   tolerate_failure="$2"
+   ## Descriptive failure mode rather than a bare true/false boolean trap.
+   case "$2" in
+      tolerate-failure)
+         tolerate_failure="true"
+         ;;
+      abort-on-failure)
+         tolerate_failure="false"
+         ;;
+      *)
+         error "${BASH_SOURCE[0]}: exception_handler_cleanup_run: unknown failure mode '$2' (expected tolerate-failure|abort-on-failure)"
+         ;;
+   esac
    cleanup_step_list=()
 
    case "${cleanup_kind}" in
@@ -502,11 +514,7 @@ exception_handler_variant() {
    output_cmd_set
    exception_handler_process_shared "${signal_type}"
    if [ "${ignore_error:-}" = "false" ]; then
-      ## TODO: 'false' here is a boolean trap, the reader may think the below
-      ## 'false' means that the cleanup will ignore errors, when it really
-      ## means the opposite. Replace with a descriptive parameter string or
-      ## option?
-      exception_handler_cleanup_run "${cleanup_kind}" "false"
+      exception_handler_cleanup_run "${cleanup_kind}" "abort-on-failure"
    fi
    exception_handler_maybe_exit "${signal_type}"
 }
@@ -552,7 +560,7 @@ exception_handler_signal() {
    ${output_cmd} "${red}${bold}INFO: Signal ${signal} received in ${under}$0${eunder}. Running cleanup (kind: ${kind})...${reset}"
    ## 'true': already exiting, so a failing cleanup step must not mask the
    ## signal.
-   exception_handler_cleanup_run "${kind}" "true"
+   exception_handler_cleanup_run "${kind}" "tolerate-failure"
    ${output_cmd} "${red}${bold}INFO: Exiting $0 due to signal ${signal} with exit code ${exit_code}.${reset}"
    ${output_cmd} "${cyan}${bold}############################################################${reset}"
    ## Remove the EXIT trap so exithandler's generic "non-zero exit code"

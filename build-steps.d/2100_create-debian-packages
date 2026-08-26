@@ -549,6 +549,9 @@ create_derivative_distribution_debian_packages() {
 
    ## Phase 3: load packages into reprepro serially.
    local reprepro_current=0
+   ## Manifest path depends only on the codename; compute once, not per package.
+   local manifest_path
+   manifest_path="$(dm_source_hash_manifest_path "${dist_build_apt_codename}")"
    for item in "${package_build_list[@]}"; do
       reprepro_current="$(( reprepro_current + 1 ))"
       pushd "${item}" >/dev/null
@@ -557,11 +560,8 @@ create_derivative_distribution_debian_packages() {
       "${genmkfile_bin}" reprepro-add
       ## Record the source content hash so the next --skip-published-packages build
       ## skips this package unless its source changes again.
-      ##
-      ## TODO: Can we only calculate dm_source_hash_manifest_path once, rather
-      ## than every time through the loop?
       dm_source_hash_record \
-         "$(dm_source_hash_manifest_path "${dist_build_apt_codename}")" \
+         "${manifest_path}" \
          "$(dpkg-parsechangelog --show-field Source --file "${item}/debian/changelog")" \
          "$(dm_package_source_hash "${item}")"
       popd >/dev/null
