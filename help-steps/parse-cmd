@@ -90,7 +90,7 @@ parse_cmd_freedom_versus_nonfreedom_firmware_choice_check() {
 }
 
 error_dangerous_option_maybe() {
-  if [ "${dist_build_unlock_dangerous_options}" = 'true' ]; then
+  if [ "${dist_build_unlock_dangerous_options:-}" = 'true' ]; then
     return 0
   fi
   error "\
