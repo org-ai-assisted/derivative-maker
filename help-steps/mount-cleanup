@@ -175,7 +175,8 @@ else
 fi
 
 ## Unmount all submounts. All callers consider it an error for any submount
-## unmount to fail.
-"${MYDIR}"/unmount-tree
+## unmount to fail. unmount-tree requires the tree to act on, so pass the
+## already-validated file_system_object (as its other callers do).
+"${MYDIR}"/unmount-tree -- "${file_system_object}"
 
 true "$0 INFO: end"
