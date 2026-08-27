@@ -261,7 +261,10 @@ jobs:
           ./ci/memory-sampler 30 &
           memory_sampler_pid="$!"
           trap 'kill "${memory_sampler_pid}" 2>/dev/null || true' EXIT
-          ./docker/derivative-maker-docker-run -- bash -c "export dist_build_version=\"\$(git describe --always --abbrev=1000000000 --exclude '*_*_*')\" && export dist_build_sign_and_tag=true && export dist_build_source_release_flavor='${FLAVOR}' && ./help-steps/signing-key-create && ./help-steps/sign-and-tag && env dist_build_target_arch='${ARCH}' flavors_list='${FLAVOR}' dist_build_multi_target_list='${MULTI}' ./help-steps/dm-build-official --freshness '${FRESHNESS}' --package-jobs '${PKG_JOBS}' ${COWBASE_REUSE_FLAG}"
+          ## dist_build_unlock_dangerous_options=true: kicksecure-ci-tiny-do-not-use
+          ## is a DANGEROUS flavor (parse-cmd error_dangerous_option_maybe) -- CI
+          ## legitimately uses this minimal CI-only flavor, so unlock it here.
+          ./docker/derivative-maker-docker-run -- bash -c "export dist_build_version=\"\$(git describe --always --abbrev=1000000000 --exclude '*_*_*')\" && export dist_build_sign_and_tag=true && export dist_build_unlock_dangerous_options=true && export dist_build_source_release_flavor='${FLAVOR}' && ./help-steps/signing-key-create && ./help-steps/sign-and-tag && env dist_build_target_arch='${ARCH}' flavors_list='${FLAVOR}' dist_build_multi_target_list='${MULTI}' ./help-steps/dm-build-official --freshness '${FRESHNESS}' --package-jobs '${PKG_JOBS}' ${COWBASE_REUSE_FLAG}"
 
       ## Runs only when the build FAILED but the runner survived -- e.g. a
       ## container OOM-killed inside an otherwise healthy job, where docker's
