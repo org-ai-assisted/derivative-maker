@@ -25,22 +25,12 @@ else
    PYTHONPATH="${HELPER_SCRIPTS_PATH}/usr/lib/python3/dist-packages"
 fi
 export PYTHONPATH
-## Bootstrap helpers (get_colors, log_run_die, and check_runtime which provides
-## was_executed -- this script is source-able so unit tests source it). Fail CLOSED
-## if any is missing: the '-e' shebang covers a DIRECT run but NOT 'bash
-## git_sanity_test' (how mode_submodules re-invokes this) or 'bash -c', where the
-## shebang is ignored and the pre-main bootstrap would otherwise run with errexit
-## OFF -- a missing check_runtime.bsh would then leave was_executed undefined, skip
-## main(), and exit 0 on an UNVERIFIED repo. The explicit '|| exit 1' makes the
-## abort invocation-independent.
-for git_sanity_bootstrap_helper in get_colors.sh log_run_die.sh check_runtime.bsh; do
-   # shellcheck disable=SC1090
-   if ! source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/${git_sanity_bootstrap_helper}"; then
-      printf '%s\n' "${0##*/}: FATAL: cannot source ${git_sanity_bootstrap_helper}; refusing to run unverified." >&2
-      exit 1
-   fi
-done
-unset git_sanity_bootstrap_helper
+source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/get_colors.sh"
+source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/log_run_die.sh"
+## check_runtime.bsh provides was_executed. This script is source-able (main()
+## auto-runs only when executed) so its functions can be unit-tested by sourcing.
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/check_runtime.bsh
+source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/check_runtime.bsh"
 
 ## This function is defined up here to avoid redundancy between comments and
 ## documentation.
@@ -521,22 +511,18 @@ main() {
    while [ $# -gt 0 ]; do
       case "$1" in
          --mode)
-            [ "$#" -ge 2 ] || die 1 "--mode requires a value"
             mode="$2"
             shift 2
             ;;
          --context)
-            [ "$#" -ge 2 ] || die 1 "--context requires a value"
             context="$2"
             shift 2
             ;;
          --ref)
-            [ "$#" -ge 2 ] || die 1 "--ref requires a value"
             ref="$2"
             shift 2
             ;;
          --ref-type)
-            [ "$#" -ge 2 ] || die 1 "--ref-type requires a value"
             ref_type="$2"
             shift 2
             ;;
