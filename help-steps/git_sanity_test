@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 
 ## Copyright (C) 2012 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
@@ -7,14 +7,6 @@
 ## working-tree cleanliness for the main repo and recursively for all
 ## submodules. Used by 'derivative-update' and 'build-steps.d/1100_sanity-tests',
 ## and runnable standalone by developers.
-
-#set -x
-set -o errexit
-set -o nounset
-set -o pipefail
-set -o errtrace
-shopt -s inherit_errexit
-shopt -s shift_verbose
 
 MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -35,6 +27,10 @@ fi
 export PYTHONPATH
 source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/get_colors.sh"
 source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/log_run_die.sh"
+## check_runtime.bsh provides was_executed. This script is source-able (main()
+## auto-runs only when executed) so its functions can be unit-tested by sourcing.
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/check_runtime.bsh
+source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/check_runtime.bsh"
 
 ## This function is defined up here to avoid redundancy between comments and
 ## documentation.
@@ -123,77 +119,6 @@ Forwarded arguments:
 ##   agents/git_sanity_test_security.md
 
 ## ----------------------------------------------------------------------------
-## Argument parsing
-## ----------------------------------------------------------------------------
-## Our args: --mode/--context/--ref/--ref-type/--help.
-## Everything else is forwarded to parse-cmd via the standalone bootstrap.
-
-mode=""
-context=""
-ref=""
-ref_type=""
-forwarded_args=()
-
-while [ $# -gt 0 ]; do
-   case "$1" in
-      --mode)      mode="$2";     shift 2 ;;
-      --context)   context="$2";  shift 2 ;;
-      --ref)       ref="$2";      shift 2 ;;
-      --ref-type)  ref_type="$2"; shift 2 ;;
-      --help|-h)   print_help;    exit  0 ;;
-      ## Forward unknown args to parse-cmd (one token at a time).
-      *)
-         forwarded_args+=("$1")
-         shift
-         ;;
-   esac
-done
-
-## Default: --mode all (most thorough check).
-[ -n "${mode:-}" ] || mode="all"
-case "${mode}" in
-   all|working-tree)
-      [ -n "${context:-}" ] || context="main repo"
-      ;;
-esac
-
-## ----------------------------------------------------------------------------
-## Standalone bootstrap (skip if build infrastructure already sourced).
-## See agents/git_sanity_test_design.md for why this is conditional.
-## ----------------------------------------------------------------------------
-if [ "${dist_build_one_parsed:-}" != "true" ]; then
-   orig_pwd="${PWD}"
-   set -- "${forwarded_args[@]}"
-   dist_build_source_run="true"
-   source "${MYDIR}/pre"
-   source "${MYDIR}/variables"
-   cd -- "${orig_pwd}" || die 1 "cannot restore original cwd: ${orig_pwd}"
-   unset orig_pwd
-elif [ "${#forwarded_args[@]}" -gt 0 ]; then
-   ## Not re-running parse-cmd in build context.
-   printf '%s\n' "${0##*/}: ERROR: extra args not honoured in build context: ${forwarded_args[*]}" >&2
-   printf '%s\n' "${0##*/}:        Pass these on the parent build invocation instead." >&2
-   exit 1
-fi
-
-## Env var validation.
-[ -n "${sq_git_policy_file:-}" ]            || die 1 "env var sq_git_policy_file must be set"
-[ -n "${sq_git_trust_root:-}" ]             || die 1 "env var sq_git_trust_root must be set"
-[ -n "${dist_build_ignore_untagged:-}" ]    || die 1 "env var dist_build_ignore_untagged must be set ('true' or 'false')"
-[ -n "${dist_build_ignore_uncommitted:-}" ] || die 1 "env var dist_build_ignore_uncommitted must be set ('true' or 'false')"
-[ -n "${dist_build_ignore_unsigned:-}" ]    || die 1 "env var dist_build_ignore_unsigned must be set ('true' or 'false')"
-[[ "${sq_git_policy_file}" =~ ^/ ]]         || die 1 "sq_git_policy_file must be an absolute path, got: '${sq_git_policy_file}'"
-[ -r "${sq_git_policy_file}" ]              || die 1 "sq_git_policy_file is not readable: '${sq_git_policy_file}'"
-[[ "${dist_build_ignore_untagged}"    =~ ^(true|false)$ ]] || die 1 "dist_build_ignore_untagged must be 'true' or 'false', got: '${dist_build_ignore_untagged}'"
-[[ "${dist_build_ignore_uncommitted}" =~ ^(true|false)$ ]] || die 1 "dist_build_ignore_uncommitted must be 'true' or 'false', got: '${dist_build_ignore_uncommitted}'"
-[[ "${dist_build_ignore_unsigned}"    =~ ^(true|false)$ ]] || die 1 "dist_build_ignore_unsigned must be 'true' or 'false', got: '${dist_build_ignore_unsigned}'"
-
-## Pre-flight dependency checks. Explicit guards here are necessary because
-## help-steps/pre does 'set +e' and functions called from '|| cls=$?' have
-## errexit AND ERR trap suppressed for all commands inside them.
-die_if_not_has git sq sqop sq-git safe-rm
-
-## ----------------------------------------------------------------------------
 ## Verification primitives
 ## ----------------------------------------------------------------------------
 sq_git_verify() {
@@ -206,6 +131,18 @@ sq_git_verify() {
    if [ "${dist_build_ignore_unsigned}" = "true" ]; then
       if [ "${dist_build_redistributable}" = 'true' ]; then
          printf '%s\n' "${bold}${red}ERROR: --allow-unsigned set but 'dist_build_redistributable' is set to 'true'! These settings are mutually exclusive.${reset}" >&2
+         return 1
+      fi
+
+      ## Enforce the no-AI-skip policy at the CONSUMPTION point, not only in
+      ## parse-cmd's flag branch: dist_build_ignore_unsigned=true reaches here from
+      ## the env or a buildconfig.d snippet too, bypassing the flag. An AI session
+      ## (CLAUDECODE) or a context setting dist_build_forbid_allow_unsigned=true may
+      ## not skip verification; sign+tag with a throwaway key instead
+      ## (--sign-and-tag). Human override: dist_build_unlock_dangerous_options=true.
+      if { [ "${CLAUDECODE:-}" = "1" ] || [ "${dist_build_forbid_allow_unsigned:-}" = "true" ]; } \
+         && [ "${dist_build_unlock_dangerous_options:-}" != "true" ]; then
+         printf '%s\n' "${bold}${red}ERROR: skipping signature verification (dist_build_ignore_unsigned=true) is forbidden for an AI session (CLAUDECODE) or under dist_build_forbid_allow_unsigned=true. Use --sign-and-tag; human override: dist_build_unlock_dangerous_options=true.${reset}" >&2
          return 1
       fi
 
@@ -466,8 +403,11 @@ mode_ref() {
    [ -n "${ref:-}" ]      || die 1 "--ref is required for --mode ref"
    [ -n "${ref_type:-}" ] || die 1 "--ref-type is required for --mode ref"
    case "${ref_type}" in
-      tag|commit) ;;
-      *) die 1 "--ref-type must be 'tag' or 'commit'" ;;
+      tag|commit)
+         ;;
+      *)
+         die 1 "--ref-type must be 'tag' or 'commit'"
+         ;;
    esac
 
    local resolve_ref ref_commit
@@ -476,18 +416,30 @@ mode_ref() {
    ## For --ref-type commit: accept any commit-ish, skip tag classification.
    if [ "${ref_type:-}" = 'tag' ]; then
       case "${ref}" in
-         refs/tags/*)  resolve_ref="${ref}" ;;
-         refs/*)       die 1 "ref '${ref}' is declared as --ref-type tag but is not under refs/tags/" ;;
-         *)            resolve_ref="refs/tags/${ref}" ;;
+         refs/tags/*)
+            resolve_ref="${ref}"
+            ;;
+         refs/*)
+            die 1 "ref '${ref}' is declared as --ref-type tag but is not under refs/tags/"
+            ;;
+         *)
+            resolve_ref="refs/tags/${ref}"
+            ;;
       esac
       git show-ref --verify --quiet "${resolve_ref}" \
          || die 1 "tag ref not found: '${resolve_ref}'"
       local cls=0
       classify_tag "${resolve_ref}" "ref '${ref}'" || cls=$?
       case "${cls}" in
-         0) : ;;
-         1) die 1 "ref '${resolve_ref}' is a lightweight tag - not an annotated signed tag" ;;
-         2) die 1 "ref '${resolve_ref}' is annotated but not signed by a trusted developer - release tags must be signed" ;;
+         0)
+            ## annotated-signed: accept
+            ;;
+         1)
+            die 1 "ref '${resolve_ref}' is a lightweight tag - not an annotated signed tag"
+            ;;
+         2)
+            die 1 "ref '${resolve_ref}' is annotated but not signed by a trusted developer - release tags must be signed"
+            ;;
       esac
    else
       resolve_ref="${ref}"
@@ -536,10 +488,123 @@ mode_all() {
    mode_submodules
 }
 
-case "${mode}" in
-   working-tree) mode_working_tree ;;
-   ref)          mode_ref ;;
-   submodules)   mode_submodules ;;
-   all)          mode_all ;;
-   *) die 1 "unknown mode '${mode}' (expected one of working-tree, ref, submodules, all)" ;;
-esac
+main() {
+   set -o errexit
+   set -o nounset
+   set -o pipefail
+   set -o errtrace
+   shopt -s inherit_errexit
+   shopt -s shift_verbose
+   export LC_ALL=C
+
+   ## -------------------------------------------------------------------------
+   ## Argument parsing
+   ## -------------------------------------------------------------------------
+   ## Our args: --mode/--context/--ref/--ref-type/--help.
+   ## Everything else is forwarded to parse-cmd via the standalone bootstrap.
+   mode=""
+   context=""
+   ref=""
+   ref_type=""
+   forwarded_args=()
+
+   while [ $# -gt 0 ]; do
+      case "$1" in
+         --mode)
+            mode="$2"
+            shift 2
+            ;;
+         --context)
+            context="$2"
+            shift 2
+            ;;
+         --ref)
+            ref="$2"
+            shift 2
+            ;;
+         --ref-type)
+            ref_type="$2"
+            shift 2
+            ;;
+         --help|-h)
+            print_help
+            exit 0
+            ;;
+         ## Forward unknown args to parse-cmd (one token at a time).
+         *)
+            forwarded_args+=("$1")
+            shift
+            ;;
+      esac
+   done
+
+   ## Default: --mode all (most thorough check).
+   [ -n "${mode:-}" ] || mode="all"
+   case "${mode}" in
+      all|working-tree)
+         [ -n "${context:-}" ] || context="main repo"
+         ;;
+   esac
+
+   ## -------------------------------------------------------------------------
+   ## Standalone bootstrap (skip if build infrastructure already sourced).
+   ## See agents/git_sanity_test_design.md for why this is conditional.
+   ## -------------------------------------------------------------------------
+   if [ "${dist_build_one_parsed:-}" != "true" ]; then
+      orig_pwd="${PWD}"
+      set -- "${forwarded_args[@]}"
+      dist_build_source_run="true"
+      source "${MYDIR}/pre"
+      source "${MYDIR}/variables"
+      cd -- "${orig_pwd}" || die 1 "cannot restore original cwd: ${orig_pwd}"
+      unset orig_pwd
+   elif [ "${#forwarded_args[@]}" -gt 0 ]; then
+      ## Not re-running parse-cmd in build context.
+      printf '%s\n' "${0##*/}: ERROR: extra args not honoured in build context: ${forwarded_args[*]}" >&2
+      printf '%s\n' "${0##*/}:        Pass these on the parent build invocation instead." >&2
+      exit 1
+   fi
+
+   ## Env var validation.
+   [ -n "${sq_git_policy_file:-}" ]            || die 1 "env var sq_git_policy_file must be set"
+   [ -n "${sq_git_trust_root:-}" ]             || die 1 "env var sq_git_trust_root must be set"
+   [ -n "${dist_build_ignore_untagged:-}" ]    || die 1 "env var dist_build_ignore_untagged must be set ('true' or 'false')"
+   [ -n "${dist_build_ignore_uncommitted:-}" ] || die 1 "env var dist_build_ignore_uncommitted must be set ('true' or 'false')"
+   [ -n "${dist_build_ignore_unsigned:-}" ]    || die 1 "env var dist_build_ignore_unsigned must be set ('true' or 'false')"
+   [[ "${sq_git_policy_file}" =~ ^/ ]]         || die 1 "sq_git_policy_file must be an absolute path, got: '${sq_git_policy_file}'"
+   [ -r "${sq_git_policy_file}" ]              || die 1 "sq_git_policy_file is not readable: '${sq_git_policy_file}'"
+   [[ "${dist_build_ignore_untagged}"    =~ ^(true|false)$ ]] || die 1 "dist_build_ignore_untagged must be 'true' or 'false', got: '${dist_build_ignore_untagged}'"
+   [[ "${dist_build_ignore_uncommitted}" =~ ^(true|false)$ ]] || die 1 "dist_build_ignore_uncommitted must be 'true' or 'false', got: '${dist_build_ignore_uncommitted}'"
+   [[ "${dist_build_ignore_unsigned}"    =~ ^(true|false)$ ]] || die 1 "dist_build_ignore_unsigned must be 'true' or 'false', got: '${dist_build_ignore_unsigned}'"
+
+   ## Pre-flight dependency checks. Explicit guards here are necessary because
+   ## help-steps/pre does 'set +e' and functions called from '|| cls=$?' have
+   ## errexit AND ERR trap suppressed for all commands inside them.
+   die_if_not_has git sq sqop sq-git safe-rm
+
+   ## -------------------------------------------------------------------------
+   ## Dispatch
+   ## -------------------------------------------------------------------------
+   case "${mode}" in
+      working-tree)
+         mode_working_tree
+         ;;
+      ref)
+         mode_ref
+         ;;
+      submodules)
+         mode_submodules
+         ;;
+      all)
+         mode_all
+         ;;
+      *)
+         die 1 "unknown mode '${mode}' (expected one of working-tree, ref, submodules, all)"
+         ;;
+   esac
+}
+
+## Only auto-run when executed, not when sourced (unit tests source it).
+if was_executed "${BASH_SOURCE[0]}"; then
+   main "$@"
+fi
