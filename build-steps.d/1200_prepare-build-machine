@@ -467,20 +467,20 @@ Defaults:%${USER} runcwd=*
 }
 
 normalize-symlinks() {
-   ## Materialise real symlinks for every index entry recorded as mode 120000.
+   ## Flatten every git symlink (mode 120000) in the working tree to a text-file
+   ## placeholder holding its target -- the SECURE, reproducible canonical form
+   ## (see normalize_symlinks_in_tree). The same commit is checked out
+   ## differently per host: a core.symlinks=false host (the Kicksecure/Whonix
+   ## default, via security-misc-shared /etc/gitconfig) already has placeholders;
+   ## a plain host (git's default) has real symlinks. Flattening converges them,
+   ## so the same commit embeds the same bytes in the image.
    ##
-   ## WHY: core.symlinks=false is a security setting on Kicksecure hosts
-   ## (security-misc-shared /etc/gitconfig). Under it git checks a symlink out as
-   ## a small REGULAR FILE holding the target path, so a branding asset like
-   ## live-build-data/d-i-branding/logo_installer.png becomes a 15-byte text file
-   ## and lands in the image that way -- while CI, whose runner has the git
-   ## default, ships a real link. Same commit, different image.
-   ##
-   ## The build must not care how the tree was checked out, so it normalises the
-   ## tree itself. This does NOT touch git config and does NOT require
-   ## core.symlinks=true anywhere: git treats a real symlink and the text-file
-   ## form as equally clean when core.symlinks=false, so the working tree stays
-   ## clean either way.
+   ## Pin core.symlinks=false per tree FIRST. It makes git read a mode-120000
+   ## entry as its text blob, so the flattened placeholders show as CLEAN -- a
+   ## plain host would otherwise report every one as a 'T' typechange -- and it
+   ## points a plain builder at the same security setting instead of
+   ## re-materialising real links on its next checkout. (false only; the git
+   ## guard rightly refuses core.symlinks=true.)
    local tree_path
 
    ## The parent, then every submodule. Iterated HERE in bash rather than by
@@ -491,6 +491,8 @@ normalize-symlinks() {
    ## is used only to PRINT paths, which any shell can do.
    while IFS= read -r tree_path; do
       [ -n "${tree_path}" ] || continue
+      env --unset=GIT_DIR --unset=GIT_WORK_TREE --unset=GIT_INDEX_FILE \
+         git -C "${tree_path}" config core.symlinks false 2>/dev/null || true
       normalize_symlinks_in_tree "${tree_path}"
       normalize_file_modes_in_tree "${tree_path}"
    done < <(
