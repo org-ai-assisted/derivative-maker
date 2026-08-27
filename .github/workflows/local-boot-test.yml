@@ -221,6 +221,7 @@ jobs:
         run: >-
           ./docker/derivative-maker-docker-run --
           bash -c "export dist_build_sign_and_tag=true &&
+          export dist_build_unlock_dangerous_options=true &&
           ./help-steps/signing-key-create && ./help-steps/sign-and-tag &&
           env dist_build_target_arch='${ARCH}' flavors_list='${FLAVOR}'
           dist_build_multi_target_list='${MULTI_TARGET_LIST}'
