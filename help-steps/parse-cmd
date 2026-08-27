@@ -741,6 +741,25 @@ dist_build_one_parse_cmd() {
                   true "${cyan}INFO: Would verify commit signatures (git_sanity_test).${reset}"
                   export dist_build_ignore_unsigned="false"
                elif [ "${2:-}" = "true" ]; then
+                  ## Skipping signature verification is a HUMAN escape hatch. An AI
+                  ## agent (CLAUDECODE) must not use it -- it has a sanctioned
+                  ## alternative (--sign-and-tag) that keeps verification meaningful.
+                  ## dist_build_forbid_allow_unsigned lets any other context (CI, a
+                  ## hardened policy) forbid it too. Both are overridable only by the
+                  ## explicit dangerous-options unlock.
+                  if { [ "${CLAUDECODE:-}" = "1" ] \
+                        || [ "${dist_build_forbid_allow_unsigned:-}" = "true" ]; } \
+                     && [ "${dist_build_unlock_dangerous_options:-}" != "true" ]; then
+                     error "\
+${red}${bold}--allow-unsigned true is refused here: commit-signature verification must not be skipped.${reset}
+An AI agent (CLAUDECODE set) or a context setting 'dist_build_forbid_allow_unsigned=true'
+is blocked by policy from skipping sq-git verification of the submodule HEADs.
+Sign and tag HEAD with a throwaway key instead, so verification still runs:
+  --sign-and-tag true
+  (or ./help-steps/signing-key-create && ./help-steps/sign-and-tag)
+Human override, if you fully understand the consequences:
+  dist_build_unlock_dangerous_options=true"
+                  fi
                   true "${cyan}INFO: Would skip commit signature verification (git_sanity_test).${reset}"
                   export dist_build_ignore_unsigned="true"
                else
