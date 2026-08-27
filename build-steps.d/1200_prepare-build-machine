@@ -475,12 +475,12 @@ normalize-symlinks() {
    ## a plain host (git's default) has real symlinks. Flattening converges them,
    ## so the same commit embeds the same bytes in the image.
    ##
-   ## Pin core.symlinks=false per tree FIRST. It makes git read a mode-120000
-   ## entry as its text blob, so the flattened placeholders show as CLEAN -- a
-   ## plain host would otherwise report every one as a 'T' typechange -- and it
-   ## points a plain builder at the same security setting instead of
-   ## re-materialising real links on its next checkout. (false only; the git
-   ## guard rightly refuses core.symlinks=true.)
+   ## Pin core.symlinks=false GLOBALLY (one setting, not a per-tree loop): git then
+   ## reads every mode-120000 entry as its text blob in the parent and all submodules
+   ## alike, so flattened placeholders show CLEAN, not a 'T' typechange, and a plain
+   ## builder converges on the same secure setting. (false only -- the git guard
+   ## rightly refuses true.)
+   git config --global core.symlinks false
    local tree_path
 
    ## The parent, then every submodule. Iterated HERE in bash rather than by
@@ -491,8 +491,6 @@ normalize-symlinks() {
    ## is used only to PRINT paths, which any shell can do.
    while IFS= read -r tree_path; do
       [ -n "${tree_path}" ] || continue
-      env --unset=GIT_DIR --unset=GIT_WORK_TREE --unset=GIT_INDEX_FILE \
-         git -C "${tree_path}" config core.symlinks false 2>/dev/null || true
       normalize_symlinks_in_tree "${tree_path}"
       normalize_file_modes_in_tree "${tree_path}"
    done < <(
