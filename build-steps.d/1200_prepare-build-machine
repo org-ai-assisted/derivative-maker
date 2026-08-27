@@ -526,12 +526,21 @@ normalize_file_modes_in_tree() {
          100755)
             target_mode=0755
             ;;
+         120000)
+            ## A symlink flattened to a text placeholder by
+            ## normalize_symlinks_in_tree (which runs first per tree). git has no
+            ## recorded file mode for a symlink, so pin the placeholder to 0644;
+            ## otherwise the checkout umask leaks through a plain-cp image copy.
+            target_mode=0644
+            ;;
          *)
             continue
             ;;
       esac
       file_path="${tree}/${entry#*$'\t'}"
       [ -f "${file_path}" ] || continue
+      ## A 120000 entry still a real symlink here means flattening was skipped;
+      ## do not chmod the link (and chmod would touch its target, not the link).
       [ -L "${file_path}" ] && continue
       chmod -- "${target_mode}" "${file_path}" 2>/dev/null || true
    done < <( env --unset=GIT_DIR --unset=GIT_WORK_TREE --unset=GIT_INDEX_FILE git -C "${tree}" ls-files --stage -z 2>/dev/null || true )
@@ -540,6 +549,16 @@ normalize_file_modes_in_tree() {
 normalize_symlinks_in_tree() {
    local tree="$1" entry link_path link_target
 
+   ## Flatten every REAL symlink into a text-file placeholder holding its target
+   ## -- the SECURE canonical form. Reproducibility only needs ONE form used
+   ## fleet-wide (a plain-Debian builder with real symlinks and a hardened
+   ## Kicksecure builder with placeholders would otherwise embed different bytes
+   ## for the same commit); which form is free to choose, so security decides it:
+   ## an inert path-string placeholder cannot point outside the tree or escape a
+   ## chroot the way a materialised symlink can. A mode-120000 entry git already
+   ## checked out as text -- a core.symlinks=false host, the Kicksecure/Whonix
+   ## default -- is byte-identical and left untouched.
+   ##
    ## '-z' is required, not tidiness: without it git C-quotes any path with a
    ## non-ASCII or special character ("l\303\244tt.png"), and the quoted string
    ## names no existing file, so those entries are silently skipped -- exactly
@@ -554,26 +573,18 @@ normalize_symlinks_in_tree() {
       esac
       ## Format: '<mode> <sha> <stage>\t<path>'.
       link_path="${tree}/${entry#*$'\t'}"
-      ## Already a real link: nothing to do.
-      if [ -L "${link_path}" ]; then
-         continue
-      fi
-      [ -f "${link_path}" ] || continue
-      ## Append+strip a sentinel so command substitution does not eat a trailing
-      ## newline: a target ending in '\n' (or a mistagged real file ending in one)
-      ## would otherwise slip past the multi-line guard below and be mis-converted.
-      link_target="$(cat -- "${link_path}"; printf '%s' x)"
-      link_target="${link_target%x}"
-      ## A materialised symlink is a single line naming a relative path. An empty
-      ## or multi-line file is a real file whose mode is recorded wrongly; leave
-      ## it rather than guess.
-      case "${link_target}" in
-         ""|*$'\n'*)
-            continue
-            ;;
-      esac
+      ## Only a REAL symlink needs flattening; a text placeholder is already the
+      ## canonical form -- leave its bytes exactly as git wrote them.
+      [ -L "${link_path}" ] || continue
+      ## The placeholder content is the target with NO trailing newline: exactly
+      ## the bytes git writes a mode-120000 blob as on a core.symlinks=false
+      ## checkout, so both host kinds converge on identical bytes. The sentinel
+      ## preserves a target that itself ends in a newline (readlink appends one of
+      ## its own, which the strip removes).
+      link_target="$( readlink -- "${link_path}"; printf 'x' )"
+      link_target="${link_target%$'\n'x}"
       safe-rm --force -- "${link_path}"
-      ln --symbolic -- "${link_target}" "${link_path}"
+      printf '%s' "${link_target}" > "${link_path}"
    done < <( env --unset=GIT_DIR --unset=GIT_WORK_TREE --unset=GIT_INDEX_FILE git -C "${tree}" ls-files --stage -z 2>/dev/null || true )
 }
 
