@@ -40,7 +40,7 @@ dist_build_source_run="true"
 
 source pre
 source variables
-source "${dist_developer_meta_files_folder}/usr/libexec/developer-meta-files/reprepro-freshness.bsh"
+source "${dist_developer_meta_files_folder}/usr/libexec/developer-meta-files/package-build-freshness.bsh"
 
 cd "${MYDIR}"
 cd ..
