@@ -342,7 +342,7 @@ check-sufficient-disk() {
       return 0
    fi
    avail_gib=$(( avail_kib / 1024 / 1024 ))
-   true "${bold}${cyan}INFO: ${BASH_SOURCE[0]}: ${avail_gib} GiB free in '${build_folder}' (minimum ${minimum_gib} GiB).${reset}"
+   true "${bold}${cyan}INFO: ${BASH_SOURCE[0]}: ${avail_gib} GiB disk space free in '${build_folder}' (minimum ${minimum_gib} GiB).${reset}"
    if [ "${avail_gib}" -lt "${minimum_gib}" ]; then
       error "${bold}${red}ERROR ${BASH_SOURCE[0]}: only ${avail_gib} GiB free in the build output folder \
 '${build_folder}', but at least ${minimum_gib} GiB needed.${reset}"
