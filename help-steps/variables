@@ -435,11 +435,13 @@ export dist_build_sources_list_primary
 if [ "${dist_build_flavor:-}" = "source" ]; then
    [ -n "${dist_build_type_long:-}" ] || dist_build_type_long="source"
    [ -n "${dist_build_type_short:-}" ] || dist_build_type_short="source"
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=2
 fi
 
 if [ "${dist_build_flavor:-}" = "dist-installer-cli" ]; then
    [ -n "${dist_build_type_long:-}" ] || dist_build_type_long="dist-installer-cli"
    [ -n "${dist_build_type_short:-}" ] || dist_build_type_short="dist-installer-cli"
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=2
 fi
 
 if [ "${dist_build_flavor:-}" = "whonix-gateway-lxqt" ]; then
@@ -627,6 +629,7 @@ if [ "${dist_build_source_run:-}" = "true" ]; then
    [ -n "${dist_build_type_long:-}" ] || dist_build_type_long="source"
    [ -n "${dist_build_type_short:-}" ] || dist_build_type_short="source"
    [ -n "${dist_build_desktop:-}" ] || dist_build_desktop="none"
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=2
 fi
 
 ## Some flavor/target combinations do not set 'dist_build_type_long' in the
