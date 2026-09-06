@@ -1,0 +1,44 @@
+#!/bin/bash
+
+## Copyright (C) 2026 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## See the file COPYING for copying conditions.
+
+## Compare the two independent reproducibility runners' source tarballs
+## (derivative-maker-source-<version>.xz) byte-for-byte. A source tarball is a
+## pure function of the NORMALIZED source tree -- no host-compiled bytes -- so any
+## difference is a real normalize/tar nondeterminism, not a package-build one.
+##
+## Usage: ci/compare-source-tarballs <dir-a> <dir-b>
+## Exit:  0 reproducible (byte-identical), 1 differ, 2 usage / tarball not found.
+
+set -o errexit
+set -o nounset
+set -o pipefail
+set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+export LC_ALL=C
+
+dir_a="${1:-}"
+dir_b="${2:-}"
+if [ -z "${dir_a}" ] || [ -z "${dir_b}" ]; then
+   printf '%s\n' "usage: ${0##*/} <dir-a> <dir-b>" >&2
+   exit 2
+fi
+
+tarball_a="$( find "${dir_a}" -name 'derivative-maker-source-*.xz' -print -quit )"
+tarball_b="$( find "${dir_b}" -name 'derivative-maker-source-*.xz' -print -quit )"
+if [ -z "${tarball_a}" ] || [ -z "${tarball_b}" ]; then
+   printf '%s\n' "source tarball not found (a='${tarball_a}' b='${tarball_b}')" >&2
+   exit 2
+fi
+
+printf 'A %s\n' "$( sha256sum "${tarball_a}" )"
+printf 'B %s\n' "$( sha256sum "${tarball_b}" )"
+
+if cmp --silent "${tarball_a}" "${tarball_b}"; then
+   printf '%s\n' "SOURCE TARBALL REPRODUCIBLE: byte-identical across two independent builds."
+else
+   printf '%s\n' "SOURCE TARBALL DIFFERS: not reproducible." >&2
+   exit 1
+fi

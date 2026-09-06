@@ -10,6 +10,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 ## style-ok: no-safe-rm -- this is the sanity/bootstrap step that installs safe-rm.
 ## style-ok: allow-echo -- the only 'echo' occurrences are inside strings.
@@ -104,71 +105,6 @@ check-git-folder() {
    ## A few places in the source code use "git clean" or "git describe".
    if ! test -e "${source_code_folder_dist}/.git" ; then
       error "${source_code_folder_dist}/.git does not exist."
-   fi
-}
-
-## FIXME: This check is both broken and misguided.
-##
-## * No package repo under derivative-maker contains a symlink, by design. Any
-##   symlinks found in those repositories (whether real symlinks or Git-tracked
-##   "symlinks") should result in an error.
-## * There are repos with Git-tracked symlinks that do not and should not show
-##   up in the filesystem as real symlinks (namely qubes-template-whonix and
-##   live-build). We should not error out because of these.
-##
-## Therefore this function is disabled further down.
-# shellcheck disable=SC2317
-check-git-symlinks() {
-   local repo_list repo_rel repo_abs entry mode file_path broken_list broken_count
-
-   ## Every path the index records as a symlink (mode 120000) must be a symlink in
-   ## the working tree.
-   broken_list=""
-   broken_count=0
-
-   repo_list=(".")
-   # shellcheck disable=SC2016
-   mapfile -t -d '' -O "${#repo_list[@]}" repo_list < <(
-      git -C "${source_code_folder_dist}" submodule --quiet foreach --recursive 'printf "%s\0" "${displaypath}"'
-   )
-
-   ## example repo_list:
-   ## ( '.' 'grml-debootstrap' 'packages/kicksecure/helper-scripts' ... )
-
-   for repo_rel in "${repo_list[@]}" ; do
-      repo_abs="${source_code_folder_dist}/${repo_rel}"
-      test -d "${repo_abs}" || continue
-      ## FIXME: This check is broken for two reasons:
-      ##
-      ## * A stray GIT_DIR environment variable could fool it
-      ## * The check will pass even if the directory isn't a repo because the
-      ##   dir is a subdirectory of derivative-maker, which is a git dir
-      if ! git -C "${repo_abs}" rev-parse --git-dir >/dev/null 2>&1 ; then
-         true "${cyan}INFO: ${repo_rel}: not a git repository (submodule not initialized?); no symlinks to verify there.${reset}"
-         continue
-      fi
-      while IFS= read -r -d '' entry ; do
-         mode="${entry%% *}"
-         if [ ! "${mode}" = "120000" ]; then
-            continue
-         fi
-         file_path="${entry#*$'\t'}"
-         if test -L "${repo_abs}/${file_path}" ; then
-            continue
-         fi
-         broken_count=$(( broken_count + 1 ))
-         broken_list="${broken_list}
-  ${repo_rel}/${file_path}"
-      done < <(git -C "${repo_abs}" ls-files --stage -z)
-   done
-
-   if [ "${broken_count}" -gt 0 ]; then
-      error "\
-git materialized ${broken_count} symlink(s) as regular files. This is normal,
-but a function designed to find them was erroneously enabled. Broken symlink
-list:
-
-${broken_list}"
    fi
 }
 
@@ -331,7 +267,7 @@ check-sufficient-disk() {
    ## Fail early when the build output folder lacks the disk space a full build
    ## needs.
    local build_folder avail_kib avail_gib minimum_gib
-   minimum_gib="${dist_build_min_free_gib}"
+   minimum_gib="${dist_build_min_free_gib:-20}"
    build_folder="${binary_build_folder_dist:-}"
    if [ -z "${build_folder}" ] || [ ! -d "${build_folder}" ]; then
       build_folder="${HOME}"
@@ -342,7 +278,7 @@ check-sufficient-disk() {
       return 0
    fi
    avail_gib=$(( avail_kib / 1024 / 1024 ))
-   true "${bold}${cyan}INFO: ${BASH_SOURCE[0]}: ${avail_gib} GiB disk space free in '${build_folder}' (minimum ${minimum_gib} GiB).${reset}"
+   true "${bold}${cyan}INFO: ${BASH_SOURCE[0]}: ${avail_gib} GiB free in '${build_folder}' (minimum ${minimum_gib} GiB).${reset}"
    if [ "${avail_gib}" -lt "${minimum_gib}" ]; then
       error "${bold}${red}ERROR ${BASH_SOURCE[0]}: only ${avail_gib} GiB free in the build output folder \
 '${build_folder}', but at least ${minimum_gib} GiB needed.${reset}"
@@ -706,8 +642,6 @@ main() {
    test-wc "$@"
    check-redistributable-builds-requirements "$@"
    check-git-folder "$@"
-   ## Broken, see FIXME above function
-   # check-git-symlinks "$@"
    check-operating-system-version "$@"
    check-sudo "$@"
    check-dpkg "$@"

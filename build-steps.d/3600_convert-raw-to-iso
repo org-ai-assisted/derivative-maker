@@ -64,7 +64,7 @@ create-live-build-image() {
    pushd -- "${dist_live_build_folder}"
 
    ## Avoid errors related to /dev/null when running under Qubes OS
-   if LC_ALL=C mount | grep ' on /home ' | grep -q 'nodev'; then
+   if LC_ALL=C mount | grep ' on /home ' | grep --quiet 'nodev'; then
       ${SUDO_TO_ROOT} mount -o remount,rw,dev /home
    fi
 

@@ -17,11 +17,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
-
-## style-ok: no-safe-rm -- this script only chowns CI cache dirs, it removes nothing.
-##
-## TODO: If we don't have any rm call in this script, we should fix the scanner
-## script to not warn about it rather than adding a style-ok exclusion here.
+export LC_ALL=C
 
 if [ "${CI:-}" != "true" ]; then
    printf '%s\n' "${0##*/}: refusing to chown cache dirs outside CI (CI is not 'true')" >&2
@@ -37,12 +33,9 @@ cache_dirs=(
    "${HOME}/approx_cache_mnt"
 )
 
-## FIXME: Either cache_dirs/cache_dir only refer to directories, or they can
-## refer to either dirs or files. If the former, the 'if' check below should
-## use -d rather than -e; otherwise cache_dirs/cache_dir should become
-## cache_fsos/cache_fso.
+## cache_dirs are all directories; test -d, not -e.
 for cache_dir in "${cache_dirs[@]}"; do
-   if [ -e "${cache_dir}" ]; then
+   if [ -d "${cache_dir}" ]; then
       sudo chown --recursive -- "${runner_owner}" "${cache_dir}" || true
    fi
 done

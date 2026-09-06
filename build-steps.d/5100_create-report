@@ -18,6 +18,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -46,10 +47,9 @@ compare_target() {
       return 0
    fi
 
-   ## FIXME: .diffoscope.txt is a misleading filename extension,
-   ## dm-reproducible-compare-artifacts outputs more than bare diffoscope
-   ## output to its report file.
-   report_out="${binary_build_folder_dist}/$(basename -- "${artifact}").diffoscope.txt"
+   ## dm-reproducible-compare-artifacts writes more than bare diffoscope output,
+   ## so a neutral '.compare-report.txt' extension, not '.diffoscope.txt'.
+   report_out="${binary_build_folder_dist}/$(basename -- "${artifact}").compare-report.txt"
    true "${cyan}INFO: comparing ${target} build vs reference with diffoscope...${reset}"
 
    compare_exit_code="0"
@@ -88,9 +88,8 @@ main() {
       return 0
    fi
 
-   ## TODO: (not applicable to AI agents) We should document in the wiki how to
-   ## do a reproducible build and compare it to a reference artifact. This
-   ## script is not the right place to document that info.
+   ## REMINDER (not applicable to AI agents): document in the wiki how to do a
+   ## reproducible build and compare it to a reference artifact; not here.
    if [ "${dist_build_reproducible_reference_folder:-}" = "" ]; then
       true "${bold}${cyan}INFO: dist_build_reproducible_reference_folder is unset, no reference to compare with. Skipping, OK.${reset}"
       return 0

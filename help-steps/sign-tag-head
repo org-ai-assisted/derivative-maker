@@ -19,6 +19,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 repo_root="$(cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/.." && pwd)"
 
@@ -83,23 +84,6 @@ else
    signed_tag="tag_${commit_full_sha}_${signing_key_fpr}"
 fi
 
-## If the tag this run would create already exists at HEAD, a prior run with
-## this key already tagged this commit. The tag will be verified later, so just
-## checking the name and ensuring it's not a lightweight tag is enough here.
-##
-## TODO: How is this not redundant with the `verify_ref` check below? If the
-## tag we're about to create already exists, then we certainly have the public
-## key for that tag and it will pass verification, causing us to exit 0 then.
-#for tag_ref in "${tags_at_head[@]}"; do
-#   if [ "${tag_ref#refs/tags/}" != "${signed_tag}" ]; then
-#      continue
-#   fi
-#   tag_object_type="$(git cat-file -t "${tag_ref}" 2>/dev/null || true)"
-#   if [ "${tag_object_type}" = 'tag' ]; then
-#      printf '%s\n' "${BASH_SOURCE[0]}: ${context_label} already tagged this commit with this signing key: ${signed_tag}"
-#      exit 0
-#   fi
-#done
 
 case "${#tags_at_head[@]}" in
    0)

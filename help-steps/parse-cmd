@@ -16,6 +16,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 HELPER_SCRIPTS_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/../packages/kicksecure/helper-scripts"
 export HELPER_SCRIPTS_PATH
@@ -89,7 +90,7 @@ parse_cmd_freedom_versus_nonfreedom_firmware_choice_check() {
 }
 
 error_dangerous_option_maybe() {
-  if [ "${dist_build_unlock_dangerous_options}" = 'true' ]; then
+  if [ "${dist_build_unlock_dangerous_options:-}" = 'true' ]; then
     return 0
   fi
   error "\
@@ -201,8 +202,8 @@ Environment Variables:
 
 Advanced Options:
   --report [true|false]           : Enable or disable build reports (default: false).
-  --serial-console-enable [true|false] : Install serial-console-enable, enable serial console on ISO builds (default: false).
-  --smbios-reader [true|false]    : DANGEROUS, DO NOT USE. Allow injecting kernel parameters via the SMBIOS serial number field. This will allow attackers with physical access to inject arbitrary kernel parameters into the boot process! Only useful for CI.
+  --serial-console-enable [true|false] : Install serial-console-enable and add a serial console (ttyS0) to the boot cmdline / GRUB menu, so the image can be driven headless over serial (default: false).
+  --smbios-reader [true|false]    : Ship the GRUB SMBIOS kernel-cmdline reader, so a boot-tester can inject cmdline via 'qemu -smbios' (dm-qemu --smbios-append). Boot-test images only -- it turns a firmware-supplied string into kernel cmdline, which Secure Boot does not authenticate (default: false).
   --sanity-tests [true|false]     : Enable or disable chroot script sanity tests for faster build speed (default: false).
   --only-packages 'p1 p2'         : Rebuild only listed packages into the persistent local repo, reuse the rest from the prior build.
   --skip-packages                 : Skip package building entirely and reuse the whole local package repo from the prior build.
@@ -225,7 +226,7 @@ Advanced Options:
   --kernel [packages]             : Specify kernel packages (e.g., 'linux-image-amd64' or 'none').
   --headers [packages]            : Specify kernel header packages.
   --remote-derivative-packages    : Choose to use remote derivative packages instead of building derivative packages from source code. (default: false).
-  --release [unsupported_option]  : Set release option (unsupported). (trixie|bookworm|xenial|bionic)
+  --release [unsupported_option]  : Set release option (unsupported). (trixie|bookworm)
   --arch [architecture]           : Set architecture (pick one of the following)
     ${architecture_all_list[*]}
     (Note: amd64 also works with most Intel CPUs.)
@@ -541,7 +542,7 @@ dist_build_one_parse_cmd() {
                   export BUILD_INITRAMFS_PKGS="none"
                   true "${cyan}BUILD_INITRAMFS_PKGS set to ${BUILD_INITRAMFS_PKGS}.${reset}"
                else
-                  export BUILD_INITRAMFS_PKGS="${BUILD_INITRAMFS_PKGS} ${2:-}"
+                  export BUILD_INITRAMFS_PKGS="${BUILD_INITRAMFS_PKGS:-} ${2:-}"
                   true "${cyan}BUILD_INITRAMFS_PKGS set to ${BUILD_INITRAMFS_PKGS}.${reset}"
                fi
                shift 2
@@ -554,7 +555,7 @@ dist_build_one_parse_cmd() {
                   export BUILD_KERNEL_PKGS="none"
                   true "${cyan}BUILD_KERNEL_PKGS set to ${BUILD_KERNEL_PKGS}.${reset}"
                else
-                  export BUILD_KERNEL_PKGS="${BUILD_KERNEL_PKGS} ${2:-}"
+                  export BUILD_KERNEL_PKGS="${BUILD_KERNEL_PKGS:-} ${2:-}"
                   true "${cyan}BUILD_KERNEL_PKGS set to ${BUILD_KERNEL_PKGS}.${reset}"
                fi
                shift 2
@@ -567,7 +568,7 @@ dist_build_one_parse_cmd() {
                   export BUILD_HEADER_PKGS="none"
                   true "${cyan}BUILD_HEADER_PKGS set to ${BUILD_HEADER_PKGS}.${reset}"
                else
-                  export BUILD_HEADER_PKGS="${BUILD_HEADER_PKGS} ${2:-}"
+                  export BUILD_HEADER_PKGS="${BUILD_HEADER_PKGS:-} ${2:-}"
                   true "${cyan}BUILD_HEADER_PKGS set to ${BUILD_HEADER_PKGS}.${reset}"
                fi
                shift 2
@@ -598,9 +599,8 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
            --smbios-reader)
-               error_dangerous_option_maybe '--smbios-reader'
                if [ "${2:-}" = "true" ]; then
-                  true "${cyan}INFO: SMBIOS kernel parameter injection enabled.${reset}"
+                  true "${cyan}INFO: SMBIOS cmdline reader enabled: the image's GRUB will append the SMBIOS Type 1 serial number (after a 'dm-cmdline=' sentinel) to the kernel command line. For boot-test images only.${reset}"
                   export dist_build_smbios_reader="true"
                elif [ "${2:-}" = "false" ]; then
                   export dist_build_smbios_reader="false"
@@ -611,7 +611,9 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
            --only-packages)
-               ## FIXME: Pick a less generic name for this variable, this is confusing.
+               ## pkg_list is the shared package-selection list (default from
+               ## buildconfig.d/30_pkg_list.conf, consumed by 2100); --only-packages
+               ## overrides it with a user-specified subset.
                export pkg_list="${2:-}"
                true "${cyan}INFO: --only-packages: rebuilding only '${pkg_list}', reusing the rest.${reset}"
                shift 2
@@ -630,6 +632,7 @@ dist_build_one_parse_cmd() {
                export dist_build_package_jobs="${2:-}"
                if ! [[ "${dist_build_package_jobs}" =~ ^(0|[1-9][0-9]*)$ ]]; then
                   printf '%s\n' "${red}${bold}ERROR: --package-jobs must be passed a whole integer.${reset}"
+                  exit 1
                fi
                true "${cyan}INFO: --package-jobs: up to '${dist_build_package_jobs}' concurrent package build(s).${reset}"
                shift 2
@@ -739,6 +742,25 @@ dist_build_one_parse_cmd() {
                   true "${cyan}INFO: Would verify commit signatures (git_sanity_test).${reset}"
                   export dist_build_ignore_unsigned="false"
                elif [ "${2:-}" = "true" ]; then
+                  ## Skipping signature verification is a HUMAN escape hatch. An AI
+                  ## agent (CLAUDECODE) must not use it -- it has a sanctioned
+                  ## alternative (--sign-and-tag) that keeps verification meaningful.
+                  ## dist_build_forbid_allow_unsigned lets any other context (CI, a
+                  ## hardened policy) forbid it too. Both are overridable only by the
+                  ## explicit dangerous-options unlock.
+                  if { [ "${CLAUDECODE:-}" = "1" ] \
+                        || [ "${dist_build_forbid_allow_unsigned:-}" = "true" ]; } \
+                     && [ "${dist_build_unlock_dangerous_options:-}" != "true" ]; then
+                     error "\
+${red}${bold}--allow-unsigned true is refused here: commit-signature verification must not be skipped.${reset}
+An AI agent (CLAUDECODE set) or a context setting 'dist_build_forbid_allow_unsigned=true'
+is blocked by policy from skipping sq-git verification of the submodule HEADs.
+Sign and tag HEAD with a throwaway key instead, so verification still runs:
+  --sign-and-tag true
+  (or ./help-steps/signing-key-create && ./help-steps/sign-and-tag)
+Human override, if you fully understand the consequences:
+  dist_build_unlock_dangerous_options=true"
+                  fi
                   true "${cyan}INFO: Would skip commit signature verification (git_sanity_test).${reset}"
                   export dist_build_ignore_unsigned="true"
                else

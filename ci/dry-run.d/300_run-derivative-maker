@@ -77,7 +77,7 @@ cd -- "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../.."
 ## 1300, and one real '.deb' built in 1400 -- and a timeout that fires mid-build
 ## reads as a lane failure with no diagnosis. NOT the derivative package set:
 ## 2100_create-debian-packages returns immediately under --dry-run.
-timeout 3600 \
+timeout --kill-after=3600 3600 \
    ./help-steps/run-as-user --chown "${PWD}" -- \
       "${target_user}" \
       env CI=true \

@@ -20,6 +20,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -465,17 +466,126 @@ Defaults:%${USER} runcwd=*
    ${SUDO_TO_ROOT} visudo --strict --check /etc/sudoers.d/derivative-maker
 }
 
-## Convert real symlinks into link ref files, like what Git creates when
-## core.symlinks=false is set. Usually a no-op, but may be useful when building
-## source tarballs on systems without Kicksecure's Git config.
 normalize-symlinks() {
-   local symlink_location symlink_target
+   ## Flatten every git symlink (mode 120000) in the working tree to a text-file
+   ## placeholder holding its target -- the SECURE, reproducible canonical form
+   ## (see normalize_symlinks_in_tree). The same commit is checked out
+   ## differently per host: a core.symlinks=false host (the Kicksecure/Whonix
+   ## default, via security-misc-shared /etc/gitconfig) already has placeholders;
+   ## a plain host (git's default) has real symlinks. Flattening converges them,
+   ## so the same commit embeds the same bytes in the image.
+   ##
+   ## Pin core.symlinks=false GLOBALLY (one setting, not a per-tree loop): git then
+   ## reads every mode-120000 entry as its text blob in the parent and all submodules
+   ## alike, so flattened placeholders show CLEAN, not a 'T' typechange, and a plain
+   ## builder converges on the same secure setting. (false only -- the git guard
+   ## rightly refuses true.)
+   git config --global core.symlinks false
+   local tree_path
 
-   while IFS= read -r -d '' symlink_location; do
-      symlink_target="$(readlink -- "${symlink_location}")"
-      safe-rm -f -- "${symlink_location}"
-      printf '%s' "${symlink_target}" > "${symlink_location}"
-   done < <(find "${source_code_folder_dist}" -type l -print0)
+   ## The parent, then every submodule. Iterated HERE in bash rather than by
+   ## running the work inside 'git submodule foreach': foreach executes its
+   ## argument with sh (dash on Debian), where an exported bash function does not
+   ## exist -- it fails "command not found", and a '|| true' would hide that,
+   ## leaving every submodule un-normalised while appearing to succeed. foreach
+   ## is used only to PRINT paths, which any shell can do.
+   while IFS= read -r tree_path; do
+      [ -n "${tree_path}" ] || continue
+      normalize_symlinks_in_tree "${tree_path}"
+      normalize_file_modes_in_tree "${tree_path}"
+   done < <(
+      printf '%s\n' "${source_code_folder_dist}"
+      ## Single quotes deliberate: ${PWD} must be expanded by foreach's OWN
+      ## shell in each submodule, not by this one. env --unset clears any inherited
+      ## GIT_DIR/GIT_WORK_TREE (e.g. exported by an enclosing 'git submodule
+      ## foreach') that would otherwise override -C and enumerate the wrong repo.
+      # shellcheck disable=SC2016
+      env --unset=GIT_DIR --unset=GIT_WORK_TREE --unset=GIT_INDEX_FILE \
+         git -C "${source_code_folder_dist}" submodule --quiet foreach --recursive \
+         'printf "%s\n" "${PWD}"' 2>/dev/null || true
+   )
+}
+
+normalize_file_modes_in_tree() {
+   local tree="$1" entry file_mode file_path target_mode
+
+   ## git records only 100644 / 100755, and CHECKOUT applies the umask on top:
+   ## 0644 on a umask-022 host, 0660 on a umask-007 one. Any build step that
+   ## copies a source file with a plain 'cp' then carries that mode into the
+   ## image -- grml-debootstrap does exactly this for /etc/debootstrap/packages,
+   ## which came out 0644 in CI and 0640 locally for the same commit.
+   ##
+   ## Pinning the build's umask does not help: the checkout happened BEFORE the
+   ## build. So the tree is normalised to the mode git actually records.
+   while IFS= read -r -d '' entry; do
+      file_mode="${entry%% *}"
+      case "${file_mode}" in
+         100644)
+            target_mode=0644
+            ;;
+         100755)
+            target_mode=0755
+            ;;
+         120000)
+            ## A symlink flattened to a text placeholder by
+            ## normalize_symlinks_in_tree (which runs first per tree). git has no
+            ## recorded file mode for a symlink, so pin the placeholder to 0644;
+            ## otherwise the checkout umask leaks through a plain-cp image copy.
+            target_mode=0644
+            ;;
+         *)
+            continue
+            ;;
+      esac
+      file_path="${tree}/${entry#*$'\t'}"
+      [ -f "${file_path}" ] || continue
+      ## A 120000 entry still a real symlink here means flattening was skipped;
+      ## do not chmod the link (and chmod would touch its target, not the link).
+      [ -L "${file_path}" ] && continue
+      chmod -- "${target_mode}" "${file_path}" 2>/dev/null || true
+   done < <( env --unset=GIT_DIR --unset=GIT_WORK_TREE --unset=GIT_INDEX_FILE git -C "${tree}" ls-files --stage -z 2>/dev/null || true )
+}
+
+normalize_symlinks_in_tree() {
+   local tree="$1" entry link_path link_target
+
+   ## Flatten every REAL symlink into a text-file placeholder holding its target
+   ## -- the SECURE canonical form. Reproducibility only needs ONE form used
+   ## fleet-wide (a plain-Debian builder with real symlinks and a hardened
+   ## Kicksecure builder with placeholders would otherwise embed different bytes
+   ## for the same commit); which form is free to choose, so security decides it:
+   ## an inert path-string placeholder cannot point outside the tree or escape a
+   ## chroot the way a materialised symlink can. A mode-120000 entry git already
+   ## checked out as text -- a core.symlinks=false host, the Kicksecure/Whonix
+   ## default -- is byte-identical and left untouched.
+   ##
+   ## '-z' is required, not tidiness: without it git C-quotes any path with a
+   ## non-ASCII or special character ("l\303\244tt.png"), and the quoted string
+   ## names no existing file, so those entries are silently skipped -- exactly
+   ## the assets most likely to be branding.
+   while IFS= read -r -d '' entry; do
+      case "${entry}" in
+         '120000 '*)
+            ;;
+         *)
+            continue
+            ;;
+      esac
+      ## Format: '<mode> <sha> <stage>\t<path>'.
+      link_path="${tree}/${entry#*$'\t'}"
+      ## Only a REAL symlink needs flattening; a text placeholder is already the
+      ## canonical form -- leave its bytes exactly as git wrote them.
+      [ -L "${link_path}" ] || continue
+      ## The placeholder content is the target with NO trailing newline: exactly
+      ## the bytes git writes a mode-120000 blob as on a core.symlinks=false
+      ## checkout, so both host kinds converge on identical bytes. The sentinel
+      ## preserves a target that itself ends in a newline (readlink appends one of
+      ## its own, which the strip removes).
+      link_target="$( readlink -- "${link_path}"; printf 'x' )"
+      link_target="${link_target%$'\n'x}"
+      safe-rm --force -- "${link_path}"
+      printf '%s' "${link_target}" > "${link_path}"
+   done < <( env --unset=GIT_DIR --unset=GIT_WORK_TREE --unset=GIT_INDEX_FILE git -C "${tree}" ls-files --stage -z 2>/dev/null || true )
 }
 
 main() {
