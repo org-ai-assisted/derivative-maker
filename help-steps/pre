@@ -459,7 +459,6 @@ exception_handler_cleanup_run() {
    local cleanup_kind tolerate_failure cleanup_step cleanup_step_list
 
    cleanup_kind="$1"
-   ## Descriptive failure mode rather than a bare true/false boolean trap.
    case "$2" in
       tolerate-failure)
          tolerate_failure="true"

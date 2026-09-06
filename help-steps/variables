@@ -442,11 +442,13 @@ export dist_build_sources_list_primary
 if [ "${dist_build_flavor:-}" = "source" ]; then
    [ -n "${dist_build_type_long:-}" ] || dist_build_type_long="source"
    [ -n "${dist_build_type_short:-}" ] || dist_build_type_short="source"
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=2
 fi
 
 if [ "${dist_build_flavor:-}" = "dist-installer-cli" ]; then
    [ -n "${dist_build_type_long:-}" ] || dist_build_type_long="dist-installer-cli"
    [ -n "${dist_build_type_short:-}" ] || dist_build_type_short="dist-installer-cli"
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=2
 fi
 
 if [ "${dist_build_flavor:-}" = "whonix-gateway-lxqt" ]; then
@@ -460,6 +462,7 @@ if [ "${dist_build_flavor:-}" = "whonix-gateway-lxqt" ]; then
    [ -n "${dist_build_gui:-}" ] || dist_build_gui="true"
    #[ -n "${dist_build_hostname:-}" ] || dist_build_hostname="host"
    [ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" whonix-gateway-vm-gui-lxqt "
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=20
 fi
 
 if [ "${dist_build_flavor:-}" = "whonix-gateway-rpi" ]; then
@@ -474,6 +477,7 @@ if [ "${dist_build_flavor:-}" = "whonix-gateway-rpi" ]; then
    [ -n "${dist_build_gui:-}" ] || dist_build_gui="true"
    #[ -n "${dist_build_hostname:-}" ] || dist_build_hostname="host"
    #[ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" whonix-gateway-rpi "
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=20
    error "${red}${bold}dist_build_flavor ${dist_build_flavor} is not implemented.${reset}"
 fi
 
@@ -488,6 +492,7 @@ if [ "${dist_build_flavor:-}" = "whonix-gateway-cli" ]; then
    [ -n "${dist_build_gui:-}" ] || dist_build_gui="false"
    #[ -n "${dist_build_hostname:-}" ] || dist_build_hostname="host"
    [ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" whonix-gateway-vm-server "
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=20
 fi
 
 if [ "${dist_build_flavor:-}" = "whonix-workstation-lxqt" ]; then
@@ -501,6 +506,7 @@ if [ "${dist_build_flavor:-}" = "whonix-workstation-lxqt" ]; then
    [ -n "${dist_build_gui:-}" ] || dist_build_gui="true"
    #[ -n "${dist_build_hostname:-}" ] || dist_build_hostname="host"
    [ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" whonix-workstation-vm-gui-lxqt "
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=20
 fi
 
 if [ "${dist_build_flavor:-}" = "whonix-workstation-cli" ]; then
@@ -514,6 +520,7 @@ if [ "${dist_build_flavor:-}" = "whonix-workstation-cli" ]; then
    [ -n "${dist_build_gui:-}" ] || dist_build_gui="false"
    #[ -n "${dist_build_hostname:-}" ] || dist_build_hostname="host"
    [ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" whonix-workstation-vm-server "
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=20
 fi
 
 if [ "${dist_build_flavor:-}" = "whonix-custom-workstation" ]; then
@@ -527,6 +534,7 @@ if [ "${dist_build_flavor:-}" = "whonix-custom-workstation" ]; then
    [ -n "${dist_build_gui:-}" ] || dist_build_gui="false"
    #[ -n "${dist_build_hostname:-}" ] || dist_build_hostname="host"
    #[ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" none "
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=20
 fi
 
 if [ "${dist_build_flavor:-}" = "whonix-host-cli" ]; then
@@ -540,6 +548,7 @@ if [ "${dist_build_flavor:-}" = "whonix-host-cli" ]; then
    [ -n "${dist_build_gui:-}" ] || dist_build_gui="false"
    [ -n "${dist_build_host_operating_system:-}" ] || dist_build_host_operating_system="true"
    #[ -n "${dist_build_hostname:-}" ] || dist_build_hostname="host"
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=20
    error "${red}${bold}dist_build_flavor ${dist_build_flavor} is not implemented.${reset}"
 fi
 
@@ -556,6 +565,7 @@ if [ "${dist_build_flavor:-}" = "whonix-host-lxqt" ]; then
    #[ -n "${dist_build_hostname:-}" ] || dist_build_hostname="host"
    ## TODO: Do not hardcode to VirtualBox.
    #[ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" whonix-lxqt-host-virtualbox "
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=20
    error "${red}${bold}dist_build_flavor ${dist_build_flavor} is not implemented.${reset}"
 fi
 
@@ -577,6 +587,7 @@ if [ "${dist_build_flavor:-}" = "kicksecure-cli" ]; then
       [ -n "${dist_build_type_long:-}" ] || dist_build_type_long="kicksecure-host"
       [ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" kicksecure-baremetal-server "
    fi
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=20
 fi
 
 if [ "${dist_build_flavor:-}" = "kicksecure-lxqt" ]; then
@@ -597,6 +608,7 @@ if [ "${dist_build_flavor:-}" = "kicksecure-lxqt" ]; then
       [ -n "${dist_build_type_long:-}" ] || dist_build_type_long="kicksecure-host"
       [ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" kicksecure-baremetal-gui-lxqt "
    fi
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=20
 fi
 
 if [ "${dist_build_flavor:-}" = "kicksecure-ci-tiny-do-not-use" ]; then
@@ -616,6 +628,7 @@ if [ "${dist_build_flavor:-}" = "kicksecure-ci-tiny-do-not-use" ]; then
       [ -n "${dist_build_type_long:-}" ] || dist_build_type_long="kicksecure-host"
       [ -n "${flavor_meta_packages_to_install:-}" ] || flavor_meta_packages_to_install=" kicksecure-ci-tiny-do-not-use "
    fi
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=5
 fi
 
 ## derivative_name_list is used by:
@@ -634,6 +647,7 @@ if [ "${dist_build_source_run:-}" = "true" ]; then
    [ -n "${dist_build_type_long:-}" ] || dist_build_type_long="source"
    [ -n "${dist_build_type_short:-}" ] || dist_build_type_short="source"
    [ -n "${dist_build_desktop:-}" ] || dist_build_desktop="none"
+   [ -n "${dist_build_min_free_gib:-}" ] || dist_build_min_free_gib=2
 fi
 
 ## Some flavor/target combinations do not set 'dist_build_type_long' in the
@@ -767,7 +781,7 @@ true "${BASH_SOURCE[0]} INFO: CHROOT_FOLDER: ${CHROOT_FOLDER}"
 
 [ -n "${BUILD_INITRAMFS_PKGS:-}" ] || BUILD_INITRAMFS_PKGS="${BUILD_INITRAMFS_DRACUT}"
 
-if grep --quiet -- "dracut" <<< "${BUILD_INITRAMFS_PKGS}" ; then
+if printf "%s\n" "${BUILD_INITRAMFS_PKGS}" | grep -- "dracut" >/dev/null 2>&1; then
    ## INITRD_GENERATOR_OPTS gets read by grml-debootstrap and passed to dracut and is also
    ## read by build-steps.d/*_install-packages
    ##
@@ -1323,7 +1337,7 @@ set_default_variable copy_vms_into_raw_file_two "${dist_binary_build_folder}/Who
 
 ## Sanity test. dm-prepare-release uses 'rm --force --recursive'.
 ## XXX: hardcoded derivative-binary
-if ! grep --quiet --fixed-strings -- "derivative-binary" <<< "${dist_binary_build_folder}" ; then
+if ! printf "%s\n" "${dist_binary_build_folder}" | grep --fixed-strings -- "derivative-binary" >/dev/null 2>&1; then
    printf "%s\n" "$0: FAIL: wrong folder: dist_binary_build_folder: ${dist_binary_build_folder}"
    exit 1
 fi
@@ -1379,13 +1393,6 @@ export dist_build_installer_dist
 [ -n "${dist_build_serial_console_enable:-}" ] || dist_build_serial_console_enable="false"
 export dist_build_serial_console_enable
 
-## '--smbios-reader true' ships the GRUB SMBIOS kernel-cmdline reader, for
-## boot-test images only. Default false: the reader turns a firmware-supplied
-## string into kernel command line, and the kernel command line is the part of the
-## boot chain Secure Boot does not authenticate, so a released image must not carry
-## it. Drives GRUB_ENABLE_DM_SMBIOS_READER on the disk path (vm-config-dist
-## etc/grub.d/01_smbios-reader) and the reader + placeholder on the ISO path
-## (3600_convert-raw-to-iso).
 [ -n "${dist_build_smbios_reader:-}" ] || dist_build_smbios_reader="false"
 export dist_build_smbios_reader
 
@@ -1418,10 +1425,6 @@ if [ "${dist_build_apt_freshness:-current}" = "frozen" ]; then
    fi
    dist_frozen_snapshot_pin="$(< "${dist_frozen_snapshot_pin_file}")"
    dist_frozen_snapshot_pin="${dist_frozen_snapshot_pin//[[:space:]]/}"
-   ## The pin is a bare Unix epoch: dm-update-frozen-snapshot writes 'date +%s',
-   ## consumers derive the snapshot.debian.org YYYYMMDDTHHMMSSZ id from it via
-   ## 'date --date=@<pin>', and it is used directly as SOURCE_DATE_EPOCH below.
-   ## So a NON-integer pin is the malformed case.
    if ! [[ "${dist_frozen_snapshot_pin}" =~ ^(0|[1-9][0-9]*)$ ]]; then
       error "Malformed snapshot pin '${dist_frozen_snapshot_pin}' in ${dist_frozen_snapshot_pin_file}"
    fi
