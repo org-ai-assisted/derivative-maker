@@ -9,14 +9,11 @@
 ##   'has' helper is guaranteed present;
 ## - 'rm' of specific, known files (not user-supplied paths);
 ## - EMPTY_DIR="/tmp/empty" is a path INSIDE the build chroot
-##   (${CHROOT_FOLDER}/${EMPTY_DIR}), not a host temp dir, so ${TMP} is wrong;
-## - set_default_variable's 'printf -v' target name comes from internal callers,
-##   never from untrusted input.
+##   (${CHROOT_FOLDER}/${EMPTY_DIR}), not a host temp dir, so ${TMP} is wrong.
 # shellcheck disable=SC2086
 ## style-ok: no-has
 ## style-ok: no-safe-rm
 ## style-ok: no-tmp-hardcode
-## style-ok: allow-unchecked-printf-v
 
 #set -x
 set -o errexit
@@ -184,6 +181,9 @@ export HELPER_SCRIPTS_PATH
 
 [ -n "${str_replace_tool:-}" ] || str_replace_tool="${HELPER_SCRIPTS_PATH}/usr/bin/str_replace"
 [ -n "${str_replace_many_tool:-}" ] || str_replace_many_tool="${HELPER_SCRIPTS_PATH}/usr/bin/str-replace-many"
+
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/strings.bsh
+source "${HELPER_SCRIPTS_PATH}"/usr/libexec/helper_scripts/strings.bsh
 
 ## All Debian architectures plus the literal 'source'. 'source' is a
 ## valid Debian "architecture" value referring to source packages (see
@@ -1211,6 +1211,10 @@ set_default_variable() {
   local var_name var_content
   var_name="$1"
   var_content="$2"
+
+  ## Checking the variable name before using printf -v or "${!var_name:-}".
+  ## This might not be strictly necessary, but it shields against future bugs.
+  check_variable_name "${var_name}" || return 1
 
   if [ -z "${!var_name:-}" ]; then
     #printf "%s\n" "INFO: Variable '$var_name' is already set? No. - Setting: $var_name='$var_content'"
