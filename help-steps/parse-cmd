@@ -360,6 +360,11 @@ dist_build_one_parse_cmd() {
                ;;
            --target)
                true "${cyan}INFO: --target ${2:-} chosen.${reset}"
+               ## dist_build_image_upload_supported aggregates across multiple
+               ## --target: dm-upload-images gates the WHOLE upload on this one
+               ## flag, so once any target sets it 'true' it must STAY 'true' -- a
+               ## later unsupported target (utm/raw/root) can never flip it back,
+               ## regardless of argument order.
                if [ "${2:-}" = "virtualbox" ]; then
                   build_target_counter="$(( ${build_target_counter} + 1 ))"
                   export dist_build_virtualbox="true"
@@ -374,7 +379,7 @@ dist_build_one_parse_cmd() {
                   build_target_counter="$(( ${build_target_counter} + 1 ))"
                   export dist_build_raw="true"
                   export dist_build_utm="true"
-                  dist_build_image_upload_supported="false"
+                  [ "${dist_build_image_upload_supported:-}" = "true" ] || dist_build_image_upload_supported="false"
                   implicit_dist_type_vm "--target ${2:-}"
                elif [ "${2:-}" = "iso" ]; then
                   build_target_counter="$(( ${build_target_counter} + 1 ))"
@@ -384,12 +389,12 @@ dist_build_one_parse_cmd() {
                elif [ "${2:-}" = "raw" ]; then
                   build_target_counter="$(( ${build_target_counter} + 1 ))"
                   export dist_build_raw="true"
-                  dist_build_image_upload_supported="false"
+                  [ "${dist_build_image_upload_supported:-}" = "true" ] || dist_build_image_upload_supported="false"
                   implicit_dist_type_vm "--target ${2:-}"
                elif [ "${2:-}" = "root" ]; then
                   build_target_counter="$(( ${build_target_counter} + 1 ))"
                   export dist_build_install_to_root="true"
-                  dist_build_image_upload_supported="false"
+                  [ "${dist_build_image_upload_supported:-}" = "true" ] || dist_build_image_upload_supported="false"
                elif [ "${2:-}" = "windows" ]; then
                   build_target_counter="$(( ${build_target_counter} + 1 ))"
                   export dist_build_windows_installer="true"
@@ -1090,13 +1095,13 @@ Using default dist_build_sources_clearnet_or_onion=${under}clearnet${eunder}.
    ## If there are input files (for example) that follow the options, they
    ## will remain in the "$@" positional parameters.
 
-   if [ "${dist_build_source_run:-}" = "true" ]; then
-      true
-   else
-      if [ "${build_machines_counter:-0}" -gt "1" ]; then
-         printf '%s\n' "${red}${bold}You cannot use --flavor multiple times!${reset}"
-         exit 1
-      fi
+   ## Unconditional: a second --flavor is invalid even when one of them is
+   ## '--flavor source' (source_run must not exempt the guard, or
+   ## '--flavor source --flavor kicksecure-cli' slips through). A single
+   ## '--flavor source' keeps the counter at 1 and is fine.
+   if [ "${build_machines_counter:-0}" -gt "1" ]; then
+      printf '%s\n' "${red}${bold}You cannot use --flavor multiple times!${reset}"
+      exit 1
    fi
 
    if [ "${build_machines_counter:-0}" -le "0" ]; then
@@ -1151,6 +1156,13 @@ Using default dist_build_sources_clearnet_or_onion=${under}clearnet${eunder}.
       fi
    fi
 
+   ## Accepted limitation: --target and --type compatibility is intentionally NOT
+   ## validated. An explicit --type conflicting with a target's implied type
+   ## (e.g. '--type host --target virtualbox', a vm-only target) is accepted, and
+   ## implicit type resolution across contradictory multiple --target is
+   ## argument-order-dependent. No real caller passes such a combination; the only
+   ## legitimate mixed iso+vm target set runs under '--flavor source', where this
+   ## type check is skipped anyway. Revisit only if a real failure appears.
    if [ "${dist_build_type:-}" = "vm" ]; then
       true
    elif [ "${dist_build_type:-}" = "host" ]; then
