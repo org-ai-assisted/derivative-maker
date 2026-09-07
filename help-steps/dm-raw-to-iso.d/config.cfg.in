@@ -1,0 +1,12 @@
+## dm-raw-to-iso base GRUB config, sourced first by grub.cfg.
+## @TIMEOUT@ is substituted by the tool (0 under --serial-console for headless
+## boot, else a short menu timeout). --serial-console appends serial.cfg here, and
+## --grub-config-append appends the caller's config (e.g. an SMBIOS reader).
+set default=0
+set timeout=@TIMEOUT@
+insmod all_video
+insmod gfxterm
+if loadfont $prefix/unicode.pf2 ; then
+   set gfxmode=auto
+   terminal_output gfxterm
+fi
