@@ -63,12 +63,6 @@ Options:
   --grub-config-append <f> append file <f> to the ISO's GRUB config.cfg (e.g. an
                            SMBIOS kernel-cmdline reader); consumer-supplied, so this
                            tool ships no such reader of its own
-  --grub-overlay <dir>     copy <dir>'s contents into the ISO's /boot/grub/ on top
-                           of the built-in baseline (a consumer menu, theme, fonts,
-                           kb_layouts, ...); @APPEND_LIVE@ in any *.cfg is replaced
-                           with the base live kernel command line this tool computes
-  --live-overlay <dir>     copy <dir>'s contents into the ISO's /live/ (e.g. a
-                           memtest binary, a package manifest)
   --source-date-epoch <n>  UNIX timestamp for reproducible output (default: env
                            SOURCE_DATE_EPOCH, else the raw image's mtime)
   --keep-workdir           do not delete the temporary work directory on exit
@@ -109,8 +103,6 @@ label="DM_LIVE"
 bootappend=""
 serial_console="false"
 grub_config_append=""
-grub_overlay=""
-live_overlay=""
 source_date_epoch="${SOURCE_DATE_EPOCH:-}"
 keep_workdir="false"
 
@@ -150,16 +142,6 @@ while [ "$#" -gt 0 ] ; do
          grub_config_append="$2"
          shift 2
          ;;
-      --grub-overlay)
-         [ "$#" -ge 2 ] || error "--grub-overlay requires a value"
-         grub_overlay="$2"
-         shift 2
-         ;;
-      --live-overlay)
-         [ "$#" -ge 2 ] || error "--live-overlay requires a value"
-         live_overlay="$2"
-         shift 2
-         ;;
       --source-date-epoch)
          [ "$#" -ge 2 ] || error "--source-date-epoch requires a value"
          source_date_epoch="$2"
@@ -187,8 +169,6 @@ done
 if [ "$(readlink -f -- "${raw}")" = "$(readlink -f -- "${output}" 2>/dev/null)" ] ; then
    error "--output must not be the same file as --raw"
 fi
-[ -z "${grub_overlay}" ] || [ -d "${grub_overlay}" ] || error "--grub-overlay is not a directory: '${grub_overlay}'"
-[ -z "${live_overlay}" ] || [ -d "${live_overlay}" ] || error "--live-overlay is not a directory: '${live_overlay}'"
 
 if [ -z "${arch}" ] ; then
    require_cmd dpkg
@@ -237,12 +217,13 @@ case "${arch}" in
       ;;
 esac
 
-## Dependency check up front (fail loud). Only HOST tools + local templates here.
-## The GRUB modules, unicode font and signed EFI loaders are taken from the TARGET
-## ROOTFS (so a cross-arch build gets the TARGET-arch loaders, exactly as live-build
-## built them inside the target chroot); those are checked after the rootfs is
-## copied out (see "rootfs bootloader inputs" below), not against the host.
+## Dependency check up front (fail loud).
 require_cmd xorriso grub-mkimage mkfs.msdos mmd mcopy mksquashfs cp find touch stat chroot mount umount kpartx losetup safe-rm
+if [ "${bios}" = "true" ] ; then
+   require_file /usr/lib/grub/i386-pc/cdboot.img /usr/lib/grub/i386-pc/boot_hybrid.img
+   require_file /usr/lib/grub/i386-pc/normal.mod
+fi
+require_file /usr/share/grub/unicode.pf2
 require_file "${tmpl_dir}/config.cfg.in" "${tmpl_dir}/grub.cfg.in" \
    "${tmpl_dir}/loopback.cfg" "${tmpl_dir}/serial.cfg" "${tmpl_dir}/esp-redirect.cfg"
 
@@ -324,18 +305,6 @@ mounts=()
 kpartx -d -s -- "${raw}"
 kpartx_image=""
 
-## rootfs bootloader inputs: the GRUB modules, font and signed loaders come from
-## the copied TARGET rootfs (grml installs grub-efi-${arch}-signed + shim-signed +
-## the grub -bin package per target arch), so these are the TARGET-arch loaders even
-## on a cross-arch build. Fail loud now if the image lacks them. (The per-platform
-## signed EFI loaders are checked in the ESP loop below.)
-if [ "${bios}" = "true" ] ; then
-   require_file "${rootfs}/usr/lib/grub/i386-pc/cdboot.img" \
-      "${rootfs}/usr/lib/grub/i386-pc/boot_hybrid.img" \
-      "${rootfs}/usr/lib/grub/i386-pc/normal.mod"
-fi
-require_file "${rootfs}/usr/share/grub/unicode.pf2"
-
 ## Neutralize the input's /etc/fstab: a DISK image mounts its own partitions
 ## (root by UUID, /boot/efi, swap) there, none of which exist in a live boot -- so
 ## local-fs.target fails and the guest drops to emergency mode (root locked = no
@@ -413,18 +382,12 @@ printf '%s: creating filesystem.squashfs\n' "${me}" >&2
 ## transient /run and /tmp. Reproducible timestamps come from the exported
 ## SOURCE_DATE_EPOCH (mksquashfs honors it); do NOT also pass -all-time/-mkfs-time,
 ## mksquashfs rejects using both at once.
-## -one-file-system: the /dev, /proc, /sys, /run, /dev/pts binds are torn down above,
-## but that teardown swallows failures; without this a bind that failed to unmount
-## would pack the build HOST's live /proc, /sys, ... (process list, cmdlines, kernel
-## state) into the public ISO. This stops mksquashfs at every mount boundary, and the
-## proc/* + sys/* excludes are the belt-and-braces (dev/run/tmp were already covered).
 mksquashfs "${rootfs}" "${binary}/live/filesystem.squashfs" \
    -noappend \
    -comp xz \
    -no-progress \
-   -one-file-system \
    -wildcards \
-   -e "dev/*" "proc/*" "sys/*" "run/*" "tmp/*" "boot/initrd.img-live"
+   -e "dev/*" "run/*" "tmp/*" "boot/initrd.img-live"
 
 ######################################################################
 ## 4. The boot medium marker the GRUB EFI cores search for.
@@ -437,16 +400,14 @@ printf 'Derivative ISO; label=%s; arch=%s\n' "${label}" "${arch}" > "${binary}/.
 if [ "${bios}" = "true" ] ; then
    printf '%s: building BIOS GRUB El Torito core\n' "${me}" >&2
    mkdir -p -- "${binary}/boot/grub/i386-pc"
-   ## Runtime modules loaded from the ISO by the core (from the target rootfs).
-   cp -a -- "${rootfs}"/usr/lib/grub/i386-pc/*.mod "${binary}/boot/grub/i386-pc/"
-   cp -a -- "${rootfs}"/usr/lib/grub/i386-pc/*.lst "${binary}/boot/grub/i386-pc/" 2>/dev/null || true
+   ## Runtime modules loaded from the ISO by the core.
+   cp -a -- /usr/lib/grub/i386-pc/*.mod "${binary}/boot/grub/i386-pc/"
+   cp -a -- /usr/lib/grub/i386-pc/*.lst "${binary}/boot/grub/i386-pc/" 2>/dev/null || true
    core_img="${workdir}/core.img"
    ## biosdisk + iso9660 are enough to reach /boot/grub on the CD; the rest load
    ## from i386-pc/ above. cdboot.img prepended makes it El Torito no-emulation.
-   ## Host grub-mkimage assembles the target's i386-pc modules (same distro release,
-   ## so the module format matches); i386-pc output is host-arch-independent.
-   grub-mkimage -d "${rootfs}/usr/lib/grub/i386-pc" -o "${core_img}" -O i386-pc --prefix=/boot/grub biosdisk iso9660
-   cat "${rootfs}/usr/lib/grub/i386-pc/cdboot.img" "${core_img}" > "${binary}/boot/grub/grub_eltorito"
+   grub-mkimage -d /usr/lib/grub/i386-pc -o "${core_img}" -O i386-pc --prefix=/boot/grub biosdisk iso9660
+   cat /usr/lib/grub/i386-pc/cdboot.img "${core_img}" > "${binary}/boot/grub/grub_eltorito"
    safe-rm --force -- "${core_img}"
 fi
 
@@ -470,9 +431,9 @@ mkdir -p -- "${esp_stage}/EFI/boot" "${esp_stage}/boot/grub"
 for pair in "${efi_platforms[@]}" ; do
    platform="${pair%%:*}"
    efi_name="${pair##*:}"
-   signed_grub="${rootfs}/usr/lib/grub/${platform}-signed/gcd${efi_name}.efi.signed"
-   signed_shim="${rootfs}/usr/lib/shim/shim${efi_name}.efi.signed"
-   mokmanager="${rootfs}/usr/lib/shim/mm${efi_name}.efi.signed"
+   signed_grub="/usr/lib/grub/${platform}-signed/gcd${efi_name}.efi.signed"
+   signed_shim="/usr/lib/shim/shim${efi_name}.efi.signed"
+   mokmanager="/usr/lib/shim/mm${efi_name}.efi.signed"
 
    if [ -r "${signed_grub}" ] && [ -r "${signed_shim}" ] ; then
       cp -a --dereference -- "${signed_shim}" "${esp_stage}/EFI/boot/boot${efi_name}.efi"
@@ -481,7 +442,7 @@ for pair in "${efi_platforms[@]}" ; do
          cp -a -- "${mokmanager}" "${esp_stage}/EFI/boot/mm${efi_name}.efi"
       fi
    elif [ "${pair}" = "${efi_platforms[0]}" ] ; then
-      error "missing signed EFI dependency for the supported platform ${efi_name} (${arch}) in the image: the target rootfs must have shim-signed + grub-efi-${arch}-signed installed (need ${signed_shim} and ${signed_grub})"
+      error "missing signed EFI dependency for the supported platform ${efi_name} (${arch}): install shim-signed and grub-efi-${arch}-signed (need ${signed_shim} and ${signed_grub})"
    else
       printf '%s: NOTE: no signed shim+grub for optional EFI platform %s; skipping it.\n' "${me}" "${efi_name}" >&2
    fi
@@ -515,7 +476,7 @@ cp -a -- "${esp_stage}/EFI" "${binary}/EFI"
 ## 7. Main grub.cfg + config.cfg + loopback.cfg.
 ######################################################################
 printf '%s: writing GRUB configuration\n' "${me}" >&2
-cp -a -- "${rootfs}/usr/share/grub/unicode.pf2" "${binary}/boot/grub/unicode.pf2"
+cp -a -- /usr/share/grub/unicode.pf2 "${binary}/boot/grub/unicode.pf2"
 
 ## Kernel command line for the live entry. findiso/iso-scan let it also boot when
 ## the .iso is loop-mounted from another GRUB (iso_path is set by loopback there,
@@ -553,25 +514,6 @@ printf '%s\n' "${grub_tmpl//@APPEND_LIVE@/${live_append}}" > "${binary}/boot/gru
 ## loopback.cfg: static, boots the .iso as a loop-mounted file from another GRUB.
 cp -- "${tmpl_dir}/loopback.cfg" "${binary}/boot/grub/loopback.cfg"
 
-## Optional consumer GRUB overlay: copy the caller's /boot/grub tree (a richer
-## menu, theme, fonts, kb_layouts, ...) on top of the baseline written above, so
-## the caller controls the menu and look without this generic tool shipping any
-## consumer-specific config. Then substitute @APPEND_LIVE@ in every *.cfg so the
-## caller's menu entries all derive from the single live cmdline computed here.
-## Literal (parameter) substitution only: ${iso_path} / ${dm_smbios_extra} stay
-## unexpanded for GRUB to resolve at boot.
-if [ -n "${grub_overlay}" ] ; then
-   printf '%s: applying GRUB overlay %s\n' "${me}" "${grub_overlay}" >&2
-   cp --archive -- "${grub_overlay}/." "${binary}/boot/grub/"
-   while IFS= read -r -d '' cfg ; do
-      ## 'cat; printf x' then strip the x preserves any trailing newline that a
-      ## bare command substitution would drop.
-      cfg_content="$(cat -- "${cfg}"; printf x)"
-      cfg_content="${cfg_content%x}"
-      printf '%s' "${cfg_content//@APPEND_LIVE@/${live_append}}" > "${cfg}"
-   done < <(find "${binary}/boot/grub" -type f -name '*.cfg' -print0)
-fi
-
 ######################################################################
 ## 8. Assemble the hybrid ISO in a single xorriso pass.
 ######################################################################
@@ -586,7 +528,7 @@ if [ "${bios}" = "true" ] ; then
    ## Legacy BIOS: hybrid MBR from GRUB (USB) + El Torito no-emulation core (CD).
    xorriso_opts+=(
       --grub2-boot-info
-      --grub2-mbr "${rootfs}/usr/lib/grub/i386-pc/boot_hybrid.img"
+      --grub2-mbr /usr/lib/grub/i386-pc/boot_hybrid.img
       -no-emul-boot -boot-load-size 4 -boot-info-table
       -b boot/grub/grub_eltorito
       -eltorito-alt-boot
@@ -605,19 +547,6 @@ xorriso_opts+=(
    -e boot/grub/efi.img -no-emul-boot
    -isohybrid-gpt-basdat
 )
-
-## Optional consumer /live overlay: extra files that live beside the squashfs on
-## the ISO but not inside it (e.g. a memtest binary the menu boots directly, a
-## package manifest). Copied after the squashfs/kernel/initrd are staged.
-if [ -n "${live_overlay}" ] ; then
-   printf '%s: applying /live overlay %s\n' "${me}" "${live_overlay}" >&2
-   cp --archive -- "${live_overlay}/." "${binary}/live/"
-fi
-
-## Pin every staged file's mtime to SOURCE_DATE_EPOCH so the ISO is reproducible:
-## xorriso records per-file mtimes, and overlay / live-overlay / copied loader
-## files otherwise carry build-host times. Done last, after all staging.
-find "${binary}" -exec touch --no-dereference --date="@${SOURCE_DATE_EPOCH}" -- {} +
 
 safe-rm --force -- "${output}"
 xorriso -as mkisofs "${xorriso_opts[@]}" -o "${output}" "${binary}"
