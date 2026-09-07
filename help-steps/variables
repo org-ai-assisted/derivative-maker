@@ -185,6 +185,11 @@ export HELPER_SCRIPTS_PATH
 # shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/strings.bsh
 source "${HELPER_SCRIPTS_PATH}"/usr/libexec/helper-scripts/strings.bsh
 
+## set_default_variable + derive_unified_image_paths, sourced (not inline) so a
+## unit test can source and call them directly.
+# shellcheck source=./variables-lib.bsh
+source "${dist_source_help_steps_folder}/variables-lib.bsh"
+
 ## All Debian architectures plus the literal 'source'. 'source' is a
 ## valid Debian "architecture" value referring to source packages (see
 ## 'dpkg-architecture', 'sources.list' Architectures= field). It is not
@@ -1207,26 +1212,6 @@ export dist_build_version
 
 ## }}}
 
-set_default_variable() {
-  local var_name var_content
-  var_name="$1"
-  var_content="$2"
-
-  ## Checking the variable name before using printf -v or "${!var_name:-}".
-  ## This might not be strictly necessary, but it shields against future bugs.
-  check_variable_name "${var_name}" || return 1
-
-  if [ -z "${!var_name:-}" ]; then
-    #printf "%s\n" "INFO: Variable '$var_name' is already set? No. - Setting: $var_name='$var_content'"
-    ## Use 'printf -v' instead of 'eval' so single quotes or other shell
-    ## metacharacters inside "$var_content" are stored literally and cannot
-    ## be reinterpreted by the shell parser.
-    printf -v "${var_name}" '%s' "${var_content}"
-    return 0
-  fi
-  #printf "%s\n" "INFO: Variable '$var_name' is already set? Yes. - Already: $var_name='${!var_name}'"
-}
-
 if [ "${dist_build_source_archive:-}" = "true" ]; then
     set_default_variable dist_unified_name "derivative-maker-source"
 elif [ "${dist_build_type_short:-}" = "kicksecure" ]; then
@@ -1285,30 +1270,10 @@ case "${binary_image_vdi_dir}" in
       ;;
 esac
 
-## NOTE: 'binary_image_{raw,qcow2}_file_for_unified' reads like a list but
-## is singular by construction. For a unified (multi-VM) build such as
-## Whonix, 'vm_names_to_be_exported' contains exactly two names (Gateway
-## and Workstation); the 'continue' below skips the one matching the
-## current 'dist_build_type_long', leaving exactly one "other" VM whose
-## image path is stored here. Consumers (dm-prepare-release,
-## 1200_prepare-build-machine) treat it as a single path - e.g. the
-## error message reads "missing other VM for unified builds". Do not
-## convert this to an array without updating those callers.
-for vm_name_item_to_be_exported in ${vm_names_to_be_exported} ; do
-   ## Compare case-insensitively but as exact substrings, not regex, to
-   ## avoid regex metacharacters in 'dist_build_type_long' matching
-   ## unintended VM names.
-   vm_name_item_lower="${vm_name_item_to_be_exported,,}"
-   dist_build_type_long_lower="${dist_build_type_long,,}"
-   case "${vm_name_item_lower}" in
-      *"${dist_build_type_long_lower}"*)
-         continue
-         ;;
-   esac
-   set_default_variable binary_image_raw_file_for_unified "${dist_binary_build_folder}/${vm_name_item_to_be_exported}-${dist_build_version}.${target_architecture_pretty_name}.raw"
-   set_default_variable binary_image_qcow2_file_for_unified "${dist_binary_build_folder}/${vm_name_item_to_be_exported}-${dist_build_version}.${target_architecture_pretty_name}.qcow2"
-done
-unset vm_name_item_lower dist_build_type_long_lower
+## Unified-image "other VM" path derivation (binary_image_{raw,qcow2}_file_for_unified)
+## lives in variables-lib.bsh; it special-cases the 'none' sentinel (non-unified
+## builds) so those vars stay UNSET rather than getting a bogus '/none-...' path.
+derive_unified_image_paths
 
 set_default_variable binary_image_ova_file "${dist_binary_build_folder}/${dist_unified_name}-${dist_build_version}.${target_architecture_pretty_name}.ova"
 set_default_variable binary_image_iso_file "${dist_binary_build_folder}/${SHORT_VMNAME}-${dist_build_desktop}-${dist_build_version}.${target_architecture_pretty_name}.iso"
