@@ -13,7 +13,7 @@
 ## FIXME: Mention of 'lb' that must be changed/removed.
 ##
 ## ERR path:
-##   exception_handler_general | exception_handler_unchroot_unmount | exception_handler_unmount | exception_handler_unmount_lb
+##   exception_handler_general | exception_handler_unchroot_unmount | exception_handler_unmount
 ##   -> exception_handler_process_shared -> function_trace -> process_backtrace -> exception_handler_shell -> exception_handler_retry -> exception_handler_maybe_exit
 ## INT/TERM path:
 ##   exception_handler_signal -> variant cleanup -> exit 128+signum
@@ -484,10 +484,6 @@ exception_handler_cleanup_run() {
       unmount)
          cleanup_step_list=( unmount-raw )
          ;;
-      ## FIXME: Unacceptable reference to 'lb'.
-      unmount_lb)
-         cleanup_step_list=( unmount-lb )
-         ;;
       general|*)
          ## No cleanup.
          return 0
@@ -528,12 +524,6 @@ exception_handler_unmount() {
    last_failed_exit_code="$?"
    last_failed_bash_command="${BASH_COMMAND}"
    exception_handler_variant unmount "$1"
-}
-
-exception_handler_unmount_lb() {
-   last_failed_exit_code="$?"
-   last_failed_bash_command="${BASH_COMMAND}"
-   exception_handler_variant unmount_lb "$1"
 }
 
 ## Simple signal (INT/TERM) handler. Unlike the ERR path this does not

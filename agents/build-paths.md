@@ -167,8 +167,8 @@ step                            under dry-run              gate
                                 grml-debootstrap            :258 -> create-empty-raw-image
 3400_copy-vms-into-raw          SKIPPED ENTIRELY            :79  -> return 0
 3500_install-packages           SKIPPED ENTIRELY            :665 -> return 0
-3600_convert-raw-to-iso         stops after 'lb config';
-                                writes a placeholder ISO    :346 -> return 0
+3600_convert-raw-to-iso         writes a placeholder ISO
+                                (build_dry_run)             :172 -> return 0
 4300_run-chroot-scripts-post-d  SKIPPED ENTIRELY            :105 -> return 0
 4350_reimage-raw-reproducible   SKIPPED ENTIRELY            :221 -> return 0
 4400_convert-raw-to-qcow2       runs (on the 1M raw)        -
