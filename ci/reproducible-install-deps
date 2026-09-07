@@ -43,8 +43,8 @@ MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 ## are untouched) rather than generating it inline.
 ## 'has' rather than 'command -v' (R-090): it verifies the hit is executable and
 ## is not an alias or shell function.
-# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/has.sh
-source "${MYDIR}/../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/has.sh"
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/has.bsh
+source "${MYDIR}/../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/has.bsh"
 
 sudo cp -- "${MYDIR}/trixie-backports.sources" /etc/apt/sources.list.d/trixie-backports.sources
 
