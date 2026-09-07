@@ -1,6 +1,4 @@
-## Build context is the repo root so the Dockerfile can COPY the frozen sources
-## file out of build_sources/. Without this allow-list the context would be the
-## whole tree plus ~60 submodules.
 *
 !docker
-!build_sources/debian_stable_frozen_direct_clearnet.sources
+!build_sources/debian_stable_frozen_direct_clearnet.sources.in
+!build_sources/frozen-snapshot-timestamp
