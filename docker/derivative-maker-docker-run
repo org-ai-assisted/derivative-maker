@@ -21,40 +21,30 @@ set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
 
+MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
+
 HOST_USER="$(id -u)"
 HOST_GROUP="$(id -g)"
 DOCKER_USER="user"
-## No implicit default command: the caller must pass an explicit command after
-## '--'. A bare invocation is an error, not a silent full './derivative-maker'
-## build.
 COMMAND=""
 DOCKER_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 SOURCE_VOLUME="$( dirname -- "${DOCKER_DIR}" )"
 BINARY_VOLUME="${HOME}/binary_mnt"
 CACHER_VOLUME="${HOME}/approx_cache_mnt"
-## Persist the auto-generated local APT signing key across builds. sq (sequoia) keeps
-## the SECRET key in ~/.local/share/sequoia/keystore (the softkeys backend) and the
-## certificates in ~/.local/share/pgp.cert.d, so KEY_VOLUME is mounted at ~/.local/share
-## (see the --volume below) -- NOT ~/.gnupg, which here holds only gpg-agent sockets, not
-## the key. With the store persisted, signing-key-create is idempotent: it reuses the same
-## key (same fingerprint) across builds, keeping sign-and-tag re-run-safe. GNUPG_VOLUME
-## additionally persists ~/.gnupg for gpg-agent /
-## Qubes split-gpg-2 setups that DO route secret keys through gpg-agent (no-op here, where
-## sq uses the softkeys backend, but harmless and correct for those configurations).
+## TODO: Since this takes over the container's ~/.local/share, it's going to
+## end up with a lot of non-key-related junk in it most likely. Maybe split
+## this into two volumes, one for Sequoia-PGP's private keys and one for public
+## keys?
 KEY_VOLUME="${HOME}/.key_mnt"
 GNUPG_VOLUME="${HOME}/.gnupg_mnt"
-## Single definition, shared with ci/dm-docker-image-cache and the CI workflows:
-## a second copy does not fail loudly, it silently names a different image.
-image_ref="$( "$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/derivative-maker-docker-image-ref" )"
-## The tag, for the container name below. Taken from the reference rather than
-## re-derived, so the two cannot disagree.
+image_ref="$("${MYDIR}"/derivative-maker-docker-image-ref)"
 image_arch="${image_ref##*:}"
-[[ -v CI ]] || CI=""
+[ -v CI ] || CI=""
 
 if [ "${CI:-}" = "true" ]; then
   sudo_options_maybe+=("--non-interactive")
 fi
-[[ -v sudo_options_maybe ]] || sudo_options_maybe=()
+[ -v sudo_options_maybe ] || sudo_options_maybe=()
 
 sudo "${sudo_options_maybe[@]}" test -d /usr
 
@@ -68,13 +58,9 @@ print_usage() {
   Options:
     --binary-mount DIR : binary artifact directory
     --cacher-mount DIR : package cache directory
-    --key-mount DIR    : keystore directory
+    --key-mount DIR    : Sequoia-PGP keystore directory
+    --gnupg-mount DIR  : GnuPG keystore directory
     -h|--help          : this help
-
-  Examples:
-    $0 -- ./derivative-maker --flavor kicksecure-cli --target raw   # build an image
-    $0 -- build-steps.d/3600_convert-raw-to-iso                     # one build step
-    $0 -- bash                                                      # interactive shell
 EOF
 }
 
@@ -84,22 +70,15 @@ usage_error() {
   exit 1
 }
 
-## Reject a mount source Docker would misinterpret: a NON-absolute path is
+## Reject a mount source Docker would misinterpret: a non-absolute path is
 ## treated as a named volume (silently not the host directory), and a ':' splits
 ## the '-v' spec. Require an absolute, colon-free path.
 validate_mount_path() {
-  case "$1" in
-    /*)
-      ;;
-    *)
-      usage_error "mount path must be an absolute path: $1"
-      ;;
-  esac
-  case "$1" in
-    *:*)
-      usage_error "mount path must not contain a colon: $1"
-      ;;
-  esac
+  if [[ "${1}" != /* ]]; then
+    usage_error "mount path must be an absolute path: $1"
+  elif [[ "${1}" = *:* ]]; then
+    usage_error "mount path must not contain a colon: $1"
+  fi
 }
 
 volume_prepare() {
@@ -116,10 +95,8 @@ volume_prepare() {
   )
 
   while (( ${#VOLUMES[@]} > 0 )); do
-    ## Only create-and-own a directory we are making fresh. Deliberately do NOT
-    ## chown/chmod a PRE-EXISTING directory: a mistyped '--key-mount /etc' would
-    ## otherwise sudo-chown a system path and break the host. A hand-created
-    ## volume dir with the wrong ownership is the caller's to fix.
+    ## Only create-and-own a directory we are making fresh so we don't break
+    ## things if the user makes a typo.
     if [ ! -d "${VOLUMES[0]}" ]; then
       mkdir --parents -- "${VOLUMES[0]}"
       sudo "${sudo_options_maybe[@]}" -- chown --recursive -- "${VOLUMES[1]}" "${VOLUMES[0]}"
@@ -130,104 +107,22 @@ volume_prepare() {
   done
 }
 
-## Label stamped on the image at build time, recording which frozen snapshot its
-## packages came from. The image tag is arch-qualified but pin-agnostic, so this
-## is the only thing that distinguishes an image built from one snapshot from an
-## otherwise identical one built from another.
+## This lets us tell two images built from different pacakge snapshots from
+## each other.
 DM_SNAPSHOT_LABEL='org.kicksecure.derivative-maker.frozen-snapshot'
 
 frozen_snapshot_timestamp() {
-  ## dm-update-frozen-snapshot writes the pin here as a bare one-line timestamp,
-  ## so this is a 'cat' rather than a deb822 parse. That tool keeps this file and
-  ## both build_sources frozen .sources files in step, and refuses to bump when
-  ## they disagree.
   local pin_file timestamp
   pin_file="${SOURCE_VOLUME}/build_sources/frozen-snapshot-timestamp"
   [ -f "${pin_file}" ] || return 1
   timestamp="$(< "${pin_file}")"
   timestamp="${timestamp//[[:space:]]/}"
-  ## Guard the shape: a malformed value would otherwise be compared against the
-  ## image label and quietly force a rebuild every run.
-  case "${timestamp}" in
-    [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z)
-      printf '%s\n' "${timestamp}"
-      return 0
-      ;;
-  esac
+
+  if [[ "${timestamp}" =~ ^(0|[1-9][0-9]*)$ ]]; then
+    date --utc --date="@${timestamp}" '+%Y%m%dT%H%M%SZ'
+    return 0
+  fi
   return 1
-}
-
-frozen_snapshot_sanity_test() {
-  ## Simple cross-check, deliberately not clever: the plain file must match what
-  ## the two deb822 files carry on their 'URIs:' lines. Comment prose in those
-  ## files contains example dates, which is why only URIs lines are considered.
-  local expected="$1" deb822_file uri
-  for deb822_file in \
-    "${SOURCE_VOLUME}/build_sources/debian_stable_frozen_clearnet.sources" \
-    "${SOURCE_VOLUME}/build_sources/debian_stable_frozen_direct_clearnet.sources" ; do
-    ## A declared pin file that is ABSENT is a failure, not something to skip.
-    ## Skipping it let this function return success having validated nothing --
-    ## with both files missing it vouched for a completely unpinned build.
-    if [ ! -f "${deb822_file}" ]; then
-      printf '%s\n' "${0##*/}: ERROR: declared frozen sources file '${deb822_file}' is missing; cannot verify the snapshot pin." >&2
-      return 1
-    fi
-    ## EVERY URI must carry the expected snapshot, not merely 'the set of
-    ## timestamps present equals one'. A stanza listing the pinned snapshot
-    ## alongside a live archive ('URIs: http://snapshot.../<pin> https://deb.debian.org/debian')
-    ## yields exactly one timestamp and passed, while apt fetched from the live
-    ## archive too -- defeating the pin the check exists to prove.
-    while read -r uri; do
-      [ -n "${uri}" ] || continue
-      case "${uri}" in
-        *"/${expected}/"*|*"/${expected}")
-          ;;
-        *)
-          printf '%s\n' "${0##*/}: ERROR: ${deb822_file} lists URI '${uri}', which is not pinned to snapshot '${expected}' (from build_sources/frozen-snapshot-timestamp)." >&2
-          return 1
-          ;;
-      esac
-    done < <(deb822_uris "${deb822_file}")
-  done
-}
-
-## Every URI token of every 'URIs:' field, one per line -- including deb822 FOLDED
-## continuation lines (a field may continue on following lines that begin with
-## whitespace). Matching only the 'URIs:' line itself misses those, so a URI
-## hidden on a continuation line was never validated.
-deb822_uris() {
-  local line trimmed token in_field
-  in_field=false
-  while IFS= read -r line; do
-    ## Leading whitespace stripped for the field test, but remembered: it is what
-    ## marks a continuation line.
-    trimmed="${line#"${line%%[![:space:]]*}"}"
-    case "${trimmed}" in
-      URIs:*)
-        in_field=true
-        trimmed="${trimmed#URIs:}"
-        ;;
-      '')
-        ## A blank line ends the stanza, and therefore the field.
-        in_field=false
-        continue
-        ;;
-      *)
-        if [ "${in_field}" = "true" ] && [ ! "${line}" = "${trimmed}" ]; then
-          ## Indented and inside the field: a folded continuation of it.
-          true
-        else
-          in_field=false
-          continue
-        fi
-        ;;
-    esac
-    ## Deliberate word splitting: a URIs field is whitespace-separated.
-    # shellcheck disable=SC2086
-    for token in ${trimmed}; do
-      printf '%s\n' "${token}"
-    done
-  done < "$1"
 }
 
 build_docker_image() {
@@ -235,26 +130,13 @@ build_docker_image() {
   ## catches a failing 'id' instead of silently passing an empty --build-arg.
   local dm_uid existing_image frozen_snapshot image_snapshot
   dm_uid="$(id -u)"
-  ## An unpinned image would install build-host tools from the live archive while
-  ## the build resolves packages from the snapshot, so a missing or malformed pin
-  ## is fatal rather than silently producing an image that disagrees with the
-  ## build. Resolved before the reuse test below, which compares against it.
   frozen_snapshot="$(frozen_snapshot_timestamp)"
-  frozen_snapshot_sanity_test "${frozen_snapshot}"
-  ## Query the SAME daemon that build/run use (sudo). A non-sudo query can hit a
-  ## different or missing daemon, then wrongly rebuild every run, or skip the
-  ## build and let 'docker run' fall back to pulling the unpinned name.
-  existing_image="$(sudo "${sudo_options_maybe[@]}" -- docker images --quiet -- "${image_ref}" 2> /dev/null)" || true
+  existing_image="$(sudo "${sudo_options_maybe[@]}" -- docker images --quiet -- "${image_ref}" 2>/dev/null)" || true
   if [ -n "${existing_image}" ]; then
-    ## The tag alone does not say WHICH pin an image was built from, so reuse is
-    ## conditioned on the label stamped at build time. Without this, a snapshot
-    ## bump silently reuses an image whose packages came from the previous
-    ## snapshot -- or, for an image predating the pin, from the live archive --
-    ## which is the exact mismatch the pin exists to remove. An image carrying no
-    ## label reports '<no value>' here and so is rebuilt.
+    ## Check if the image is up-to-date.
     image_snapshot="$(sudo "${sudo_options_maybe[@]}" -- docker image inspect \
       --format "{{index .Config.Labels \"${DM_SNAPSHOT_LABEL}\"}}" \
-      -- "${image_ref}" 2> /dev/null)" || image_snapshot=""
+      -- "${image_ref}" 2>/dev/null)" || image_snapshot=""
     if [ ! "${image_snapshot}" = "${frozen_snapshot}" ]; then
       printf '%s\n' "${0##*/}: rebuilding the docker image: pinned to '${image_snapshot:-none}', sources say '${frozen_snapshot}'" >&2
       existing_image=""
@@ -278,8 +160,6 @@ build_docker_image() {
   fi
 }
 
-## Track whether '--' (the mandatory command delimiter) was seen, so a bare
-## command or a mistyped option is rejected rather than silently run.
 saw_dashdash="false"
 
 while true; do
@@ -302,6 +182,12 @@ while true; do
       KEY_VOLUME="${2}"
       shift 2
       ;;
+    --gnupg-mount)
+      [ "$#" -ge 2 ] || usage_error "--gnupg-mount requires a value."
+      validate_mount_path "${2}"
+      GNUPG_VOLUME="${2}"
+      shift 2
+      ;;
     -h|--help)
       print_usage
       exit 0
@@ -320,19 +206,15 @@ while true; do
   esac
 done
 
-## The command to run in the container is explicit and MUST follow '--': the
-## first argument after it, with any further arguments passed through. A bare
-## command (no '--'), an unknown option, or no command at all is rejected -- so a
-## typo is never silently run and there is no implicit default.
+## The command to run in the container is explicit and must follow '--'.
 if [ "${saw_dashdash}" != "true" ] || [ "$#" -lt 1 ]; then
   usage_error "no command given: pass -- COMMAND [ARGS] (see --help)."
 fi
 COMMAND="${1}"
 shift
 
-## The default volume paths (SOURCE_VOLUME + the $HOME-derived mounts) also feed
-## '-v', so a ':' in $HOME or the checkout path would split the spec. Validate
-## them the same way as the --*-mount overrides.
+## The default values for the various volumes can contain characters that make
+## Docker misbehave, so recheck all the volume strings.
 for volume_path in "${SOURCE_VOLUME}" "${BINARY_VOLUME}" "${CACHER_VOLUME}" "${KEY_VOLUME}" "${GNUPG_VOLUME}"; do
   validate_mount_path "${volume_path}"
 done
@@ -346,13 +228,8 @@ build_docker_image
 
 volume_prepare
 
-## Loaded HERE, on the host, because the container ships no kmod: a module the
-## container needs cannot be loaded from inside it. 'nbd' is what
-## developer-meta-files' dm-reproducible-compare-artifacts attaches the two images
-## through to diff their filesystems; without it that comparison degrades to
-## "diffoscope could not explain the diff" exactly when a reproducibility failure
-## is being investigated. 'max_part' must be set at LOAD time -- it is a module
-## parameter, so a later load of an already-present module cannot change it.
+## We can't load kernel modules from within a container, so load them now. nbd
+## is needed by dm-reproducible-compare-artifacts.
 sudo "${sudo_options_maybe[@]}" -- modprobe -a loop dm_mod
 sudo "${sudo_options_maybe[@]}" -- modprobe nbd max_part=16 || true
 
