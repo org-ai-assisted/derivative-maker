@@ -34,25 +34,6 @@ pwd
 if [ "${CI:-}" = "true" ]; then
   ## fetch/merge git submodules
   ## CI testing of 'derivative-update'.
-  ##
-  ## Forward the caller's tolerances as ARGUMENTS, not as environment.
-  ## 'derivative-update' sources help-steps/variables, which runs
-  ## dist_build_one_parse_cmd on ITS OWN "$@" -- so it parses '--allow-uncommitted'
-  ## and '--allow-untagged' itself, exactly as this script's other callee does.
-  ## An env-var side channel would work but would bypass that parser, leaving two
-  ## ways to express one intent and only one of them validated.
-  ##
-  ## Selective, not "$@": derivative-update REJECTS '--tag' and '--ref' alongside
-  ## '--update-only' ("mutually exclusive"), and this script receives the full
-  ## build argument set. Forwarding everything would turn a tolerated dirty tree
-  ## into a usage error.
-  ##
-  ## Without this the dry-run lane fails at "Uncommitted changes in: main repo"
-  ## despite passing '--allow-uncommitted true': help-steps/sign-and-tag amends
-  ## the parent to absorb the staged submodule gitlinks, so the tree IS
-  ## momentarily dirty at exactly this point. The branch runs only under CI=true,
-  ## which never reached the build until the lane started exporting it, so the
-  ## gap had no earlier opportunity to show.
   derivative_update_args=()
   previous_arg=""
   for arg_item in "$@"; do

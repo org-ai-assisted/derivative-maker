@@ -57,37 +57,6 @@ On Apple Silicon hosts, the default platform already matches
 (`linux/arm64`); no extra flags needed. Cross-arch builds require
 `qemu-user-static` registered with binfmt_misc.
 
-### Frozen snapshot pin
-The image's apt is pinned to the same snapshot.debian.org timestamp a
-`--freshness frozen` build uses, so image tooling and the build resolve one
-snapshot.
-
-- The pin lives in `build_sources/`, not under `docker/`. The image gets
-  `debian_stable_frozen_direct_clearnet.sources` (direct URLs, since approx is not
-  running at image-build time); the build uses the approx-proxied file beside it.
-- `derivative-maker-docker-setup` passes `-o Dir::Etc::sourcelist` at that file and
-  `-o Dir::Etc::sourceparts=-`, so it is the only source apt reads; the base image's
-  own sources are never consulted and nothing is overwritten.
-- `-o Acquire::Check-Valid-Until=false`, because a dated snapshot Release ages past it.
-- `dm-update-frozen-snapshot` rewrites the timestamp across both `.sources` files and
-  the plain `build_sources/frozen-snapshot-timestamp`, and refuses when they disagree.
-  Do not hand-edit one of them.
-- `derivative-maker-docker-run` stamps the image with the pin
-  (`org.kicksecure.derivative-maker.frozen-snapshot`) and rebuilds when the label no
-  longer matches, so a bump cannot silently reuse the previous snapshot's image.
-- The sources are https and the slim base ships no `ca-certificates`, so
-  `apt-bootstrap-ca-certificates` installs the trust store first from the base image's
-  own sources, because https to the snapshot cannot be validated before it exists.
-  That is the only unpinned fetch: the base image itself is digest-pinned
-  (`FROM debian:trixie-slim@sha256:...`), not tag-resolved. `derivative-maker-docker-setup`
-  then re-fetches the package from the snapshot with `apt-get install --reinstall`;
-  without `--reinstall` that call is a no-op whenever the live archive and the
-  snapshot carry the same version, leaving the unpinned copy in place.
-
-The build context is the repo root (`docker build --file docker/Dockerfile .`) so the
-Dockerfile can COPY out of `build_sources/`; `.dockerignore` keeps the context to
-`docker/` plus that one file.
-
 ### Volumes
 1. By default three folders are generated in the user's home directory
    ```sh

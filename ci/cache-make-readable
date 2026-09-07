@@ -33,7 +33,6 @@ cache_dirs=(
    "${HOME}/approx_cache_mnt"
 )
 
-## cache_dirs are all directories; test -d, not -e.
 for cache_dir in "${cache_dirs[@]}"; do
    if [ -d "${cache_dir}" ]; then
       sudo chown --recursive -- "${runner_owner}" "${cache_dir}" || true
