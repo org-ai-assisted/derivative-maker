@@ -37,11 +37,7 @@ reimage_cleanup() {
 }
 
 reimage_raw() {
-   ## SOURCE_DATE_EPOCH is exported unconditionally by help-steps/variables; an empty
-   ## value here is a build bug, not a supported non-reproducible mode -- fail loud.
-   ##
-   ## Reproducible builds are the default by design; --freshness frozen|current is
-   ## the mandatory control that selects the package baseline. Not made opt-in.
+   ## SOURCE_DATE_EPOCH is exported unconditionally by help-steps/variables.
    if [ -z "${SOURCE_DATE_EPOCH:-}" ]; then
       printf '%s\n' "ERROR: ${BASH_SOURCE[0]}: SOURCE_DATE_EPOCH is unset; the reproducible reimage requires it." >&2
       return 1

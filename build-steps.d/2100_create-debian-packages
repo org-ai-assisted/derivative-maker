@@ -412,10 +412,9 @@ create_derivative_distribution_debian_packages() {
          fi
          base_name="${item##*/}"
          ## 'Architecture:' currently in ./packages/$derivative_name_item/ folder: all / any /
-         ## amd64 / linux-amd64. Capture the non-comment 'Architecture:' line(s) once, then
-         ## match by substring (same order and semantics as the previous grep chain). '*amd64*'
-         ## also matches 'linux-amd64', so both amd64 spellings share the one amd64-only path.
-         architecture_field="$(grep --invert-match -- "#" "${control_file}" | grep -- "Architecture:" || true)"
+         ## amd64 / linux-amd64.
+         local architecture_field
+         architecture_field="$(grep --invert-match -- "#" "${control_file}" | grep -- "^Architecture:" | cut -d' ' -f2-)" || true
          case "${architecture_field}" in
             *all*)
                true "DEBUG: ${base_name} Architecture: all"
@@ -435,10 +434,8 @@ create_derivative_distribution_debian_packages() {
                error "unknown Architecture: in ${control_file}"
                ;;
          esac
-         ## Fast local iteration (opt-in): skip a package already published in the
-         ## local reprepro repo at its current changelog version. Off by default,
-         ## so editing a package without bumping debian/changelog is not silently
-         ## skipped. Bump the changelog (or unset the flag) to force a rebuild.
+         ## Fast local iteration (opt-in): skip a package already published in
+         ## the local reprepro repo and not modified after that.
          if [ "${dist_build_skip_published_packages:-}" = "true" ] \
             && ! dm_package_needs_rebuild "${item}" "${dist_build_apt_codename}" "${derivative_name_item}"; then
             true "${cyan}INFO: Skipping up-to-date package ${base_name} (already published and not modified).${reset}"
@@ -549,7 +546,6 @@ create_derivative_distribution_debian_packages() {
 
    ## Phase 3: load packages into reprepro serially.
    local reprepro_current=0
-   ## Manifest path depends only on the codename; compute once, not per package.
    local manifest_path
    manifest_path="$(dm_source_hash_manifest_path "${dist_build_apt_codename}")"
    for item in "${package_build_list[@]}"; do
