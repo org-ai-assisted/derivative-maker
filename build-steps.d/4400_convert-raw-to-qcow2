@@ -42,6 +42,12 @@ convert_raw_to_qcow2() {
    ## Minimum cluster size with extended_l2=on is 16K according to
    ## https://www.qemu.org/docs/master/interop/qcow2.html, we want a larger
    ## cluster size than that for performance.
+   ##
+   ## NOTE: In some circumstances, better performance might be reachable by
+   ## using a cluster size of 128 KiB, but this may require a lot of factors to
+   ## be right (4K alignment, right filesystem, good filesystem block size,
+   ## right storage media) to be the case. Might be worth benchmarking in the
+   ## future, but for now, it's easiest to stick with 2 MiB.
    qemu-img \
       convert \
          -p \
