@@ -808,13 +808,9 @@ true "${cyan}${BASH_SOURCE[0]} INFO: BUILD_INITRAMFS_PKGS (--initramfs): ${BUILD
 
 ## {{{ ISO extra packages
 
-## FIXME: This section will need major rework since we're removing live-build.
-## Beyond simply refactoring to get rid of live-build-data, we should very
-## likely get rid of the live-config-* packages, as these are part of
-## live-build and it is unlikely they contain functionality we need. There are
-## also a lot of packages listed in the live-build-config files that may be
-## redundant with our existing metapackage system or that should be integrated
-## into the metapackage system.
+## FIXME: The ISO extra package lists (iso-build-data/package-list-*) may carry
+## redundancy: some entries may duplicate the metapackage system or belong
+## integrated into it. Audit and prune.
 
 if [ "${dist_build_iso:-}" = "true" ]; then
    dist_iso_grub_pc=""
@@ -846,8 +842,8 @@ if [ "${dist_build_iso:-}" = "true" ]; then
    dist_iso_list_file=""
    dist_iso_pkg_line=""
    for dist_iso_list_file in \
-      "${source_code_folder_dist}/live-build-data/live-build-config/live_build_package_list_live" \
-      "${source_code_folder_dist}/live-build-data/live-build-config/live_build_package_list_kicksecure" ; do
+      "${source_code_folder_dist}/iso-build-data/package-list-live" \
+      "${source_code_folder_dist}/iso-build-data/package-list-kicksecure" ; do
       while IFS="" read -r dist_iso_pkg_line || [ -n "${dist_iso_pkg_line}" ]; do
          ## Strip a trailing comment and surrounding whitespace.
          dist_iso_pkg_line="${dist_iso_pkg_line%%#*}"
