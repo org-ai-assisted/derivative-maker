@@ -93,6 +93,12 @@ prepare_raw() {
    "${dist_source_help_steps_folder}/unchroot-raw" "${args[@]}"
    "${dist_source_help_steps_folder}/unprevent-daemons-from-starting" "${args[@]}"
    "${dist_source_help_steps_folder}/unmount-raw" "${args[@]}"
+
+   ## The chroot + raw mount are fully torn down now, so drop the
+   ## unchroot_unmount cleanup: a later failure (overlay assembly, the tool run)
+   ## must not re-run unchroot-raw/unmount-raw against an already-clean state,
+   ## which errors on its own and masks the real cause.
+   exception_handler_setup "exception_handler_general" ERR INT TERM
 }
 
 ## Assemble the GRUB overlay (menu + theme + fonts + kb_layouts) that
@@ -171,11 +177,17 @@ build_live_overlay() {
          ;;
    esac
 
-   [ -e "${mt_bin}" ] \
-      || error "memtest86+ binary not found: '${mt_bin}' (build dependency 'memtest86+' missing)"
-   cp -- "${mt_bin}" "${live_overlay}/memtest.bin"
-   ## The EFI image is best-effort (older memtest86+ ships BIOS only).
-   [ ! -e "${mt_efi}" ] || cp -- "${mt_efi}" "${live_overlay}/memtest.efi"
+   ## memtest is an OPTIONAL diagnostic: the GRUB menu entry self-hides when
+   ## /live/memtest.bin is absent, so a missing binary (e.g. a cross-arch or
+   ## minimal build host without memtest86+) warns and skips rather than failing
+   ## the whole ISO. A native amd64 build installs it via 1200.
+   if [ -e "${mt_bin}" ]; then
+      cp -- "${mt_bin}" "${live_overlay}/memtest.bin"
+      ## The EFI image is best-effort (older memtest86+ ships BIOS only).
+      [ ! -e "${mt_efi}" ] || cp -- "${mt_efi}" "${live_overlay}/memtest.efi"
+   else
+      true "${red}${bold}WARNING:${reset} memtest86+ binary not found ('${mt_bin}'); the ISO menu's memtest entry will self-hide. Install 'memtest86+' on the build host to include it."
+   fi
 }
 
 convert_raw_to_iso() {
