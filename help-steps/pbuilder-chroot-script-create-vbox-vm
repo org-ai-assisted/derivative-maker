@@ -171,8 +171,8 @@ general_setup() {
 
    ## Enable PAE. x86-only feature.
    ##
-   ## Not obsolete: arm64 VBox VMs are supported above (--ostype Debian_arm64);
-   ## --x86-pae applies only to the x86_64 VM.
+   ## TODO: Now that we don't support i386, should we stop setting this option
+   ## entirely?
    if [ ! "${dist_build_target_arch}" = "arm64" ]; then
       ${SUDO_TO_VBOX_TEMP} VBoxManage modifyvm "${VMNAME}" --x86-pae on
    fi
