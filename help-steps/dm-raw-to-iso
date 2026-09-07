@@ -63,6 +63,12 @@ Options:
   --grub-config-append <f> append file <f> to the ISO's GRUB config.cfg (e.g. an
                            SMBIOS kernel-cmdline reader); consumer-supplied, so this
                            tool ships no such reader of its own
+  --grub-overlay <dir>     copy <dir>'s contents into the ISO's /boot/grub/ on top
+                           of the built-in baseline (a consumer menu, theme, fonts,
+                           kb_layouts, ...); @APPEND_LIVE@ in any *.cfg is replaced
+                           with the base live kernel command line this tool computes
+  --live-overlay <dir>     copy <dir>'s contents into the ISO's /live/ (e.g. a
+                           memtest binary, a package manifest)
   --source-date-epoch <n>  UNIX timestamp for reproducible output (default: env
                            SOURCE_DATE_EPOCH, else the raw image's mtime)
   --keep-workdir           do not delete the temporary work directory on exit
@@ -103,6 +109,8 @@ label="DM_LIVE"
 bootappend=""
 serial_console="false"
 grub_config_append=""
+grub_overlay=""
+live_overlay=""
 source_date_epoch="${SOURCE_DATE_EPOCH:-}"
 keep_workdir="false"
 
@@ -142,6 +150,16 @@ while [ "$#" -gt 0 ] ; do
          grub_config_append="$2"
          shift 2
          ;;
+      --grub-overlay)
+         [ "$#" -ge 2 ] || error "--grub-overlay requires a value"
+         grub_overlay="$2"
+         shift 2
+         ;;
+      --live-overlay)
+         [ "$#" -ge 2 ] || error "--live-overlay requires a value"
+         live_overlay="$2"
+         shift 2
+         ;;
       --source-date-epoch)
          [ "$#" -ge 2 ] || error "--source-date-epoch requires a value"
          source_date_epoch="$2"
@@ -169,6 +187,8 @@ done
 if [ "$(readlink -f -- "${raw}")" = "$(readlink -f -- "${output}" 2>/dev/null)" ] ; then
    error "--output must not be the same file as --raw"
 fi
+[ -z "${grub_overlay}" ] || [ -d "${grub_overlay}" ] || error "--grub-overlay is not a directory: '${grub_overlay}'"
+[ -z "${live_overlay}" ] || [ -d "${live_overlay}" ] || error "--live-overlay is not a directory: '${live_overlay}'"
 
 if [ -z "${arch}" ] ; then
    require_cmd dpkg
@@ -514,6 +534,25 @@ printf '%s\n' "${grub_tmpl//@APPEND_LIVE@/${live_append}}" > "${binary}/boot/gru
 ## loopback.cfg: static, boots the .iso as a loop-mounted file from another GRUB.
 cp -- "${tmpl_dir}/loopback.cfg" "${binary}/boot/grub/loopback.cfg"
 
+## Optional consumer GRUB overlay: copy the caller's /boot/grub tree (a richer
+## menu, theme, fonts, kb_layouts, ...) on top of the baseline written above, so
+## the caller controls the menu and look without this generic tool shipping any
+## consumer-specific config. Then substitute @APPEND_LIVE@ in every *.cfg so the
+## caller's menu entries all derive from the single live cmdline computed here.
+## Literal (parameter) substitution only: ${iso_path} / ${dm_smbios_extra} stay
+## unexpanded for GRUB to resolve at boot.
+if [ -n "${grub_overlay}" ] ; then
+   printf '%s: applying GRUB overlay %s\n' "${me}" "${grub_overlay}" >&2
+   cp --archive -- "${grub_overlay}/." "${binary}/boot/grub/"
+   while IFS= read -r -d '' cfg ; do
+      ## 'cat; printf x' then strip the x preserves any trailing newline that a
+      ## bare command substitution would drop.
+      cfg_content="$(cat -- "${cfg}"; printf x)"
+      cfg_content="${cfg_content%x}"
+      printf '%s' "${cfg_content//@APPEND_LIVE@/${live_append}}" > "${cfg}"
+   done < <(find "${binary}/boot/grub" -type f -name '*.cfg' -print0)
+fi
+
 ######################################################################
 ## 8. Assemble the hybrid ISO in a single xorriso pass.
 ######################################################################
@@ -547,6 +586,19 @@ xorriso_opts+=(
    -e boot/grub/efi.img -no-emul-boot
    -isohybrid-gpt-basdat
 )
+
+## Optional consumer /live overlay: extra files that live beside the squashfs on
+## the ISO but not inside it (e.g. a memtest binary the menu boots directly, a
+## package manifest). Copied after the squashfs/kernel/initrd are staged.
+if [ -n "${live_overlay}" ] ; then
+   printf '%s: applying /live overlay %s\n' "${me}" "${live_overlay}" >&2
+   cp --archive -- "${live_overlay}/." "${binary}/live/"
+fi
+
+## Pin every staged file's mtime to SOURCE_DATE_EPOCH so the ISO is reproducible:
+## xorriso records per-file mtimes, and overlay / live-overlay / copied loader
+## files otherwise carry build-host times. Done last, after all staging.
+find "${binary}" -exec touch --no-dereference --date="@${SOURCE_DATE_EPOCH}" -- {} +
 
 safe-rm --force -- "${output}"
 xorriso -as mkisofs "${xorriso_opts[@]}" -o "${output}" "${binary}"
