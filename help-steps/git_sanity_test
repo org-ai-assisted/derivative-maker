@@ -25,22 +25,26 @@ else
    PYTHONPATH="${HELPER_SCRIPTS_PATH}/usr/lib/python3/dist-packages"
 fi
 export PYTHONPATH
-## Bootstrap helpers (get_colors, log_run_die, and check_runtime which provides
-## was_executed -- this script is source-able so unit tests source it). Fail CLOSED
-## if any is missing: the '-e' shebang covers a DIRECT run but NOT 'bash
-## git_sanity_test' (how mode_submodules re-invokes this) or 'bash -c', where the
-## shebang is ignored and the pre-main bootstrap would otherwise run with errexit
-## OFF -- a missing check_runtime.bsh would then leave was_executed undefined, skip
-## main(), and exit 0 on an UNVERIFIED repo. The explicit '|| exit 1' makes the
-## abort invocation-independent.
-for git_sanity_bootstrap_helper in get_colors.sh log_run_die.sh check_runtime.bsh; do
-   # shellcheck disable=SC1090
-   if ! source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/${git_sanity_bootstrap_helper}"; then
-      printf '%s\n' "${0##*/}: FATAL: cannot source ${git_sanity_bootstrap_helper}; refusing to run unverified." >&2
-      exit 1
-   fi
-done
-unset git_sanity_bootstrap_helper
+## Can't use a loop to source, shellcheck requires individual statements that
+## we can prefix with shellcheck directives. Stacking multiple directives on
+## top of one statement does not work, see
+## https://github.com/koalaman/shellcheck/issues/2989. Can't rely on errexit to
+## make these source calls abort the script on failure.
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/get_colors.sh
+if ! source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/get_colors.sh"; then
+  printf '%s\n' "${0##*/}: FATAL: cannot source get_colors.sh." >&2
+  exit 1
+fi
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/log_run_die.sh
+if ! source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/log_run_die.sh"; then
+  printf '%s\n' "${0##*/}: FATAL: cannot source log_run_die.sh." >&2
+  exit 1
+fi
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/check_runtime.bsh
+if ! source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/check_runtime.bsh"; then
+  printf '%s\n' "${0##*/}: FATAL: cannot source check_runtime.bsh." >&2
+  exit 1
+fi
 
 ## This function is defined up here to avoid redundancy between comments and
 ## documentation.
@@ -144,15 +148,10 @@ sq_git_verify() {
          return 1
       fi
 
-      ## Enforce the no-AI-skip policy at the CONSUMPTION point, not only in
-      ## parse-cmd's flag branch: dist_build_ignore_unsigned=true reaches here from
-      ## the env or a buildconfig.d snippet too, bypassing the flag. An AI session
-      ## (CLAUDECODE) or a context setting dist_build_forbid_allow_unsigned=true may
-      ## not skip verification; sign+tag with a throwaway key instead
-      ## (--sign-and-tag). Human override: dist_build_unlock_dangerous_options=true.
-      if { [ "${CLAUDECODE:-}" = "1" ] || [ "${dist_build_forbid_allow_unsigned:-}" = "true" ]; } \
-         && [ "${dist_build_unlock_dangerous_options:-}" != "true" ]; then
-         printf '%s\n' "${bold}${red}ERROR: skipping signature verification (dist_build_ignore_unsigned=true) is forbidden for an AI session (CLAUDECODE) or under dist_build_forbid_allow_unsigned=true. Use --sign-and-tag; human override: dist_build_unlock_dangerous_options=true.${reset}" >&2
+      ## Don't let AI bypass signature verification. Allow humans to opt into
+      ## this behavior too.
+      if [ "${CLAUDECODE:-}" = "1" ] || [ "${dist_build_forbid_allow_unsigned:-}" = "true" ]; then
+         printf '%s\n' "${bold}${red}ERROR: skipping signature verification (dist_build_ignore_unsigned=true) is forbidden for AI sessions or under dist_build_forbid_allow_unsigned=true. AI models should use --sign-and-tag.${reset}" >&2
          return 1
       fi
 

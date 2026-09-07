@@ -97,6 +97,10 @@ jobs:
       - name: Self-test the evaluators (offline regression)
         ## Covers both invariants, plus the enumerator, against stubbed
         ## resolvers and real local git fixtures. No network.
+        ##
+        ## TODO: Shouldn't this be something checked by dist-ai's own CI? If
+        ## the tool hasn't changed since the last time it was used, there's no
+        ## point in re-testing it, so we should remove this from here.
         run: ./dist-ai/usr/bin/dm-gitlink-upstream-check --self-test
 
       - name: Check gitlinks are resolvable and deviate from nothing upstream

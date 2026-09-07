@@ -16,89 +16,17 @@ shopt -s shift_verbose
 
 ## TODO: root check or use sudo
 
-## Frozen snapshot pin, applied as apt OPTIONS rather than configuration files:
-## - Dir::Etc::sourcelist names the ONLY sources file apt reads
-## - Dir::Etc::sourceparts=- disables sources.list.d entirely
-## so the base image's own sources are simply never consulted; nothing is
-## overwritten or blanked.
-## - Check-Valid-Until=false because a dated snapshot Release ages past it.
-## Matches buildconfig.d/30_apt_opts.conf, which passes the same setting as an
-## option for the build.
+## TODO: It doesn't look like we're taking into account non-frozen builds. When
+## doing a non-frozen build, we should have the most up-to-date packages in the
+## builder for the same reason we want to freeze the same packages in both the
+## builder and built image.
+
 DM_FROZEN_SOURCES='/etc/apt/dm-frozen.sources'
 dm_apt_options=(
    -o "Dir::Etc::sourcelist=${DM_FROZEN_SOURCES}"
    -o 'Dir::Etc::sourceparts=-'
    -o 'Acquire::Check-Valid-Until=false'
 )
-
-## The pin is read back out of the file apt is pointed at, because that file is
-## the only thing apt obeys; verifying anything else would prove the wrong
-## statement. Only 'URIs:' lines count -- comment prose carries example dates.
-## Every URI token of every 'URIs:' field, one per line -- including deb822 FOLDED
-## continuation lines (a field may continue on lines beginning with whitespace).
-## Matching only the 'URIs:' line itself misses those, leaving a URI hidden on a
-## continuation line unvalidated.
-dm_deb822_uris() {
-   local line trimmed token in_field
-   in_field=false
-   while IFS= read -r line; do
-      trimmed="${line#"${line%%[![:space:]]*}"}"
-      case "${trimmed}" in
-         URIs:*)
-            in_field=true
-            trimmed="${trimmed#URIs:}"
-            ;;
-         '')
-            in_field=false
-            continue
-            ;;
-         *)
-            if [ "${in_field}" = "true" ] && [ ! "${line}" = "${trimmed}" ]; then
-               true
-            else
-               in_field=false
-               continue
-            fi
-            ;;
-      esac
-      ## Deliberate word splitting: a URIs field is whitespace-separated.
-      # shellcheck disable=SC2086
-      for token in ${trimmed}; do
-         printf '%s\n' "${token}"
-      done
-   done < "$1"
-}
-
-DM_FROZEN_SNAPSHOT="$(dm_deb822_uris "${DM_FROZEN_SOURCES}" \
-   | grep -oE '[0-9]{8}T[0-9]{6}Z' | sort --unique | head -n 1 || true)"
-dm_frozen_snapshot_count="$(dm_deb822_uris "${DM_FROZEN_SOURCES}" \
-   | grep -oE '[0-9]{8}T[0-9]{6}Z' | sort --unique | grep --count . || true)"
-
-## Exactly one snapshot, or the two archives resolve to different ones and the
-## security archive can sit silently on an older snapshot.
-if [ ! "${dm_frozen_snapshot_count}" = "1" ]; then
-   printf '%s\n' \
-      "${BASH_SOURCE[0]}: ERROR: expected exactly one pinned snapshot in '${DM_FROZEN_SOURCES}', found ${dm_frozen_snapshot_count}." >&2
-   exit 1
-fi
-## Counting DISTINCT TIMESTAMPS is not the same as validating the URIs. A stanza
-## listing the pinned snapshot alongside a live archive
-## ('URIs: http://snapshot.../<pin> https://deb.debian.org/debian') yields exactly
-## one timestamp and passed the count test, while apt still fetched from the live
-## archive -- defeating the pin this check exists to prove. So require EVERY URI
-## to carry the snapshot.
-dm_unpinned_uri="$(dm_deb822_uris "${DM_FROZEN_SOURCES}" \
-   | grep -vE '[0-9]{8}T[0-9]{6}Z' | head -n 1 || true)"
-if [ -n "${dm_unpinned_uri}" ]; then
-   printf '%s\n' \
-      "${BASH_SOURCE[0]}: ERROR: '${DM_FROZEN_SOURCES}' lists URI '${dm_unpinned_uri}', which carries no snapshot timestamp; apt would fetch from it unpinned." >&2
-   exit 1
-fi
-
-if [ -z "${DM_FROZEN_SNAPSHOT}" ]; then
-   printf '%s\n' "${BASH_SOURCE[0]}: ERROR: no pinned snapshot in '${DM_FROZEN_SOURCES}'." >&2
-   exit 1
-fi
 
 apt-get "${dm_apt_options[@]}" update
 
@@ -139,26 +67,15 @@ DEBIAN_FRONTEND=noninteractive \
     dpkg-dev fasttrack-archive-keyring safe-rm adduser sudo approx \
     python3 python3-yaml
 
+## Don't downgrade ca-certificates; we need certificates that work to connect
+## to snapshot.debian.org, not certificates that were available when a snapshot
+## was taken. Downgrading ca-certificates would likely break the ability to
+## reproduce old images.
+
 ## Branch on the run context: docker is only used on the HOST, while the build
 ## user only exists in the IMAGE. 'sudo' resets USER to 'root' on the host (see
 ## 'help-steps/dm-build-official-one' CI branch); the Dockerfile ENV sets
 ## USER=user during the image build.
-## ca-certificates is installed SEPARATELY with --reinstall. It is already present
-## at this point -- apt-bootstrap-ca-certificates installed it from the base
-## image's own (unpinned) sources so https to the snapshot could be validated at
-## all. A plain 'apt-get install ca-certificates' is then a no-op whenever the
-## live archive and the snapshot carry the same version, which is the normal case:
-## apt reports "already the newest version" and fetches nothing, so the trust
-## store in the image stays the one that came from the unpinned fetch. --reinstall
-## forces it to be re-fetched from the pinned snapshot, which is what makes the
-## trust store's provenance match the rest of the image.
-DEBIAN_FRONTEND=noninteractive \
-   apt-get "${dm_apt_options[@]}" install \
-      --no-install-recommends \
-      --reinstall \
-      --yes \
-      ca-certificates
-
 if [ "${USER}" = "root" ]; then
    ## Host: install the docker engine + client (see the comment above the
    ## apt-get call). Never needed inside the image.
