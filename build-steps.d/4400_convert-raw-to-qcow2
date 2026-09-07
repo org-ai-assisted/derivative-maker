@@ -39,14 +39,21 @@ convert_raw_to_qcow2() {
    ## Create qcow2 image form raw image.
    ## VMSIZE defaults to 100G as per help-steps/variables.
    ##
-   ## Cluster size is set by the extended_l2 line below (extended_l2=on requires a
-   ## 128k cluster); an earlier '-o cluster_size' would be overridden -- last -o wins.
+   ## Minimum cluster size with extended_l2=on is 16K according to
+   ## https://www.qemu.org/docs/master/interop/qcow2.html, we want a larger
+   ## cluster size than that for performance.
+   ##
+   ## NOTE: In some circumstances, better performance might be reachable by
+   ## using a cluster size of 128 KiB, but this may require a lot of factors to
+   ## be right (4K alignment, right filesystem, good filesystem block size,
+   ## right storage media) to be the case. Might be worth benchmarking in the
+   ## future, but for now, it's easiest to stick with 2 MiB.
    qemu-img \
       convert \
          -p \
          -O qcow2 \
          -o compat=1.1 \
-         -o extended_l2=on,cluster_size=128k \
+         -o extended_l2=on,cluster_size=2M \
          -o preallocation=metadata \
          "${binary_image_raw_file}" \
          "${binary_image_qcow2_file}"

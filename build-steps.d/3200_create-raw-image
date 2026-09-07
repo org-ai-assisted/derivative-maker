@@ -205,8 +205,6 @@ create-debian-raw-image() {
    ## Sanity test.
    test -n "${dist_build_hostname}"
 
-   ## REMINDER: pass --no-reimage here once our grml-debootstrap fork supports it.
-   ##
    ## '$DEBOOTSTRAP_PREFIX', '$UNSHARE_PID_NS' and '$use_vmefi_maybe' are
    ## intentionally unquoted: each holds zero or more words that must split
    ## into separate argv slots.
@@ -232,7 +230,8 @@ create-debian-raw-image() {
                   --vmsize "${VMSIZE}" \
                   --packages "${grml_packages_file}" \
                   --mntpoint "${dist_grml_mount_point}" \
-                  --target "${binary_image_raw_file}"
+                  --target "${binary_image_raw_file}" \
+                  --no-reimage
 }
 
 create-empty-raw-image() {
