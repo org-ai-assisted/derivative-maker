@@ -50,10 +50,9 @@ derive_unified_image_paths() {
    local vm_name_item_to_be_exported vm_name_item_lower dist_build_type_long_lower
 
    ## 'none' sentinel (set for a non-unified build such as --flavor source): there
-   ## is no "other VM" to name, so leave binary_image_{raw,qcow2}_file_for_unified
-   ## UNSET rather than deriving a nonsensical '.../none-<ver>.<arch>.raw' path.
-   ## (Only unified/workstation builds consume these vars; on other single-VM
-   ## builds the substring skip below may or may not fire, but the value is unread.)
+   ## is no "other VM", so leave binary_image_{raw,qcow2}_file_for_unified UNSET
+   ## rather than deriving a bogus '.../none-<ver>.<arch>.raw' path. Matches the
+   ## kicksecure single-build case, whose 'continue' already leaves them unset.
    if [ "${vm_names_to_be_exported:-}" = "none" ]; then
       return 0
    fi
