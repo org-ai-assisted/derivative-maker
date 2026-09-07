@@ -30,7 +30,7 @@ help-steps/dm-build-official
                      ...
                      1100_sanity-tests
                      1600_export-libvirt-xml           (raw/qcow2 only)
-                     4310_convert-raw-to-iso           (iso only)
+                     3600_convert-raw-to-iso           (iso only)
                      5200_prepare-release -> dm-prepare-release
                           -> dm-reproducible-buildinfo   # per-image .dm-buildinfo
                      ...
@@ -167,7 +167,7 @@ step                            under dry-run              gate
                                 grml-debootstrap            :258 -> create-empty-raw-image
 3400_copy-vms-into-raw          SKIPPED ENTIRELY            :79  -> return 0
 3500_install-packages           SKIPPED ENTIRELY            :665 -> return 0
-4310_convert-raw-to-iso         writes a placeholder ISO
+3600_convert-raw-to-iso         writes a placeholder ISO
                                 (build_dry_run)             :172 -> return 0
 4300_run-chroot-scripts-post-d  SKIPPED ENTIRELY            :105 -> return 0
 4350_reimage-raw-reproducible   SKIPPED ENTIRELY            :221 -> return 0
