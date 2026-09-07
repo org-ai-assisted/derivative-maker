@@ -19,7 +19,7 @@
 ## the log.
 ##
 ## style-ok: no-has -- runner-diagnostic script; does not source derivative-maker
-## helper-scripts (same class as ci/free-disk).
+## helper-scripts.
 
 set -o errexit
 set -o nounset
