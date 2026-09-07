@@ -203,6 +203,7 @@ Environment Variables:
 Advanced Options:
   --report [true|false]           : Enable or disable build reports (default: false).
   --serial-console-enable [true|false] : Install serial-console-enable and enable serial console on ISO builds (default: false).
+  --grub-bios-theme [true|false]  : Force the 4x3/BIOS grub theme and resolution in the built image regardless of build-host firmware, for reproducible builds (default: true). false lets grub-mkconfig probe the build host firmware.
   --smbios-reader [true|false]    : DANGEROUS, DO NOT USE. Allow injecting kernel parameters via the SMBIOS serial number field. This will allow attackers with physical access to inject arbitrary kernel parameters into the boot process! Only useful for CI and AI agents.
   --sanity-tests [true|false]     : Enable or disable chroot script sanity tests for faster build speed (default: false).
   --only-packages 'p1 p2'         : Rebuild only listed packages into the persistent local repo, reuse the rest from the prior build.
@@ -594,6 +595,18 @@ dist_build_one_parse_cmd() {
                   export dist_build_serial_console_enable="false"
                else
                   printf '%s\n' "${red}${bold}ERROR: supported options for --serial-console-enable are 'true' or 'false'.${reset}"
+                  exit 1
+               fi
+               shift 2
+               ;;
+           --grub-bios-theme)
+               if [ "${2:-}" = "true" ]; then
+                  export dist_build_grub_bios_theme="true"
+               elif [ "${2:-}" = "false" ]; then
+                  true "${cyan}INFO: 4x3/BIOS grub theme override disabled; grub-mkconfig probes firmware.${reset}"
+                  export dist_build_grub_bios_theme="false"
+               else
+                  printf '%s\n' "${red}${bold}ERROR: supported options for --grub-bios-theme are 'true' or 'false'.${reset}"
                   exit 1
                fi
                shift 2

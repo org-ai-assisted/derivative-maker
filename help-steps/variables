@@ -1400,6 +1400,15 @@ export dist_build_serial_console_enable
 [ -n "${dist_build_smbios_reader:-}" ] || dist_build_smbios_reader="false"
 export dist_build_smbios_reader
 
+## 4x3/BIOS grub theme is the build DEFAULT (Kicksecure's primary use case is
+## BIOS VMs, whose VESA modes only provide a 4x3 canvas), so the image is
+## reproducible regardless of the build host's firmware. The base-files grub.d
+## snippets read it inside the chroot when grub-mkconfig runs. Absent on an
+## installed system, where a later update-grub probes the running firmware.
+## Must be on env_vars_keep_list below to cross into the chroot.
+[ -n "${dist_build_grub_bios_theme:-}" ] || dist_build_grub_bios_theme="true"
+export dist_build_grub_bios_theme
+
 if [ "${dist_build_installer_dist}" = "true" ]; then
    [ -n "${ssh_uploader_account:-}" ] || ssh_uploader_account="root"
 
@@ -1906,6 +1915,7 @@ env_vars_keep_list="
    dist_build_iso
    dist_build_serial_console_enable
    dist_build_smbios_reader
+   dist_build_grub_bios_theme
    dist_build_slot
    dist_build_utm
    dist_build_install_to_root
