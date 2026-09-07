@@ -1306,6 +1306,9 @@ set_default_variable copy_vms_into_raw_file_two "${dist_binary_build_folder}/Who
 
 ## Sanity test. dm-prepare-release uses 'rm --force --recursive'.
 ## XXX: hardcoded derivative-binary
+## KNOWN LIMITATION (out of scope): substring match, not path-containment -- a
+## dist_build_version with '../' (a builder-set override) passes this yet resolves
+## outside the build folder. Self-inflicted threat model; not hardened here.
 if ! printf "%s\n" "${dist_binary_build_folder}" | grep --fixed-strings -- "derivative-binary" >/dev/null 2>&1; then
    printf "%s\n" "$0: FAIL: wrong folder: dist_binary_build_folder: ${dist_binary_build_folder}"
    exit 1
