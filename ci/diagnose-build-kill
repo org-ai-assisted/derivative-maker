@@ -64,9 +64,6 @@ else
    printf '%s\n' "no OOM records in dmesg"
 fi
 
-## Same token set as the dmesg grep above: a real OOM kill always logs one of
-## these; the "oom_reaper: reaped" line is only a redundant follow-up, never sole
-## evidence (kernel mm/oom_kill.c).
 journal_oom="$( sudo --non-interactive -- journalctl --dmesg --no-pager 2>/dev/null \
    | grep --extended-regexp --ignore-case 'out of memory|oom-kill|killed process' \
    | tail -n 20 || true )"
