@@ -1958,10 +1958,18 @@ fi
 #printf "%s\n" "INFO: SUDO_TO_ROOT:"
 #printf "%s\n" "${cyan}$SUDO_TO_ROOT${reset}"
 
-## Development.
-#set -x
-#declare -p | awk '{print $3}' | sort | sponge -- ~/temp/varnames
-#exit
+## Optional variable snapshot. When 'dist_build_dump_varnames' is set (to any
+## non-empty value), print the full variable state (name=value) and stop here,
+## before any build step runs. Consumed by dist-ai's dm-help-steps-tests to
+## baseline the variables this script sets, per build command, ahead of a large
+## 'variables' refactoring. Default unset -> no effect on a real build.
+## 'declare -p' dumps variables only (not functions); the consumer filters out
+## the inherited/env/'pre' names against a baseline. 'exit 0' (not 'return')
+## matches the sourced-file convention above: it ends the outer, sourcing shell.
+if [ -n "${dist_build_dump_varnames:-}" ]; then
+   declare -p | LC_ALL=C sort
+   exit 0
+fi
 
 xtrace_restore
 
