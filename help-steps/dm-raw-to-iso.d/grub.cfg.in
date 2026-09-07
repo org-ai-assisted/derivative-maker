@@ -1,0 +1,8 @@
+## dm-raw-to-iso main menu. @APPEND_LIVE@ = the live kernel command line, substituted
+## by the tool (root=live:CDLABEL=<label>, dracut rd.live.*, findiso, any --bootappend).
+source /boot/grub/config.cfg
+
+menuentry "Live" {
+   linux /live/vmlinuz @APPEND_LIVE@
+   initrd /live/initrd.img
+}
