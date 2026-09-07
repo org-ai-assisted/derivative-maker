@@ -51,10 +51,26 @@ prepare_raw() {
    "${dist_source_help_steps_folder}/chroot-raw" "${args[@]}"
 
    ## Remove build-time markers set by 3500_install-packages under
-   ## 'dist_build_iso=true' to steer package postinsts; they must not persist
-   ## into the shipped live image.
+   ## 'dist_build_iso=true' to steer package postinsts; they must not persist into
+   ## the shipped live image. Removed BEFORE the post scripts run, so those run on
+   ## a marker-free image exactly as they do on the VM/disk path.
    ${SUDO_TO_ROOT} safe-rm --force -- "${CHROOT_FOLDER}/var/lib/dist-base-files/live_build"
    ${SUDO_TO_ROOT} safe-rm --force -- "${CHROOT_FOLDER}/var/lib/security-misc/skip_install_check"
+
+   ## Run initializer-dist's chroot-scripts-post.d, the release finishing the
+   ## VM/disk path gets from 4300_run-chroot-scripts-post-d -- which SKIPS for
+   ## 'dist_build_iso=true' and runs AFTER this step anyway. Without this the ISO
+   ## squashfs would ship the build-host approx apt sources, an unwiped
+   ## random-seed, build-host nvme/loop identifiers, and no autologin / setup
+   ## wizard. Mirrors 4300: local temp apt repo up, run-parts, repo down.
+   "${dist_source_help_steps_folder}/create-local-temp-apt-repo" "${args[@]}"
+   if ${SUDO_TO_ROOT} test -d "${CHROOT_FOLDER}/usr/libexec/initializer-dist/chroot-scripts-post.d"; then
+      chroot_run run-parts --verbose --test -- "/usr/libexec/initializer-dist/chroot-scripts-post.d/"
+      chroot_run run-parts --verbose --exit-on-error -- "/usr/libexec/initializer-dist/chroot-scripts-post.d/"
+   else
+      true "${green}${bold}INFO: no chroot-scripts-post.d in the image; running none.${reset}"
+   fi
+   "${dist_source_help_steps_folder}/remove-local-temp-apt-repo" "${args[@]}"
 
    ## Installed-package manifest, shipped on the ISO at /live/filesystem.packages.
    ${SUDO_TO_ROOT} dpkg-query --admindir="${CHROOT_FOLDER}/var/lib/dpkg" --show \

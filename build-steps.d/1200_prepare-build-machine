@@ -139,6 +139,9 @@ build_machine_setup() {
          packages_to_be_installed+=" grub-efi-amd64-signed "
          packages_to_be_installed+=" shim-unsigned shim-signed shim-signed-common "
          packages_to_be_installed+=" shim-helpers-amd64-signed "
+         ## memtest86+ (x86 only) supplies the diagnostic image the ISO GRUB menu
+         ## boots (build-steps.d/3600 stages it into /live).
+         packages_to_be_installed+=" memtest86+ "
       elif [ "${host_architecture}" = "ppc64el" ]; then
          packages_to_be_installed+=" grub-ieee1275-bin  "
       elif [ "${host_architecture}" = "ppc64" ]; then
@@ -147,6 +150,9 @@ build_machine_setup() {
          packages_to_be_installed+=" grub-ieee1275-bin  "
       elif [ "${host_architecture}" = "arm64" ]; then
          packages_to_be_installed+=" grub-efi-arm64-bin "
+         ## Signed aa64 GRUB is the mandatory platform on arm64 (dm-raw-to-iso
+         ## hard-errors without /usr/lib/grub/arm64-efi-signed/gcdaa64.efi.signed).
+         packages_to_be_installed+=" grub-efi-arm64-signed "
          packages_to_be_installed+=" shim-unsigned shim-signed shim-signed-common "
       elif [ "${host_architecture}" = "riscv64" ]; then
          packages_to_be_installed+=" grub-efi-riscv64-bin  "
