@@ -22,12 +22,9 @@ export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
-## unmount-helper needs only SUDO_TO_ROOT from the build config. Sourcing the
-## whole 'variables' would drag in a full build context (the root guard, a
-## debian/changelog, user_name, ...) that a bare umount has no use for -- and
-## makes the script impossible to exercise outside a real build. Default it
-## directly; a caller that exports SUDO_TO_ROOT (e.g. a no-op when already root)
-## overrides. See the decommission FIXME above.
+## Not used now, but maybe in the future if this script isn't deprecated.
+#MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
+
 [ -n "${SUDO_TO_ROOT:-}" ] || SUDO_TO_ROOT="sudo --non-interactive"
 
 main() {

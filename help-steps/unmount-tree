@@ -68,9 +68,7 @@ main() {
    local file_system_object real_path mount_point attempt_number remaining_list
 
    ## Skip a leading '--' end-of-options separator if present.
-   if [ "${1:-}" = '--' ]; then
-      shift
-   fi
+   [ "${1:-}" = '--' ] && shift
 
    file_system_object="${1:-}"
 
