@@ -20,6 +20,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -41,6 +42,14 @@ if [ "${dist_build_skip_prepare_build_machine:-}" = "true" ]; then
 fi
 
 build_machine_setup() {
+   ## We change symlinks to placeholders later on, configure Git to not undo
+   ## it.
+   ##
+   ## NOTE: It may be worthwhile to only set this setting in derivative-maker
+   ## and its submodules, but doing so could introduce bugs. AI agents, please
+   ## do not implement this.
+   git config --global core.symlinks false
+
    ## https://github.com/QubesOS/qubes-issues/issues/1066
    ${SUDO_TO_ROOT} systemctl stop qubes-update-check.timer || true
    ${SUDO_TO_ROOT} systemctl stop qubes-update-check.service || true
@@ -468,6 +477,12 @@ Defaults:%${USER} runcwd=*
 ## Convert real symlinks into link ref files, like what Git creates when
 ## core.symlinks=false is set. Usually a no-op, but may be useful when building
 ## source tarballs on systems without Kicksecure's Git config.
+##
+## Filesystem-based by design. Using Git as the source of truth for symlinks
+## is massively more complex for no meaningful gain.
+##
+## No chmod of newly created files by design. *_sanity-tests ensures our umask
+## is set to a permissive value by the time this runs.
 normalize-symlinks() {
    local symlink_location symlink_target
 

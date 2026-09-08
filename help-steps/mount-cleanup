@@ -10,6 +10,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "$0 INFO: start"
 
@@ -20,20 +21,8 @@ fi
 
 MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 
-## TODO: If we don't handle any non-positional arguments in this script, maybe
-## shorten this loop to `[ "${1:-}" = '--' ] && shift`? Or do we expect to
-## handle non-positional arguments in the future?
-while true; do
-   case "${1:-}" in
-      --)
-         shift
-         break
-         ;;
-      *)
-         break
-         ;;
-   esac
-done
+## Skip a leading '--' end-of-options separator if present.
+[ "${1:-}" = '--' ] && shift
 
 file_system_object="${1:-}"
 
@@ -184,6 +173,6 @@ fi
 
 ## Unmount all submounts. All callers consider it an error for any submount
 ## unmount to fail.
-"${MYDIR}"/unmount-tree
+"${MYDIR}"/unmount-tree -- "${file_system_object}"
 
 true "$0 INFO: end"

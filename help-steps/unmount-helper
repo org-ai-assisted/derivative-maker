@@ -18,15 +18,14 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
-MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
+## Not used now, but maybe in the future if this script isn't deprecated.
+#MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 
-dist_build_source_run="true"
-
-source "${MYDIR}/pre"
-source "${MYDIR}/variables"
+[ -n "${SUDO_TO_ROOT:-}" ] || SUDO_TO_ROOT="sudo --non-interactive"
 
 main() {
    while :

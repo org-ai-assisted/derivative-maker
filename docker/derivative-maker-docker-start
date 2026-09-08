@@ -3,12 +3,9 @@
 ## Copyright (C) 2025 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
 
-## This script is executed from within the container with the purpose of verifying
-## a chosen or the latest available tag, before initiating the build process.
-##
-## GIT=true - run 'git pull'
-##
-## TODO: Is the above comment out-of-date?
+## Runs inside the build container: executes the given command ("$@") from the
+## source directory, tees its combined stdout/stderr to logs/build.log, and exits
+## with the command's status (warning if the log write fails).
 
 set -x
 set -o errexit
@@ -17,6 +14,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 SOURCE_DIR="${HOME}/derivative-maker"
 BINARY_DIR="${HOME}/derivative-binary"

@@ -27,32 +27,34 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 sample_interval="${1:-30}"
 
-## TODO: This could be more efficient, ideally we would only read /proc/meminfo
-## once per cycle.
 mem_field() {
-   ## kB value of a /proc/meminfo field, or empty.
+   ## kB value of a /proc/meminfo field (read from stdin), or empty.
    local field_name="$1" line
    while IFS= read -r line; do
       case "${line}" in
          "${field_name}:"*)
+            ## Normalize "<pad><int> kB" to a bare integer (strip unit + whitespace);
+            ## the "kB" unit is re-added in fixed format at the output line below.
             line="${line#*:}"
-            ## TODO: Why do we trim off "kB" here and then add it back later?
             line="${line%%kB*}"
             printf '%s' "${line//[[:space:]]/}"
             return 0
             ;;
       esac
-   done < /proc/meminfo
+   done
    printf '%s' ""
 }
 
 while true; do
-   mem_available="$( mem_field MemAvailable )"
-   swap_free="$( mem_field SwapFree )"
-   mem_total="$( mem_field MemTotal )"
+   ## Read /proc/meminfo once per cycle, then extract fields from the snapshot.
+   meminfo="$( cat /proc/meminfo )"
+   mem_available="$( printf '%s\n' "${meminfo}" | mem_field MemAvailable )"
+   swap_free="$( printf '%s\n' "${meminfo}" | mem_field SwapFree )"
+   mem_total="$( printf '%s\n' "${meminfo}" | mem_field MemTotal )"
    ## Largest RSS consumer, so a runaway is named rather than merely implied.
    top_rss="$( ps -eo rss=,comm= --sort=-rss 2>/dev/null | head -n 1 || true )"
    top_rss="${top_rss#"${top_rss%%[![:space:]]*}"}"

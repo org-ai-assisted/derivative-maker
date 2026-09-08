@@ -18,6 +18,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -46,10 +47,7 @@ compare_target() {
       return 0
    fi
 
-   ## FIXME: .diffoscope.txt is a misleading filename extension,
-   ## dm-reproducible-compare-artifacts outputs more than bare diffoscope
-   ## output to its report file.
-   report_out="${binary_build_folder_dist}/$(basename -- "${artifact}").diffoscope.txt"
+   report_out="${binary_build_folder_dist}/$(basename -- "${artifact}").compare-report.txt"
    true "${cyan}INFO: comparing ${target} build vs reference with diffoscope...${reset}"
 
    compare_exit_code="0"

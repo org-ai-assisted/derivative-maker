@@ -546,7 +546,7 @@ ${dist_build_script_skip_package_install}${reset}"
    ## NOTE: 'build-steps.d/*_create-lb-iso' also uses 'set-grub-keymap'. Should use the same/similar options.
    chroot_run set-grub-keymap --build-all --no-live-changes
 
-   if printf "%s\n" "${BUILD_INITRAMFS_PKGS}" | grep -q dracut ; then
+   if printf "%s\n" "${BUILD_INITRAMFS_PKGS}" | grep dracut >/dev/null 2>&1 ; then
       ## dracut is automatically run during above package installation through the usual
       ## Debian package triggers might break the boot process. Re-running dracut with
       ## the correct command line parameters is required in order to fix that.
@@ -611,6 +611,9 @@ ${dist_build_script_skip_package_install}${reset}"
       true "${cyan}INFO: --smbios-reader true: enabling the GRUB SMBIOS cmdline reader.${reset}"
       ${SUDO_TO_ROOT} install --mode=0644 -- "${source_code_folder_dist}/packages/kicksecure/vm-config-dist/usr/share/vm-config-dist/50_dm-smbios-reader.cfg" "${CHROOT_FOLDER}/etc/default/grub.d/50_dm-smbios-reader.cfg"
    else
+      ## If the option wasn't passed, delete the file to make sure it doesn't
+      ## pollute a build reusing a cached base image. For performance reasons,
+      ## do not refactor this into an unconditional remove.
       ${SUDO_TO_ROOT} safe-rm --force -- "${CHROOT_FOLDER}/etc/default/grub.d/50_dm-smbios-reader.cfg"
    fi
 
