@@ -1182,17 +1182,23 @@ ${reset}"
    fi
 
    if [ "${dist_build_iso:-}" = "true" ]; then
-      ## Align --arch with what help-steps/dm-raw-to-iso (the ISO converter) accepts;
-      ## otherwise a build runs for ~40 min and then aborts inside the converter.
-      ## (i386 is already rejected globally above, so the effective set is the rest.)
+      ## Align --arch with what help-steps/dm-raw-to-iso can actually build a
+      ## bootable, signed ISO for: amd64 (BIOS + UEFI + Secure Boot) and arm64
+      ## (signed aa64). i386 and armhf have no signed GRUB/shim in Debian Trixie
+      ## (the converter hard-errors on the missing gcd/shim for their supported EFI
+      ## platform), and ppc64el etc. are unsupported. Reject them here rather than
+      ## ~40 min into the build and then inside the converter. (i386 is already
+      ## rejected globally above.)
       case "${dist_build_target_arch:-}" in
-         amd64|arm64|armhf) ;;
+         amd64|arm64) ;;
          *)
             error "\
 ${red}${bold}Architecture '${dist_build_target_arch:-}' cannot build an ISO!${reset}
 
-The ISO converter (help-steps/dm-raw-to-iso) supports only: amd64, arm64, armhf.
-Build '--target iso' with one of those, or choose a different '--target'.${reset}"
+Supported ISO architectures: amd64, arm64.
+(i386 and armhf have no signed GRUB/shim in Debian Trixie, so no bootable ISO
+can be produced for them.)
+Build '--target iso' with a supported arch, or choose a different '--target'.${reset}"
             ;;
       esac
       if [ "${dist_build_target_arch:-}" = "amd64" ]; then
