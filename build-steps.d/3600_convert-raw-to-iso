@@ -85,6 +85,10 @@ prepare_raw() {
 
    if ${SUDO_TO_ROOT} test -d "${CHROOT_FOLDER}/boot/grub/kb_layouts"; then
       ${SUDO_TO_ROOT} cp --recursive -- "${CHROOT_FOLDER}/boot/grub/kb_layouts/." "${grub_overlay}/kb_layouts/"
+      ## Pin explicit, umask-independent modes: 'cp' without '-p' creates each file
+      ## as source-mode & ~umask, so the layouts shipped in the ISO would otherwise
+      ## depend on the builder's umask and defeat a byte-identical rebuild.
+      ${SUDO_TO_ROOT} chmod --recursive u=rwX,go=rX -- "${grub_overlay}/kb_layouts"
       ## The workdir is owned by the build user; chown the root-copied layouts
       ## back so the final workdir removal (as the build user) can remove them.
       ${SUDO_TO_ROOT} chown --recursive -- "${user_name}:${user_name}" "${grub_overlay}/kb_layouts"
