@@ -383,6 +383,12 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Init helper-scripts submodule (dm-boot-test sources it)
+        ## This job checks out with submodules:false, but dm-boot-test sources
+        ## helper-scripts' package_installed_check.sh. Init just that one submodule
+        ## (the next step switches it to the matching fork branch if present).
+        run: git submodule update --init -- packages/kicksecure/helper-scripts
+
       - name: Check out matching fork branch in cross-org submodules (if present)
         if: github.repository_owner != 'Whonix' && github.repository_owner != 'Kicksecure'
         env:
