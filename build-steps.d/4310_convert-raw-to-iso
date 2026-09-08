@@ -208,15 +208,6 @@ convert_raw_to_iso() {
       return 0
    fi
 
-   ## A real ISO conversion needs the TARGET-arch GRUB/shim loaders (grub-mkimage
-   ## modules + the signed EFI binaries) on the BUILD HOST; 1200 installs them for
-   ## the host arch, so a real ISO build must be native. CI cross-arch builds are
-   ## dry-runs (handled above) and never reach here. Fail early and clearly rather
-   ## than deep inside dm-raw-to-iso with a 'missing signed EFI dependency'.
-   if [ "${dist_build_target_arch}" != "${host_architecture}" ]; then
-      error "ISO builds are native-only: --arch '${dist_build_target_arch}' does not match the build-host architecture '${host_architecture}'. Cross-arch ISO conversion is unsupported (the target-arch signed GRUB/shim loaders are not installed on the host)."
-   fi
-
    local bootappend
    iso_workdir="$(mktemp --directory --tmpdir dm-convert-raw-to-iso.XXXXXX)"
    grub_overlay="${iso_workdir}/grub-overlay"

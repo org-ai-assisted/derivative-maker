@@ -127,9 +127,10 @@ build_machine_setup() {
       packages_to_be_installed+=" efibootmgr "
 
       ## The following grub packages are needed to build bootable ISO images.
-      ## Keyed on host_architecture: a real ISO build is native (4310 enforces
-      ## target arch == host arch), so the host loaders ARE the target loaders.
-      ## Certainly required for amd64 ISO images booted with shim and grub.
+      ## The ISO's signed EFI loaders + grub modules come from the TARGET rootfs
+      ## (help-steps/dm-raw-to-iso), correct-arch even on a cross-build; these
+      ## host-arch packages are build tooling (grub-mkimage etc.), not the ISO's
+      ## loaders. Certainly required for amd64 ISO images booted with shim and grub.
       if [ "${host_architecture}" = "amd64" ]; then
          ## These packages are all available for the amd64 platform.
          ## "grub-mkrescue will automatically include every platform it finds." [1]
