@@ -71,21 +71,18 @@ prepare_raw() {
    ## disk 'linux' line; the disk image inherits it through grub-mkconfig, but the
    ## live path has none, so without this scrape the ISO boots UNHARDENED and, with
    ## rd.shell=0/rd.emergency=halt dropped, falls to a dracut rescue shell instead
-   ## of halting. Field 5+ drops '<kernel> root=... ro', keeping the extra params.
-   ## '|| true' (not '|| var='): 'head' closing the pipe SIGPIPEs grub-mkconfig
-   ## under pipefail, which must not blank an already-captured value.
-   ## Extract the hardening robustly from the 'linux <kernel> root=... ro <params>'
-   ## line: drop the leading 'linux <kernel-path>', then the disk-boot 'root=' and a
-   ## standalone 'ro' (the live entry sets its own root=live:CDLABEL=). Doing it by
-   ## token content, not a positional field cut: a field cut silently drops a
-   ## hardening param -- or leaks 'root=' and breaks the live boot -- if grub's token
-   ## layout shifts. '|| true': head closing the pipe SIGPIPEs grub-mkconfig under
-   ## pipefail, which must not blank an already-captured value.
-   rootfs_linux_line="$(chroot_run grub-mkconfig 2>/dev/null \
-      | grep -E '^[[:space:]]*linux[[:space:]]' \
-      | head -n1)" || true
-   ## Reduce the 'linux' line to the hardening params, one transform + one variable
-   ## per stage (each independently checkable).
+   ## of halting.
+   ## capture grub-mkconfig once ('|| true' guards a real grub-mkconfig failure)
+   grub_cfg_output="$(chroot_run grub-mkconfig 2>/dev/null)" || true
+   ## keep the 'linux' menuentry lines ('|| true': grep exits 1 when none match)
+   linux_lines="$(printf '%s\n' "${grub_cfg_output}" | grep -E '^[[:space:]]*linux[[:space:]]')" || true
+   ## take the first (the main entry); '|| true': head closing the pipe SIGPIPEs
+   ## printf under pipefail, which must not blank the already-captured first line
+   rootfs_linux_line="$(printf '%s\n' "${linux_lines}" | head -n1)" || true
+   ## Reduce the 'linux' line to the hardening params by token content, not a
+   ## positional field cut (a field cut silently drops a param -- or leaks 'root='
+   ## and breaks the live boot -- if grub's token layout shifts). One transform +
+   ## one variable per stage (each independently checkable).
    ## 1. drop the leading indent + 'linux' keyword + kernel-image path
    cmdline_params="$(printf '%s' "${rootfs_linux_line}" | sed -E 's/^[[:space:]]*linux[[:space:]]+[^[:space:]]+[[:space:]]+//')"
    ## 2. drop the disk-boot 'root=' (the live entry sets its own root=live:CDLABEL=)
