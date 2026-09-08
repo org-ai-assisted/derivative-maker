@@ -1182,6 +1182,19 @@ ${reset}"
    fi
 
    if [ "${dist_build_iso:-}" = "true" ]; then
+      ## Align --arch with what help-steps/dm-raw-to-iso (the ISO converter) accepts;
+      ## otherwise a build runs for ~40 min and then aborts inside the converter.
+      ## (i386 is already rejected globally above, so the effective set is the rest.)
+      case "${dist_build_target_arch:-}" in
+         amd64|arm64|armhf) ;;
+         *)
+            error "\
+${red}${bold}Architecture '${dist_build_target_arch:-}' cannot build an ISO!${reset}
+
+The ISO converter (help-steps/dm-raw-to-iso) supports only: amd64, arm64, armhf.
+Build '--target iso' with one of those, or choose a different '--target'.${reset}"
+            ;;
+      esac
       if [ "${dist_build_target_arch:-}" = "amd64" ]; then
          parse_cmd_freedom_versus_nonfreedom_firmware_choice_check
       fi
