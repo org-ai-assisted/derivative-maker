@@ -552,7 +552,7 @@ ${dist_build_script_skip_package_install}${reset}"
    ## Generate GRUB keyboard layouts.
    ## 'set-grub-keymap' is provided by package 'helper-scripts'.
    ## Use '--no-live-changes' because GRUB is handled by 'build-steps.d/*_install-packages'.
-   ## NOTE: 'build-steps.d/3600_convert-raw-to-iso' also uses 'set-grub-keymap'. Should use the same/similar options.
+   ## NOTE: 'build-steps.d/4310_convert-raw-to-iso' also uses 'set-grub-keymap'. Should use the same/similar options.
    chroot_run set-grub-keymap --build-all --no-live-changes
 
    if printf "%s\n" "${BUILD_INITRAMFS_PKGS}" | grep dracut >/dev/null 2>&1 ; then
