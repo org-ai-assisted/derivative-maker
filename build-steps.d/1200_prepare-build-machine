@@ -119,6 +119,8 @@ build_machine_setup() {
       packages_to_be_installed+=" efibootmgr "
 
       ## The following grub packages are needed to build bootable ISO images.
+      ## Keyed on host_architecture: a real ISO build is native (4310 enforces
+      ## target arch == host arch), so the host loaders ARE the target loaders.
       ## Certainly required for amd64 ISO images booted with shim and grub.
       if [ "${host_architecture}" = "amd64" ]; then
          ## These packages are all available for the amd64 platform.
@@ -132,7 +134,7 @@ build_machine_setup() {
          packages_to_be_installed+=" shim-unsigned shim-signed shim-signed-common "
          packages_to_be_installed+=" shim-helpers-amd64-signed "
          ## memtest86+ (x86 only) supplies the diagnostic image the ISO GRUB menu
-         ## boots (build-steps.d/3600 stages it into /live).
+         ## boots (build-steps.d/4310 stages it into /live).
          packages_to_be_installed+=" memtest86+ "
       elif [ "${host_architecture}" = "ppc64el" ]; then
          packages_to_be_installed+=" grub-ieee1275-bin  "
