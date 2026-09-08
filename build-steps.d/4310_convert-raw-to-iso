@@ -65,40 +65,6 @@ prepare_raw() {
    ## submenu through grub-mkconfig instead.
    kb_layout_submenu="$(chroot_run /etc/grub.d/44_kb_layout)" || kb_layout_submenu=""
 
-   ## Carry the rootfs kernel-command-line hardening (mitigations, slab_nomerge,
-   ## rd.shell=0, rd.emergency=halt, debugfs=off, ...) that security-misc sets via
-   ## /etc/default/grub.d into the live boot roles. grub-mkconfig emits it on the
-   ## disk 'linux' line; the disk image inherits it through grub-mkconfig, but the
-   ## live path has none, so without this scrape the ISO boots UNHARDENED and, with
-   ## rd.shell=0/rd.emergency=halt dropped, falls to a dracut rescue shell instead
-   ## of halting.
-   ## capture grub-mkconfig once ('|| true' guards a real grub-mkconfig failure)
-   grub_cfg_output="$(chroot_run grub-mkconfig 2>/dev/null)" || true
-   ## keep the 'linux' menuentry lines ('|| true': grep exits 1 when none match)
-   linux_lines="$(printf '%s\n' "${grub_cfg_output}" | grep -E '^[[:space:]]*linux[[:space:]]')" || true
-   ## take the first (the main entry); '|| true': head closing the pipe SIGPIPEs
-   ## printf under pipefail, which must not blank the already-captured first line
-   rootfs_linux_line="$(printf '%s\n' "${linux_lines}" | head -n1)" || true
-   ## Reduce the 'linux' line to the hardening params by token content, not a
-   ## positional field cut (a field cut silently drops a param -- or leaks 'root='
-   ## and breaks the live boot -- if grub's token layout shifts). One transform +
-   ## one variable per stage (each independently checkable).
-   ## 1. drop the leading indent + 'linux' keyword + kernel-image path
-   cmdline_params="$(printf '%s' "${rootfs_linux_line}" | sed -E 's/^[[:space:]]*linux[[:space:]]+[^[:space:]]+[[:space:]]+//')"
-   ## 2. drop the disk-boot 'root=' (the live entry sets its own root=live:CDLABEL=)
-   cmdline_no_root="$(printf '%s' "${cmdline_params}" | sed -E 's/(^|[[:space:]])root=[^[:space:]]*/ /g')"
-   ## 3. drop a standalone 'ro'
-   rootfs_kernel_hardening="$(printf '%s' "${cmdline_no_root}" | sed -E 's/(^|[[:space:]])ro([[:space:]]|$)/ /g')"
-   ## SMBIOS injection is applied separately (convert_raw_to_iso), so drop the token
-   ## here to avoid carrying it twice; then collapse the space runs the strip and
-   ## grub-mkconfig indentation leave and trim the ends. Single quotes: the pattern
-   ## must be the LITERAL '${dm_smbios_extra}', not an expansion.
-   # shellcheck disable=SC2016
-   rootfs_kernel_hardening="${rootfs_kernel_hardening//'${dm_smbios_extra}'/}"
-   rootfs_kernel_hardening="$(printf '%s' "${rootfs_kernel_hardening}" | tr -s ' ')"
-   rootfs_kernel_hardening="${rootfs_kernel_hardening#"${rootfs_kernel_hardening%%[![:space:]]*}"}"
-   rootfs_kernel_hardening="${rootfs_kernel_hardening%"${rootfs_kernel_hardening##*[![:space:]]}"}"
-
    if ${SUDO_TO_ROOT} test -d "${CHROOT_FOLDER}/boot/grub/kb_layouts"; then
       ${SUDO_TO_ROOT} cp --recursive -- "${CHROOT_FOLDER}/boot/grub/kb_layouts/." "${grub_overlay}/kb_layouts/"
       ## Pin explicit, umask-independent modes: 'cp' without '-p' creates each file
@@ -226,7 +192,6 @@ convert_raw_to_iso() {
    mkdir --parents -- "${grub_overlay}/live-theme" "${grub_overlay}/kb_layouts" "${live_overlay}"
 
    kb_layout_submenu=""
-   rootfs_kernel_hardening=""
    prepare_raw
    build_grub_overlay
    build_live_overlay
@@ -240,11 +205,6 @@ convert_raw_to_iso() {
    bootappend="live-config.hostname=${dist_build_hostname}"
    if [ "${dist_build_serial_console_enable:-}" = "true" ]; then
       bootappend="${bootappend} console=tty0 console=ttyS0,115200n8"
-   fi
-   ## Carry the rootfs kernel hardening into every live boot role; keep it ahead of
-   ## the SMBIOS token so an injected console= override (below) still wins.
-   if [ -n "${rootfs_kernel_hardening}" ]; then
-      bootappend="${bootappend} ${rootfs_kernel_hardening}"
    fi
    if [ "${dist_build_smbios_reader:-}" = "true" ]; then
       ## Single quotes: '${dm_smbios_extra}' must reach grub.cfg un-expanded.
