@@ -65,6 +65,29 @@ prepare_raw() {
    ## submenu through grub-mkconfig instead.
    kb_layout_submenu="$(chroot_run /etc/grub.d/44_kb_layout)" || kb_layout_submenu=""
 
+   ## Carry the rootfs kernel-command-line hardening (mitigations, slab_nomerge,
+   ## rd.shell=0, rd.emergency=halt, debugfs=off, ...) that security-misc sets via
+   ## /etc/default/grub.d into the live boot roles. grub-mkconfig emits it on the
+   ## disk 'linux' line; the disk image inherits it through grub-mkconfig, but the
+   ## live path has none, so without this scrape the ISO boots UNHARDENED and, with
+   ## rd.shell=0/rd.emergency=halt dropped, falls to a dracut rescue shell instead
+   ## of halting. Field 5+ drops '<kernel> root=... ro', keeping the extra params.
+   ## '|| true' (not '|| var='): 'head' closing the pipe SIGPIPEs grub-mkconfig
+   ## under pipefail, which must not blank an already-captured value.
+   rootfs_kernel_hardening="$(chroot_run grub-mkconfig 2>/dev/null \
+      | grep -E '^[[:space:]]*linux' \
+      | head -n1 \
+      | cut -d' ' -f5-)" || true
+   ## SMBIOS injection is applied separately (convert_raw_to_iso), so drop the token
+   ## here to avoid carrying it twice; then collapse the space runs the strip and
+   ## grub-mkconfig indentation leave and trim the ends. Single quotes: the pattern
+   ## must be the LITERAL '${dm_smbios_extra}', not an expansion.
+   # shellcheck disable=SC2016
+   rootfs_kernel_hardening="${rootfs_kernel_hardening//'${dm_smbios_extra}'/}"
+   rootfs_kernel_hardening="$(printf '%s' "${rootfs_kernel_hardening}" | tr -s ' ')"
+   rootfs_kernel_hardening="${rootfs_kernel_hardening#"${rootfs_kernel_hardening%%[![:space:]]*}"}"
+   rootfs_kernel_hardening="${rootfs_kernel_hardening%"${rootfs_kernel_hardening##*[![:space:]]}"}"
+
    if ${SUDO_TO_ROOT} test -d "${CHROOT_FOLDER}/boot/grub/kb_layouts"; then
       ${SUDO_TO_ROOT} cp --recursive -- "${CHROOT_FOLDER}/boot/grub/kb_layouts/." "${grub_overlay}/kb_layouts/"
       ## Pin explicit, umask-independent modes: 'cp' without '-p' creates each file
@@ -185,6 +208,15 @@ convert_raw_to_iso() {
       return 0
    fi
 
+   ## A real ISO conversion needs the TARGET-arch GRUB/shim loaders (grub-mkimage
+   ## modules + the signed EFI binaries) on the BUILD HOST; 1200 installs them for
+   ## the host arch, so a real ISO build must be native. CI cross-arch builds are
+   ## dry-runs (handled above) and never reach here. Fail early and clearly rather
+   ## than deep inside dm-raw-to-iso with a 'missing signed EFI dependency'.
+   if [ "${dist_build_target_arch}" != "${host_architecture}" ]; then
+      error "ISO builds are native-only: --arch '${dist_build_target_arch}' does not match the build-host architecture '${host_architecture}'. Cross-arch ISO conversion is unsupported (the target-arch signed GRUB/shim loaders are not installed on the host)."
+   fi
+
    local bootappend
    iso_workdir="$(mktemp --directory --tmpdir dm-convert-raw-to-iso.XXXXXX)"
    grub_overlay="${iso_workdir}/grub-overlay"
@@ -192,6 +224,7 @@ convert_raw_to_iso() {
    mkdir --parents -- "${grub_overlay}/live-theme" "${grub_overlay}/kb_layouts" "${live_overlay}"
 
    kb_layout_submenu=""
+   rootfs_kernel_hardening=""
    prepare_raw
    build_grub_overlay
    build_live_overlay
@@ -205,6 +238,11 @@ convert_raw_to_iso() {
    bootappend="live-config.hostname=${dist_build_hostname}"
    if [ "${dist_build_serial_console_enable:-}" = "true" ]; then
       bootappend="${bootappend} console=tty0 console=ttyS0,115200n8"
+   fi
+   ## Carry the rootfs kernel hardening into every live boot role; keep it ahead of
+   ## the SMBIOS token so an injected console= override (below) still wins.
+   if [ -n "${rootfs_kernel_hardening}" ]; then
+      bootappend="${bootappend} ${rootfs_kernel_hardening}"
    fi
    if [ "${dist_build_smbios_reader:-}" = "true" ]; then
       ## Single quotes: '${dm_smbios_extra}' must reach grub.cfg un-expanded.
