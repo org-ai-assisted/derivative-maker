@@ -84,8 +84,14 @@ prepare_raw() {
    rootfs_linux_line="$(chroot_run grub-mkconfig 2>/dev/null \
       | grep -E '^[[:space:]]*linux[[:space:]]' \
       | head -n1)" || true
+   ## Reduce the 'linux' line to the hardening params, one transform per stage:
+   ##   1. drop the leading indent + 'linux' keyword + kernel-image path
+   ##   2. drop the disk-boot 'root=' (the live entry sets its own root=live:CDLABEL=)
+   ##   3. drop a standalone 'ro'
    rootfs_kernel_hardening="$(printf '%s' "${rootfs_linux_line}" \
-      | sed -E 's/^[[:space:]]*linux[[:space:]]+[^[:space:]]+[[:space:]]+//; s/(^|[[:space:]])root=[^[:space:]]*/ /g; s/(^|[[:space:]])ro([[:space:]]|$)/ /g')"
+      | sed -E 's/^[[:space:]]*linux[[:space:]]+[^[:space:]]+[[:space:]]+//' \
+      | sed -E 's/(^|[[:space:]])root=[^[:space:]]*/ /g' \
+      | sed -E 's/(^|[[:space:]])ro([[:space:]]|$)/ /g')"
    ## SMBIOS injection is applied separately (convert_raw_to_iso), so drop the token
    ## here to avoid carrying it twice; then collapse the space runs the strip and
    ## grub-mkconfig indentation leave and trim the ends. Single quotes: the pattern
