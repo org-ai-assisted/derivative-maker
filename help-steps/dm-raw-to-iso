@@ -413,12 +413,18 @@ printf '%s: creating filesystem.squashfs\n' "${me}" >&2
 ## transient /run and /tmp. Reproducible timestamps come from the exported
 ## SOURCE_DATE_EPOCH (mksquashfs honors it); do NOT also pass -all-time/-mkfs-time,
 ## mksquashfs rejects using both at once.
+## -one-file-system: the /dev, /proc, /sys, /run, /dev/pts binds are torn down above,
+## but that teardown swallows failures; without this a bind that failed to unmount
+## would pack the build HOST's live /proc, /sys, ... (process list, cmdlines, kernel
+## state) into the public ISO. This stops mksquashfs at every mount boundary, and the
+## proc/* + sys/* excludes are the belt-and-braces (dev/run/tmp were already covered).
 mksquashfs "${rootfs}" "${binary}/live/filesystem.squashfs" \
    -noappend \
    -comp xz \
    -no-progress \
+   -one-file-system \
    -wildcards \
-   -e "dev/*" "run/*" "tmp/*" "boot/initrd.img-live"
+   -e "dev/*" "proc/*" "sys/*" "run/*" "tmp/*" "boot/initrd.img-live"
 
 ######################################################################
 ## 4. The boot medium marker the GRUB EFI cores search for.
