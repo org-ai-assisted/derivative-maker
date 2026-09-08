@@ -237,13 +237,12 @@ case "${arch}" in
       ;;
 esac
 
-## Dependency check up front (fail loud).
+## Dependency check up front (fail loud). Only HOST tools + local templates here.
+## The GRUB modules, unicode font and signed EFI loaders are taken from the TARGET
+## ROOTFS (so a cross-arch build gets the TARGET-arch loaders, exactly as live-build
+## built them inside the target chroot); those are checked after the rootfs is
+## copied out (see "rootfs bootloader inputs" below), not against the host.
 require_cmd xorriso grub-mkimage mkfs.msdos mmd mcopy mksquashfs cp find touch stat chroot mount umount kpartx losetup safe-rm
-if [ "${bios}" = "true" ] ; then
-   require_file /usr/lib/grub/i386-pc/cdboot.img /usr/lib/grub/i386-pc/boot_hybrid.img
-   require_file /usr/lib/grub/i386-pc/normal.mod
-fi
-require_file /usr/share/grub/unicode.pf2
 require_file "${tmpl_dir}/config.cfg.in" "${tmpl_dir}/grub.cfg.in" \
    "${tmpl_dir}/loopback.cfg" "${tmpl_dir}/serial.cfg" "${tmpl_dir}/esp-redirect.cfg"
 
@@ -324,6 +323,18 @@ umount -- "${rootfs_mnt}"
 mounts=()
 kpartx -d -s -- "${raw}"
 kpartx_image=""
+
+## rootfs bootloader inputs: the GRUB modules, font and signed loaders come from
+## the copied TARGET rootfs (grml installs grub-efi-${arch}-signed + shim-signed +
+## the grub -bin package per target arch), so these are the TARGET-arch loaders even
+## on a cross-arch build. Fail loud now if the image lacks them. (The per-platform
+## signed EFI loaders are checked in the ESP loop below.)
+if [ "${bios}" = "true" ] ; then
+   require_file "${rootfs}/usr/lib/grub/i386-pc/cdboot.img" \
+      "${rootfs}/usr/lib/grub/i386-pc/boot_hybrid.img" \
+      "${rootfs}/usr/lib/grub/i386-pc/normal.mod"
+fi
+require_file "${rootfs}/usr/share/grub/unicode.pf2"
 
 ## Neutralize the input's /etc/fstab: a DISK image mounts its own partitions
 ## (root by UUID, /boot/efi, swap) there, none of which exist in a live boot -- so
@@ -420,14 +431,16 @@ printf 'Derivative ISO; label=%s; arch=%s\n' "${label}" "${arch}" > "${binary}/.
 if [ "${bios}" = "true" ] ; then
    printf '%s: building BIOS GRUB El Torito core\n' "${me}" >&2
    mkdir -p -- "${binary}/boot/grub/i386-pc"
-   ## Runtime modules loaded from the ISO by the core.
-   cp -a -- /usr/lib/grub/i386-pc/*.mod "${binary}/boot/grub/i386-pc/"
-   cp -a -- /usr/lib/grub/i386-pc/*.lst "${binary}/boot/grub/i386-pc/" 2>/dev/null || true
+   ## Runtime modules loaded from the ISO by the core (from the target rootfs).
+   cp -a -- "${rootfs}"/usr/lib/grub/i386-pc/*.mod "${binary}/boot/grub/i386-pc/"
+   cp -a -- "${rootfs}"/usr/lib/grub/i386-pc/*.lst "${binary}/boot/grub/i386-pc/" 2>/dev/null || true
    core_img="${workdir}/core.img"
    ## biosdisk + iso9660 are enough to reach /boot/grub on the CD; the rest load
    ## from i386-pc/ above. cdboot.img prepended makes it El Torito no-emulation.
-   grub-mkimage -d /usr/lib/grub/i386-pc -o "${core_img}" -O i386-pc --prefix=/boot/grub biosdisk iso9660
-   cat /usr/lib/grub/i386-pc/cdboot.img "${core_img}" > "${binary}/boot/grub/grub_eltorito"
+   ## Host grub-mkimage assembles the target's i386-pc modules (same distro release,
+   ## so the module format matches); i386-pc output is host-arch-independent.
+   grub-mkimage -d "${rootfs}/usr/lib/grub/i386-pc" -o "${core_img}" -O i386-pc --prefix=/boot/grub biosdisk iso9660
+   cat "${rootfs}/usr/lib/grub/i386-pc/cdboot.img" "${core_img}" > "${binary}/boot/grub/grub_eltorito"
    safe-rm --force -- "${core_img}"
 fi
 
@@ -451,9 +464,9 @@ mkdir -p -- "${esp_stage}/EFI/boot" "${esp_stage}/boot/grub"
 for pair in "${efi_platforms[@]}" ; do
    platform="${pair%%:*}"
    efi_name="${pair##*:}"
-   signed_grub="/usr/lib/grub/${platform}-signed/gcd${efi_name}.efi.signed"
-   signed_shim="/usr/lib/shim/shim${efi_name}.efi.signed"
-   mokmanager="/usr/lib/shim/mm${efi_name}.efi.signed"
+   signed_grub="${rootfs}/usr/lib/grub/${platform}-signed/gcd${efi_name}.efi.signed"
+   signed_shim="${rootfs}/usr/lib/shim/shim${efi_name}.efi.signed"
+   mokmanager="${rootfs}/usr/lib/shim/mm${efi_name}.efi.signed"
 
    if [ -r "${signed_grub}" ] && [ -r "${signed_shim}" ] ; then
       cp -a --dereference -- "${signed_shim}" "${esp_stage}/EFI/boot/boot${efi_name}.efi"
@@ -462,7 +475,7 @@ for pair in "${efi_platforms[@]}" ; do
          cp -a -- "${mokmanager}" "${esp_stage}/EFI/boot/mm${efi_name}.efi"
       fi
    elif [ "${pair}" = "${efi_platforms[0]}" ] ; then
-      error "missing signed EFI dependency for the supported platform ${efi_name} (${arch}): install shim-signed and grub-efi-${arch}-signed (need ${signed_shim} and ${signed_grub})"
+      error "missing signed EFI dependency for the supported platform ${efi_name} (${arch}) in the image: the target rootfs must have shim-signed + grub-efi-${arch}-signed installed (need ${signed_shim} and ${signed_grub})"
    else
       printf '%s: NOTE: no signed shim+grub for optional EFI platform %s; skipping it.\n' "${me}" "${efi_name}" >&2
    fi
@@ -496,7 +509,7 @@ cp -a -- "${esp_stage}/EFI" "${binary}/EFI"
 ## 7. Main grub.cfg + config.cfg + loopback.cfg.
 ######################################################################
 printf '%s: writing GRUB configuration\n' "${me}" >&2
-cp -a -- /usr/share/grub/unicode.pf2 "${binary}/boot/grub/unicode.pf2"
+cp -a -- "${rootfs}/usr/share/grub/unicode.pf2" "${binary}/boot/grub/unicode.pf2"
 
 ## Kernel command line for the live entry. findiso/iso-scan let it also boot when
 ## the .iso is loop-mounted from another GRUB (iso_path is set by loopback there,
@@ -567,7 +580,7 @@ if [ "${bios}" = "true" ] ; then
    ## Legacy BIOS: hybrid MBR from GRUB (USB) + El Torito no-emulation core (CD).
    xorriso_opts+=(
       --grub2-boot-info
-      --grub2-mbr /usr/lib/grub/i386-pc/boot_hybrid.img
+      --grub2-mbr "${rootfs}/usr/lib/grub/i386-pc/boot_hybrid.img"
       -no-emul-boot -boot-load-size 4 -boot-info-table
       -b boot/grub/grub_eltorito
       -eltorito-alt-boot
