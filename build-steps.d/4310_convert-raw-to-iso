@@ -74,10 +74,18 @@ prepare_raw() {
    ## of halting. Field 5+ drops '<kernel> root=... ro', keeping the extra params.
    ## '|| true' (not '|| var='): 'head' closing the pipe SIGPIPEs grub-mkconfig
    ## under pipefail, which must not blank an already-captured value.
-   rootfs_kernel_hardening="$(chroot_run grub-mkconfig 2>/dev/null \
-      | grep -E '^[[:space:]]*linux' \
-      | head -n1 \
-      | cut -d' ' -f5-)" || true
+   ## Extract the hardening robustly from the 'linux <kernel> root=... ro <params>'
+   ## line: drop the leading 'linux <kernel-path>', then the disk-boot 'root=' and a
+   ## standalone 'ro' (the live entry sets its own root=live:CDLABEL=). Doing it by
+   ## token content, not a positional field cut: a field cut silently drops a
+   ## hardening param -- or leaks 'root=' and breaks the live boot -- if grub's token
+   ## layout shifts. '|| true': head closing the pipe SIGPIPEs grub-mkconfig under
+   ## pipefail, which must not blank an already-captured value.
+   rootfs_linux_line="$(chroot_run grub-mkconfig 2>/dev/null \
+      | grep -E '^[[:space:]]*linux[[:space:]]' \
+      | head -n1)" || true
+   rootfs_kernel_hardening="$(printf '%s' "${rootfs_linux_line}" \
+      | sed -E 's/^[[:space:]]*linux[[:space:]]+[^[:space:]]+[[:space:]]+//; s/(^|[[:space:]])root=[^[:space:]]*/ /g; s/(^|[[:space:]])ro([[:space:]]|$)/ /g')"
    ## SMBIOS injection is applied separately (convert_raw_to_iso), so drop the token
    ## here to avoid carrying it twice; then collapse the space runs the strip and
    ## grub-mkconfig indentation leave and trim the ends. Single quotes: the pattern

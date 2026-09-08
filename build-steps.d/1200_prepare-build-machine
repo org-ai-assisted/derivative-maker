@@ -448,6 +448,22 @@ sudo_setup() {
       return 0
    fi
 
+   ## $USER is interpolated verbatim into a sudoers rule below. A value that is not a
+   ## plain username -- the sudoers reserved word 'ALL', or a metacharacter (space,
+   ## '%', '=', ',', ':') -- would grant far more than intended: 'ALL ALL=(ALL:ALL)
+   ## NOPASSWD:ALL' is valid sudoers (passes visudo --check) and means EVERY user.
+   ## Refuse anything that is not a bare [A-Za-z0-9_-] username, and 'ALL' itself.
+   case "${USER}" in
+      *[!A-Za-z0-9_-]*)
+         error "USER '${USER}' is not a plain username ([A-Za-z0-9_-]); refusing to write a sudoers rule."
+         return 0
+         ;;
+      ALL)
+         error "USER must not be the sudoers reserved word 'ALL'; refusing to write a sudoers rule."
+         return 0
+         ;;
+   esac
+
    ## Fix 'sudo' error:
    ## > sudo: you are not permitted to use the -D option
    ## When using '$SUDO_TO_VBOX_TEMP' because it uses
