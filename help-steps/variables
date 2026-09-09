@@ -215,8 +215,13 @@ ${SUDO_TO_ROOT} rm --force -- "${dist_aptgetopt_file}"
 ## DIST_ prefix avoids a name collision with pbuilder/cowbuilder, which use
 ## their own array variable 'APTGETOPT' (see pbuilderrc) that gets sourced
 ## inside the cowbuilder chroot scripts (help-steps/pbuilder-chroot-script-*).
-## Cannot export bash array.
-#DIST_APTGETOPT=()
+## Declare the array unconditionally: aptgetopt_add appends to it only from
+## conditional blocks (unsafe-io, approx proxy, frozen), so without this a build
+## that hits none of them (e.g. APPROX_PROXY_ENABLE=no on ordinary defaults)
+## leaves it fully unset, and '${#DIST_APTGETOPT[@]}' below trips 'set -o nounset'
+## ("unbound variable") -- crashing every build step that sources this file.
+## Cannot export a bash array, so DIST_APTGETOPT_SERIALIZED carries it across sudo.
+DIST_APTGETOPT=()
 #export DIST_APTGETOPT
 export DIST_APTGETOPT_SERIALIZED
 
