@@ -36,19 +36,25 @@ export LC_ALL=C
 
 me="${BASH_SOURCE[0]##*/}"
 
-## Static GRUB config templates live in dm-raw-to-iso.d/ beside this script (never
-## auto-generated inline). Resolved relative to the real script path so it works
-## from any checkout location.
-me_dir="$(dirname -- "$(readlink --canonicalize -- "${BASH_SOURCE[0]}")")"
-tmpl_dir="${me_dir}/dm-raw-to-iso.d"
+## This tool ships NO GRUB config of its own: the caller supplies a complete
+## /boot/grub via --grub-overlay (config.cfg, grub.cfg, loopback.cfg,
+## esp-redirect.cfg, plus any menu/theme). The tool only stages it and fills in
+## the two computed tokens (@APPEND_LIVE@, @TIMEOUT@).
 
 usage() {
    cat <<EOF
-Usage: ${me} --raw <image> --output <iso> [options]
+Usage: ${me} --raw <image> --output <iso> --grub-overlay <dir> [options]
 
 Required:
   --raw <image>            bootable raw disk image (from 3200_create-raw-image)
   --output <iso>           output ISO path
+  --grub-overlay <dir>     the complete /boot/grub the ISO boots from: at least
+                           config.cfg, grub.cfg, loopback.cfg and esp-redirect.cfg,
+                           plus any menu/theme/fonts/kb_layouts. Copied into the
+                           ISO's /boot/grub (and esp-redirect.cfg packed into the
+                           ESP). In any *.cfg, @APPEND_LIVE@ is replaced with the
+                           live kernel command line and @TIMEOUT@ with the menu
+                           timeout, both computed here. This tool ships no config.
 
 Options:
   --arch <a>               target architecture: amd64|i386|arm64|armhf (default:
@@ -60,13 +66,6 @@ Options:
   --serial-console         bake a serial console (ttyS0,115200) into GRUB and the
                            kernel cmdline and boot the default entry immediately
                            (timeout 0) -- for headless boot testing
-  --grub-config-append <f> append file <f> to the ISO's GRUB config.cfg (e.g. an
-                           SMBIOS kernel-cmdline reader); consumer-supplied, so this
-                           tool ships no such reader of its own
-  --grub-overlay <dir>     copy <dir>'s contents into the ISO's /boot/grub/ on top
-                           of the built-in baseline (a consumer menu, theme, fonts,
-                           kb_layouts, ...); @APPEND_LIVE@ in any *.cfg is replaced
-                           with the base live kernel command line this tool computes
   --live-overlay <dir>     copy <dir>'s contents into the ISO's /live/ (e.g. a
                            memtest binary, a package manifest)
   --source-date-epoch <n>  UNIX timestamp for reproducible output (default: env
@@ -108,7 +107,6 @@ arch=""
 label="DM_LIVE"
 bootappend=""
 serial_console="false"
-grub_config_append=""
 grub_overlay=""
 live_overlay=""
 source_date_epoch="${SOURCE_DATE_EPOCH:-}"
@@ -144,11 +142,6 @@ while [ "$#" -gt 0 ] ; do
       --serial-console)
          serial_console="true"
          shift
-         ;;
-      --grub-config-append)
-         [ "$#" -ge 2 ] || error "--grub-config-append requires a value"
-         grub_config_append="$2"
-         shift 2
          ;;
       --grub-overlay)
          [ "$#" -ge 2 ] || error "--grub-overlay requires a value"
@@ -187,7 +180,6 @@ done
 if [ "$(readlink -f -- "${raw}")" = "$(readlink -f -- "${output}" 2>/dev/null)" ] ; then
    error "--output must not be the same file as --raw"
 fi
-[ -z "${grub_overlay}" ] || [ -d "${grub_overlay}" ] || error "--grub-overlay is not a directory: '${grub_overlay}'"
 [ -z "${live_overlay}" ] || [ -d "${live_overlay}" ] || error "--live-overlay is not a directory: '${live_overlay}'"
 
 if [ -z "${arch}" ] ; then
@@ -237,14 +229,23 @@ case "${arch}" in
       ;;
 esac
 
-## Dependency check up front (fail loud). Only HOST tools + local templates here.
-## The GRUB modules, unicode font and signed EFI loaders are taken from the TARGET
-## ROOTFS (so a cross-arch build gets the TARGET-arch loaders, exactly as live-build
-## built them inside the target chroot); those are checked after the rootfs is
-## copied out (see "rootfs bootloader inputs" below), not against the host.
+## The consumer overlay IS the ISO's /boot/grub (this tool ships none), so it is
+## required and must carry the core files or the ISO boots nothing. Checked with
+## the other arg validation (before the dependency check, so it runs tool-less),
+## but after --arch / --source-date-epoch so those report their own error first.
+[ -n "${grub_overlay}" ] || error "--grub-overlay is required (see --help)"
+[ -d "${grub_overlay}" ] || error "--grub-overlay is not a directory: '${grub_overlay}'"
+grub_overlay_required_file=""
+for grub_overlay_required_file in config.cfg grub.cfg loopback.cfg esp-redirect.cfg ; do
+   [ -r "${grub_overlay}/${grub_overlay_required_file}" ] || error "--grub-overlay is missing required file '${grub_overlay_required_file}': it must be a complete /boot/grub (this tool ships none)"
+done
+
+## Dependency check up front (fail loud). Only HOST tools here. The GRUB modules,
+## unicode font and signed EFI loaders are taken from the TARGET ROOTFS (so a
+## cross-arch build gets the TARGET-arch loaders, exactly as live-build built them
+## inside the target chroot); those are checked after the rootfs is copied out
+## (see "rootfs bootloader inputs" below), not against the host.
 require_cmd xorriso grub-mkimage mkfs.msdos mmd mcopy mksquashfs cp find touch stat chroot mount umount kpartx losetup safe-rm
-require_file "${tmpl_dir}/config.cfg.in" "${tmpl_dir}/grub.cfg.in" \
-   "${tmpl_dir}/loopback.cfg" "${tmpl_dir}/serial.cfg" "${tmpl_dir}/esp-redirect.cfg"
 
 ## Work directory + teardown. Track loop/kpartx maps and mounts and tear them down
 ## in reverse on any exit so a failure never leaks a loop device or a bind mount.
@@ -487,10 +488,10 @@ for pair in "${efi_platforms[@]}" ; do
    fi
 done
 
-## ESP-redirect grub.cfg (static template): some firmware loads the EFI grub with
+## ESP-redirect grub.cfg (from the overlay): some firmware loads the EFI grub with
 ## root set to the ESP itself, so redirect to the real config on the medium
 ## carrying /.disk/info.
-cp -- "${tmpl_dir}/esp-redirect.cfg" "${esp_stage}/boot/grub/grub.cfg"
+cp -- "${grub_overlay}/esp-redirect.cfg" "${esp_stage}/boot/grub/grub.cfg"
 
 ## Pack EFI/boot/*.efi + the redirect grub.cfg into a minimal FAT ESP.
 find "${esp_stage}" -exec touch --no-dereference --date="@${SOURCE_DATE_EPOCH}" -- {} +
@@ -531,46 +532,35 @@ if [ "${serial_console}" = "true" ] ; then
    grub_timeout="0"
 fi
 
-## GRUB config comes from the STATIC templates in dm-raw-to-iso.d/ (never generated
-## inline): copy + substitute the few placeholders, append the optional pieces.
-## config.cfg: base setup (@TIMEOUT@) + optional serial + any caller-appended config.
-config_tmpl="$(cat -- "${tmpl_dir}/config.cfg.in")"
-printf '%s\n' "${config_tmpl//@TIMEOUT@/${grub_timeout}}" > "${binary}/boot/grub/config.cfg"
+## GRUB config is the consumer overlay in full (this tool ships none): stage it
+## into /boot/grub, optionally append a serial terminal for --serial-console, then
+## substitute the two computed tokens in every *.cfg -- @APPEND_LIVE@ (the live
+## kernel cmdline) and @TIMEOUT@ (the menu timeout). Literal (parameter)
+## substitution only: ${iso_path} / ${dm_smbios_extra} stay unexpanded for GRUB to
+## resolve at boot.
+printf '%s: staging GRUB overlay %s\n' "${me}" "${grub_overlay}" >&2
+cp --archive -- "${grub_overlay}/." "${binary}/boot/grub/"
+
+## --serial-console: route the GRUB menu to ttyS0 too ('console' kept so video
+## still works). The kernel console= and timeout=0 ride the tokens above.
 if [ "${serial_console}" = "true" ] ; then
-   printf '%s\n' '' >> "${binary}/boot/grub/config.cfg"
-   cat -- "${tmpl_dir}/serial.cfg" >> "${binary}/boot/grub/config.cfg"
-fi
-if [ -n "${grub_config_append}" ] ; then
-   [ -r "${grub_config_append}" ] || error "--grub-config-append file not readable: '${grub_config_append}'"
-   printf '%s\n' '' >> "${binary}/boot/grub/config.cfg"
-   cat -- "${grub_config_append}" >> "${binary}/boot/grub/config.cfg"
+   {
+      printf '%s\n' ''
+      printf '%s\n' 'insmod serial'
+      printf '%s\n' 'serial --unit=0 --speed=115200 --word=8 --parity=no --stop=1'
+      printf '%s\n' 'terminal_output serial console'
+   } >> "${binary}/boot/grub/config.cfg"
 fi
 
-## grub.cfg: the menu (@APPEND_LIVE@ = the live kernel cmdline). Sourced directly and via loopback.cfg.
-grub_tmpl="$(cat -- "${tmpl_dir}/grub.cfg.in")"
-printf '%s\n' "${grub_tmpl//@APPEND_LIVE@/${live_append}}" > "${binary}/boot/grub/grub.cfg"
-
-## loopback.cfg: static, boots the .iso as a loop-mounted file from another GRUB.
-cp -- "${tmpl_dir}/loopback.cfg" "${binary}/boot/grub/loopback.cfg"
-
-## Optional consumer GRUB overlay: copy the caller's /boot/grub tree (a richer
-## menu, theme, fonts, kb_layouts, ...) on top of the baseline written above, so
-## the caller controls the menu and look without this generic tool shipping any
-## consumer-specific config. Then substitute @APPEND_LIVE@ in every *.cfg so the
-## caller's menu entries all derive from the single live cmdline computed here.
-## Literal (parameter) substitution only: ${iso_path} / ${dm_smbios_extra} stay
-## unexpanded for GRUB to resolve at boot.
-if [ -n "${grub_overlay}" ] ; then
-   printf '%s: applying GRUB overlay %s\n' "${me}" "${grub_overlay}" >&2
-   cp --archive -- "${grub_overlay}/." "${binary}/boot/grub/"
-   while IFS= read -r -d '' cfg ; do
-      ## 'cat; printf x' then strip the x preserves any trailing newline that a
-      ## bare command substitution would drop.
-      cfg_content="$(cat -- "${cfg}"; printf x)"
-      cfg_content="${cfg_content%x}"
-      printf '%s' "${cfg_content//@APPEND_LIVE@/${live_append}}" > "${cfg}"
-   done < <(find "${binary}/boot/grub" -type f -name '*.cfg' -print0)
-fi
+while IFS= read -r -d '' cfg ; do
+   ## 'cat; printf x' then strip the x preserves any trailing newline that a
+   ## bare command substitution would drop.
+   cfg_content="$(cat -- "${cfg}"; printf x)"
+   cfg_content="${cfg_content%x}"
+   cfg_content="${cfg_content//@APPEND_LIVE@/${live_append}}"
+   cfg_content="${cfg_content//@TIMEOUT@/${grub_timeout}}"
+   printf '%s' "${cfg_content}" > "${cfg}"
+done < <(find "${binary}/boot/grub" -type f -name '*.cfg' -print0)
 
 ######################################################################
 ## 8. Assemble the hybrid ISO in a single xorriso pass.
