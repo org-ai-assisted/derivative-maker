@@ -1916,6 +1916,15 @@ true "INFO: Environment variables that will be passed..."
 ## from nested build-step scripts), without this guard '--preserve-env=...'
 ## would be appended to SUDO_TO_ROOT once per sourcing, producing
 ## duplicated flags and an ever-growing SUDO_TO_ROOT string.
+##
+## The guard flag MUST NOT be exported: it guards a same-shell re-source, and
+## 'SUDO_TO_ROOT' itself is not exported. An exported flag leaks into child
+## processes (build steps run as children, plus the recursive 'derivative-maker'
+## and genmkfile invocations), where 'SUDO_TO_ROOT' is absent; the child then
+## rebuilds the plain 'sudo --non-interactive' default and, seeing the inherited
+## flag, skips the '--preserve-env=...' append. That drops every preserved
+## variable (e.g. DIST_APTGETOPT_SERIALIZED) from sudo, breaking the
+## cowbuilder -> pbuilder -> help-steps/mmdebstrap environment contract.
 if [ ! "${variables_sudo_to_root_finalized:-}" = "true" ]; then
    sudo_preserve_env_list=""
    for env_vars_var_keep_item in ${env_vars_keep_list} ; do
@@ -1943,8 +1952,8 @@ if [ ! "${variables_sudo_to_root_finalized:-}" = "true" ]; then
    SUDO_TO_ROOT+=" "
    SUDO_TO_ROOT+="--preserve-env=${sudo_preserve_env_list}"
 
+   ## Deliberately NOT exported; see the re-entrance-guard note above.
    variables_sudo_to_root_finalized="true"
-   export variables_sudo_to_root_finalized
 fi
 
 ## XXX: Not possible because some scripts use extra sudo arguments such as "--preserve-env".
