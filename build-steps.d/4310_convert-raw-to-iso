@@ -165,6 +165,12 @@ build_grub_overlay() {
          "${grub_overlay}/grub.cfg"
    fi
 
+   ## Boot-mechanism configs: dm-raw-to-iso ships no GRUB config, so the overlay
+   ## carries loopback.cfg (staged into /boot/grub for loop-mounted .iso boot) and
+   ## esp-redirect.cfg (the tool packs it into the ESP's grub.cfg).
+   cp -- "${iso_grub_config_dir}/loopback.cfg" "${grub_overlay}/loopback.cfg"
+   cp -- "${iso_grub_config_dir}/esp-redirect.cfg" "${grub_overlay}/esp-redirect.cfg"
+
    ## Theme assets.
    cp -- "${iso_grub_config_dir}/theme.cfg" "${grub_overlay}/theme.cfg"
    cp -- "${iso_grub_config_dir}/live-theme/theme.txt" "${grub_overlay}/live-theme/theme.txt"
