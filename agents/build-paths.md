@@ -54,7 +54,7 @@ Two things that read like gaps and are not:
 ## 1. CI reproducibility lane
 
 ```
-.github/workflows/local-build.yml     # dispatch-only + release tags + weekly
+.github/workflows/local-reproducible-build-test.yml     # dispatch-only + release tags + weekly
   -> job build (matrix: copy = a, b)          # two SEPARATE runners
        flavor kicksecure-ci-tiny-do-not-use -- the SAME flavor the boot-test
        lane builds, so the two lanes can share one image instead of building
@@ -132,7 +132,7 @@ so this is not about cost -- the free plan allows 20 concurrent jobs ORG-WIDE an
 one push fanned out 17 of them.
 
 ```
-dm-ci-dispatch --workflow local-build.yml    --ref ai
+dm-ci-dispatch --workflow local-reproducible-build-test.yml --ref ai
 dm-ci-dispatch --workflow local-boot-test.yml --ref ai
 ```
 
@@ -140,7 +140,7 @@ It runs `dm-preflight` first and refuses a tree whose submodule work is
 uncommitted, or whose local ref does not match the remote. `--dry-run` shows what
 would be dispatched without starting jobs.
 
-Release tags still build `local-build.yml` automatically. The cheap lanes -- lint,
+Release tags still build `local-reproducible-build-test.yml` automatically. The cheap lanes -- lint,
 dry-run, dist-ai tests, CodeQL, all under a minute -- still run on every PR.
 
 ## 5. dry-run YES vs NO
@@ -226,7 +226,7 @@ env CI=true dist_build_target_arch=amd64 flavors_list=... ./help-steps/dm-build-
 
 `dist_build_target_arch=amd64` comes with it: under `CI=true`,
 `dm-build-official-one:92` selects arm64, and the runners are amd64.
-`local-build.yml` pins the same value.
+`local-reproducible-build-test.yml` pins the same value.
 
 The real lane gets `CI` from the container instead:
 `docker/derivative-maker-docker-run:369` injects `--env CI=true` and `:394` hands

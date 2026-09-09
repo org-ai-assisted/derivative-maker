@@ -18,7 +18,7 @@
 ## the sidecar before the build and snapshots newly-downloaded packages back
 ## after.
 ##
-## Usage (from .github/workflows/local-build.yml):
+## Usage (from .github/workflows/local-reproducible-build-test.yml):
 ##   ./ci/approx-cache-sidecar seed       # after actions/cache restore, before build
 ##   ./ci/approx-cache-sidecar snapshot   # after the build (if: always)
 ##
@@ -31,6 +31,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 ## No sensible developer-machine invocation (it sudo-chowns a cache dir to the
 ## approx uid); mirrors developer-meta-files' apt-install-with-cache guard.
