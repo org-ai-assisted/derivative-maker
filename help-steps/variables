@@ -808,10 +808,6 @@ true "${cyan}${BASH_SOURCE[0]} INFO: BUILD_INITRAMFS_PKGS (--initramfs): ${BUILD
 
 ## {{{ ISO extra packages
 
-## FIXME: The ISO extra package lists (iso-build-data/package-list-*) may carry
-## redundancy: some entries may duplicate the metapackage system or belong
-## integrated into it. Audit and prune.
-
 if [ "${dist_build_iso:-}" = "true" ]; then
    dist_iso_grub_pc=""
    dist_iso_shim_signed=""
