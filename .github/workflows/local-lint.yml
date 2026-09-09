@@ -20,7 +20,7 @@ on:
   push:
     tags:
       ## '**' not '*': '*' does not match a slash, so a slash-delimited tag
-      ## would silently skip this gate while local-build.yml still builds it --
+      ## would silently skip this gate while local-reproducible-build-test.yml still builds it --
       ## the expensive lane running on a commit the cheap one never checked.
       - '**'
 
