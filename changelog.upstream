@@ -1,3 +1,70 @@
+commit f039c5ae95f2f6dac50c7df571c8c1d27058b624
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Tue Sep 8 11:39:48 2026 -0400
+
+    .
+
+commit 26ec56147cf1730501d1e7099ff2e70b8f82aa6e
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Tue Sep 8 11:20:34 2026 -0400
+
+    .
+
+commit 1bb95ee30ed22ce36a0e4d5c32d67e15a10435e0
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Tue Sep 8 11:14:36 2026 -0400
+
+    fix
+
+commit 5c4dc7bdab131c6533ae9d2b5f2cf124497bc576
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Tue Sep 8 11:12:16 2026 -0400
+
+    .
+
+commit 9a24819053027900f048ddc927af2aa7ee34bd04
+Merge: a61dcf63f 32101185a
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Tue Sep 8 11:09:35 2026 -0400
+
+    Merge remote-tracking branch 'ArrayBolt3/arraybolt3/trixie'
+
+commit a61dcf63f06844bea5392be8f8bb4695b2e9939e
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Tue Sep 8 10:37:57 2026 -0400
+
+    .
+
+commit 32101185af364e6ce3674d3a9b9c23c54053cc1b
+Author: Aaron Rainbolt <arraybolt3@gmail.com>
+Date:   Sun Sep 6 22:08:21 2026 -0400
+
+    Avoid double-reimaging filesystems
+
+commit 3eae1845316f3ef66124487b101f0b5fa1a2a260
+Author: Aaron Rainbolt <arraybolt3@gmail.com>
+Date:   Sun Sep 6 22:05:04 2026 -0400
+
+    comment
+
+commit 7a2308f7238bc9daa2cbf1116b1d779cb2322f6e
+Author: Aaron Rainbolt <arraybolt3@gmail.com>
+Date:   Sun Sep 6 16:22:24 2026 -0400
+
+    Fix a dangerous printf -v rather than ignoring it
+
+commit 94f371e388c71be571a0c38834464a41c97f7b23
+Author: Aaron Rainbolt <arraybolt3@gmail.com>
+Date:   Sun Sep 6 15:59:31 2026 -0400
+
+    Polish, (re-)add TODOs and FIXMEs
+
+commit 07f10e56eae3fe34bc1dd6fdccd09519f7305615
+Author: Patrick Schleizer <adrelanos@whonix.org>
+Date:   Sun Sep 6 17:28:40 2026 +0000
+
+    bumped changelog version
+
 commit 095bd41db2f679ac1f619116333a8ad00f970432
 Author: Patrick Schleizer <adrelanos@whonix.org>
 Date:   Sun Sep 6 13:24:01 2026 -0400
@@ -39,6 +106,3010 @@ Author: Patrick Schleizer <adrelanos@whonix.org>
 Date:   Sun Sep 6 12:26:40 2026 -0400
 
     .
+
+commit a3d176304822e7a7a322eeb6983eee8f1d9a1e42
+Merge: 8018f0c3d a425446ad
+Author: Aaron Rainbolt <arraybolt3@gmail.com>
+Date:   Sun Sep 6 12:25:50 2026 -0400
+
+    Merge remote-tracking branch 'org-ai-assisted/master' into arraybolt3/trixie
+
+commit a425446adf97f8b420254f335f24e93de7a49a6d
+Merge: ffe1ce979 8018f0c3d
+Author: claude (dev457 91cbfb94-9ecd-49d9-ade6-8373b60b563b) <noreply@anthropic.com>
+Date:   Sun Sep 6 09:37:57 2026 -0400
+
+    Merge upstream github-kicksecure/master into master
+
+      * build-steps.d/1100_sanity-tests, help-steps/variables: kept ours
+        (removed broken check-git-symlinks; fixed inverted frozen-snapshot
+        pin check; centralized dist_build_min_free_gib default).
+      * Gitlinks and changelog.upstream taken from upstream.
+
+commit ffe1ce9797b31cb0fec81ede265b229bbcf28abe
+Author: claude (dev451 8de10438-0bc4-4432-a447-63b6f99be918) <noreply@anthropic.com>
+Date:   Sun Sep 6 02:29:26 2026 -0400
+
+    dm parent: sync residual non-gitlink files from ai
+
+commit 5e37bd47ab8cb9c7c1c3924a9b95c37931aa48a4
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Thu Aug 27 21:03:43 2026 -0400
+
+    fix build: run mount-cleanup as root in unmount-raw + unchroot-raw
+
+    mount-cleanup refuses a non-root EUID; these two callers invoked it bare
+    (all 7 others use ${SUDO_TO_ROOT}), so it died 'MUST be run as root'
+    during 3500 teardown once the build reached it. Also add the missing
+    'export LC_ALL=C' both files' strict blocks lacked (R-010).
+
+commit 3ada6874d6b3a362d45f1e29233251f9aa18723a
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Thu Aug 27 08:09:51 2026 -0400
+
+    fix build: mount-cleanup must pass the tree to unmount-tree
+
+    unmount-tree now requires its target argument (dies 'no parameter given!'
+    without one); mount-cleanup called it bare, so the handoff failed on every
+    invocation -- swallowed where a caller had '|| true', fatal in 2100's
+    get_newer_packages_from_third_party_repositories. Forward the validated
+    file_system_object, as the sibling callers already do.
+
+commit 064c581e9a0f0ac760edf534fe9f6ae6a5d19dd2
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Thu Aug 27 07:45:15 2026 -0400
+
+    fix build: source renamed package-build-freshness.bsh
+
+    2100 sourced developer-meta-files' reprepro-freshness.bsh, renamed to
+    package-build-freshness.bsh upstream (197f2a11); the gitlink bumped past
+    the rename but this consumer did not -- every build reaching 2100 died.
+
+commit 83689245831b338eb719becdb96831f040178f20
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Thu Aug 27 07:22:53 2026 -0400
+
+    fix CI build: unbound-var crash + unlock the dangerous CI flavor
+
+    - parse-cmd error_dangerous_option_maybe read dist_build_unlock_dangerous_options
+      BARE under nounset -> 'unbound variable' crash that masked its own actionable
+      message; :- default. (Both CI lanes died at Phase 1 sanity-tests on it.)
+    - local-build.yml + local-boot-test.yml: unlock dangerous options so the
+      kicksecure-ci-tiny-do-not-use flavor (made dangerous by the Aug-25 rename,
+      which never updated the lanes) actually builds
+
+commit 52f27cbb2a6d07f4b14bf1956c81caf4cbae16c2
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Thu Aug 27 07:08:36 2026 -0400
+
+    local-build CI: also emit + byte-compare the source tarball
+
+    - the two independent reproducibility builds now emit
+      derivative-maker-source-<version>.xz (Phase 4; dist_build_source_release_flavor
+      set to the built flavor); ci/compare-source-tarballs asserts sha256(a)==sha256(b)
+      so source-tarball reproducibility rides the existing build, no extra build
+
+commit 6acefec3d4cc66e825580792f2431c0c1c270f57
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Thu Aug 27 03:55:43 2026 -0400
+
+    1200: pin core.symlinks=false globally, not per tree
+
+    - git never writes core.symlinks locally, so one --global false overrides the
+      compiled default in the parent and all submodules alike -- replaces the per-tree
+      config loop (flatten + mode-pin still iterate per repo, inherently)
+
+commit 58edbc1c8ca2d328dee8def0d78984c1141e8eaf
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Thu Aug 27 02:40:11 2026 -0400
+
+    git_sanity_test: fail closed on broken bootstrap; validate option values
+
+    - the source-able port moved errexit into main(), so 'bash git_sanity_test'
+      (how mode_submodules re-invokes it) ran the bootstrap with errexit OFF and could
+      exit 0 on an UNVERIFIED repo; guard each bootstrap source with || exit 1
+    - --mode/--context/--ref/--ref-type die with a named error on a missing value
+      instead of a bare nounset 'unbound variable'
+
+commit 3f45df03811492ee468dd3d5179a3afd7db482f1
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Thu Aug 27 02:26:06 2026 -0400
+
+    git_sanity_test,parse-cmd: consumption-point AI gate + arg fixes
+
+    - git_sanity_test: refuse the ignore-unsigned skip for an AI session (CLAUDECODE)
+      / dist_build_forbid_allow_unsigned at the CONSUMPTION point (env + buildconfig.d
+      bypass parse-cmd's flag-only check); made source-able so the gate is unit-testable
+    - parse-cmd: :- default on the BUILD_*_PKGS reads (--kernel/--headers/--initramfs
+      crashed under nounset); exit after the --package-jobs integer error
+
+commit 3735d633a15e5eac7b0240baa763299195088632
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Thu Aug 27 01:20:32 2026 -0400
+
+    parse-cmd: refuse --allow-unsigned for AI sessions
+
+    - skipping git_sanity_test verification is a human escape hatch; an AI agent
+      (CLAUDECODE) must sign+tag with a throwaway key (--sign-and-tag) instead
+    - dist_build_forbid_allow_unsigned lets CI / a hardened policy forbid it too;
+      dangerous-options unlock is the human override
+
+commit 7bd65c63e8ed2609c08091343db18c5e67094576
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 22:44:39 2026 -0400
+
+    1200: pin core.symlinks=false per tree so normalize leaves a clean tree
+
+    - a plain-Debian (core.symlinks=true) checkout flattened symlinks to placeholders showed every one as a 'T' typechange; pinning false makes git read mode-120000 as its text blob (clean) and points a plain builder at the Kicksecure security setting
+
+commit 06a639650c400644ff844774d5a6bc40558dd47c
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 22:21:00 2026 -0400
+
+    1200: normalize symlinks to text placeholders, not real symlinks
+
+    - reproducibility needs one canonical form fleet-wide; both work, so security decides -- an inert path-string placeholder cannot point outside the tree or escape a chroot the way a materialised symlink can
+
+    - flatten real symlinks (parent + submodules) to the target bytes git records (no trailing newline); leave existing placeholders' content; pin placeholder mode to 0644
+
+commit 5c262e1d8c04c6bb692a0a99e7c5c15897b7b38d
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 12:20:39 2026 -0400
+
+    unmount-helper: default SUDO_TO_ROOT instead of sourcing variables
+
+    - it needs only SUDO_TO_ROOT from the build config; sourcing the whole 'variables' dragged in a full build context (root guard, changelog, user_name) and made the umount wrapper impossible to unit-test. Production still defaults to sudo.
+
+commit df29c1745892952a4b25cbcb8a55e6204c54fcbf
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 11:38:26 2026 -0400
+
+    help-steps/variables: fix inverted frozen-snapshot pin check
+
+    - pin is a bare Unix epoch (generator writes date +%s; consumers do date --date=@pin; used as SOURCE_DATE_EPOCH), so reject NON-integers, not integers
+
+    - clears the pre-existing style gate on the touched file: two grep|pipe -> here-string (R-161), waivers for the chroot /tmp path and internal printf -v name
+
+commit bc1f114db059208a807ea9cd2f2b0f32670341aa
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 10:45:17 2026 -0400
+
+    ci: make configure-fork-mirror idempotent
+
+    - called twice per CI job; a plain 'git config' set died on the already-multivalued insteadOf key (exit 5)
+
+commit b2b7fc8cf25f49d86eabdcf71393ea997dbb6bbb
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 10:25:34 2026 -0400
+
+    1200: normalize-symlinks -- clear inherited GIT_DIR, keep trailing newline
+
+    ai-review (codex, agy) on the restored normalizer, both reproduced:
+    - git -C <tree> honours an inherited GIT_DIR/GIT_WORK_TREE (e.g. exported by an
+      enclosing 'git submodule foreach'), so it read the WRONG index and silently
+      normalised nothing (or an unrelated tree). Clear them with env --unset on every
+      git call (parent submodule enumeration + both per-tree ls-files).
+    - command substitution ate a trailing newline, so a mode-120000 target ending in
+      '\n' (or a mistagged file) slipped past the multi-line guard and was mis-converted.
+      Append+strip a sentinel to preserve it.
+
+commit 152c42a46f56ab36697e6d161f7ded6c5b04388d
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 09:51:12 2026 -0400
+
+    1100: drop check-git-symlinks (redundant with the restored normalizer)
+
+    The reproducibility bug it detected is now prevented at the root by the restored
+    1200 normalize-symlinks (materializes real symlinks + normalizes modes on every
+    host), and symlink TARGETS are already whitelist-verified by dm-check-unicode
+    (git ls-files --recurse-submodules, handles real + text via stcat). Nothing to add.
+
+commit 26c2a7c4e89843c38c875cc139ad7f6ca615b71f
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 09:49:27 2026 -0400
+
+    1200: restore the correct symlink + mode normalizer (arraybolt regression)
+
+    7be37d4cb (trixie 'polish') reverted normalize-symlinks to a naive real->text
+    'find -type l' that is a NO-OP on core.symlinks=false hosts (the Kicksecure default,
+    via security-misc) -- the very hosts the bug occurs on -- and leaves core.symlinks=true
+    (CI) trees DIRTY (type change): the 'unexplained dirty tree' that broke sign-and-tag.
+    It also deleted normalize_file_modes_in_tree, the umask/mode reproducibility fix (90a906cf3).
+
+    Restored the text->real materializer + mode normalizer + submodule/non-ASCII handling.
+
+    Verified in a synthetic repo: a core.symlinks=false clone's text logo becomes a real
+    symlink; both true/false hosts have a CLEAN git status; the two trees are byte-identical
+    (reproducible), submodules included.
+
+commit 5ef7db4a911cc6c182fa3c4b4010aef8599193f8
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 07:02:11 2026 -0400
+
+    reimplement check-git-symlinks: ban symlinks in package repos (8,9,10)
+
+    - packages/* must contain NO git-tracked symlinks -- core.symlinks=false
+      materializes them as regular files and silently breaks the package; real
+      symlinks are unwanted there too
+    - repos with legit tracked symlinks (live-build, qubes-template-whonix, the
+      parent's live-build-data) are outside packages/, exempt by scope
+    - fix the repo-detection holes: test the submodule's own .git directly and
+      clear GIT_DIR/GIT_WORK_TREE (arraybolt's stray-GIT_DIR + subdir false-pass)
+    - re-enabled the check (was disabled)
+    - verified: canary drives the real function -- errors on a package symlink,
+      passes without one, and passes on the real tree (packages/* symlink-free)
+
+commit 7e852eeeee5bd5712adc8de820b97752e126a535
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 05:59:06 2026 -0400
+
+    curlrc: add tested curl --head demo of X-Download-Directly
+
+    - shows the 302 relative-Location (approx cannot parse) vs the 200 direct
+      body serve, captured live from snapshot.debian.org
+
+commit 9a02542f97157df1cc5c0e6ceb588439a6335b95
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 04:41:47 2026 -0400
+
+    resolve CI markers 4, 5, 14 (12 deferred)
+
+    - local-build.yml: use all runner cores (REPRO_PACKAGE_JOBS 2->4; ubuntu-24.04 = 4 vCPU)
+    - local-build.yml: drop the .torrent upload -- CI images are not distributed over BitTorrent
+    - 2100: drop the move-into-main() TODO; the --skip-packages guard stays a function-entry check
+
+commit 2cf4cf6157059e0928b288d55f14a706162cf429
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 04:38:18 2026 -0400
+
+    cleanup markers 28, 30, 31, 36
+
+    - 5100: report extension .diffoscope.txt -> .compare-report.txt (contains more
+      than bare diffoscope output)
+    - memory-sampler: read /proc/meminfo once per cycle; mem_field reads stdin
+    - cache-make-readable: drop the superfluous style-ok (no rm present; scanner
+      does not warn -- no scanner change needed)
+    - 25_apt_sources + parse-cmd: remove dead Ubuntu xenial/bionic build support
+      (their .sources files do not exist); host-OS-detection refs kept
+
+commit 82c93432fbc15a8af8ca68294affd3008effe1a0
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 04:30:10 2026 -0400
+
+    resolve defaults 43, 54, 45, 44 (fact-checked)
+
+    - mount-cleanup, unmount-tree: shorten the '--' arg loop to an errexit-safe if
+      (arraybolt's bare '&& shift' would trip errexit when '--' is absent)
+    - pbuilder-chroot-create-vbox-vm: arm64 VBox VMs ARE supported (Debian_arm64);
+      the x86-pae guard is not obsolete
+    - parse-cmd: pkg_list is the deliberate shared package list (buildconfig default,
+      --only-packages override, 2100 consumer); clarified, not renamed
+
+commit 86bb21014e316f37533f96acd6d07a20dbacb5f2
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 04:27:06 2026 -0400
+
+    resolve markers 19, 15, 29 (comment-only)
+
+    - 4350: reproducible-by-default is intentional; --freshness frozen|current is the
+      control (reject arraybolt's opt-in proposal)
+    - 3200: --no-reimage note -> REMINDER (grml-debootstrap fork dependency)
+    - 5100: wiki-doc note -> REMINDER
+
+commit eef0eaebf5fccf5fec4b7eff9306aa6df2be3b36
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 04:25:29 2026 -0400
+
+    resolve A defects 13, 32, 35, 48
+
+    - 2100: hoist manifest_path out of the reprepro loop (loop-invariant on codename)
+    - cache-make-readable: test -d not -e (cache_dirs are all directories)
+    - locate-boot-image: explicit qcow2 case; error (exit 64) on unrecognized IMAGE_KIND
+    - help-steps/pre: descriptive tolerate-failure|abort-on-failure failure mode instead
+      of the true/false boolean trap in exception_handler_cleanup_run
+
+commit c73c45318d296a14b47b47952188acc667c3bb0d
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 04:17:15 2026 -0400
+
+    resolve fact-checked arraybolt markers (B set)
+
+    - approx/curlrc: X-Download-Directly is snapshot.debian.org's direct-serve header
+      (Varnish serves body vs a relative-Location 302 approx can't parse); kept, WHY added
+    - 4400: cluster_size is set by extended_l2=on (128k); an earlier -o would be overridden
+    - cowbuilder-base-cache: drop --preserve-permissions on tar --create (extract-only flag,
+      proven no-op on create)
+    - diagnose-build-kill: OOM greps made consistent; oom_reaper is a redundant follow-up
+    - memory-sampler: document the kB->bare-int normalization
+    - docker-start: header comment now matches actual behavior (no tag verify / git pull)
+    - sign-tag-head: drop dead commented pre-check, subsumed by verify_ref
+
+commit 90b089577884f4db8e7e0e80247db0800e4ed7ff
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Tue Aug 25 23:06:45 2026 -0400
+
+    align parent with refactored developer-meta-files submodule
+
+    - comparator now exits 1 (not 4) for "differs"; update the reproducible
+      lanes and docs comment to match
+    - 2100: source reprepro-freshness.bsh (renamed) and gate --skip on the
+      already-published check, passing the repository name
+    - 1300: drop the cowbuilder TMPDIR/TMP env unset
+    - 2100: read the Architecture field once into a case, dropping the quiet
+      grep that consumed a pipe (R-161) and 4x redundant pipeline re-runs
+    - restore/add the LC_ALL=C strict-mode directive in the touched scripts
+
+commit f570b30fd33089e8856ba7899665e761bd02bbcd
+Author: claude (dev346 4f6863a2-6812-49b5-ab88-6cd6e23bdfd3) <noreply@anthropic.com>
+Date:   Tue Aug 25 11:57:15 2026 -0400
+
+    1300: unset TMPDIR on cowbuilder --create
+
+    - libpam-tmpdir (security-misc) points TMPDIR at a path absent in the
+      chroot; debootstrap inheriting it aborts opaquely (Debian #823651)
+    - must clear at the invocation: sudo env_reset + PAM re-set it after the
+      pbuilder configfile is sourced, mirroring the adjacent LD_PRELOAD unset
+    - add R-010 export LC_ALL=C to the strict block (inert here; variables
+      re-sets C.UTF-8 on source)
+
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+commit b92d07423fbcb14099577a2e50eaf092f0bc24f7
+Author: assisted-by-ai (Bot Account) (Machine Account) <228987186+assisted-by-ai@users.noreply.github.com>
+Date:   Mon Aug 24 23:31:52 2026 -0400
+
+    ci: drop orphaned consumer-claude-code.yml (reusable decommissioned)
+
+commit 453307290278d0cbee145577d443a939404ecdd1
+Author: claude (dev172 95595d52-ccfe-4088-99f2-560955a081b5) <noreply@anthropic.com>
+Date:   Mon Aug 10 01:51:00 2026 -0400
+
+    docs/reproducible-verification: automated comparator on large ISO/OVA
+
+    Document the tested behaviour of dm-reproducible-compare-artifacts on real
+    multi-gigabyte iso/ova images: the sha256 verdict is authoritative, but the
+    best-effort diffoscope EXPLANATION can OOM (measured: a 1.4 GB differing .iso ->
+    diffoscope exit 2 'Out of memory'), and the tool degrades gracefully to the
+    sha256 verdict. Note that extending the qcow2 mounted route (attach read-only,
+    diffoscope the mount points) to iso/virtualbox would give them a memory-safe
+    explanation -- a future improvement, not required for a correct verdict.
+
+commit f38d580bb49eac3ab81fb8e2d43d81f6a6585d39
+Author: claude (dev172 95595d52-ccfe-4088-99f2-560955a081b5) <noreply@anthropic.com>
+Date:   Mon Aug 10 01:14:57 2026 -0400
+
+    build-steps 2100: content-hash rebuild skip (drop repository_name arg)
+
+    Follow package-build-freshness dropping its reprepro path: dm_package_needs_rebuild
+    now takes (source_dir, apt_codename) and decides from the source-content hash, so
+    the call no longer passes the repository name and the comment describes content
+    detection, not a published-version check.
+
+commit 22b3ee85ff257b578871a1b5f46b65fad61e13e8
+Author: claude (dev172 95595d52-ccfe-4088-99f2-560955a081b5) <noreply@anthropic.com>
+Date:   Mon Aug 10 00:22:14 2026 -0400
+
+    build-steps 2100, dm-build-official-one: source package-build-freshness.bsh
+
+    Follow the developer-meta-files rename of reprepro-freshness.bsh (the library
+    also manages package-build-hash manifests). Source-path + comment update only.
+
+commit 515a1c43cd83e7afebf1078cc4c67e6d41563412
+Author: claude (dev172 95595d52-ccfe-4088-99f2-560955a081b5) <noreply@anthropic.com>
+Date:   Mon Aug 10 00:13:27 2026 -0400
+
+    ci/reproducible-*, local-build: document differ verdict as exit 4
+
+    Match dm-reproducible-compare-artifacts' dedicated 'artifacts differ' code (4,
+    was 1). These consumers forward the comparator's exit verbatim, so only the
+    documented contract changes: 0 reproducible, 4 differ, 2 setup, 3 build failed
+    (build-twice), 1 internal error.
+
+commit 7390d2b219bbb5c630d06920ba745b9bf8427aff
+Author: claude (dev165 6b2fcae5-ab58-4636-91b6-0eca317a86c6) <noreply@anthropic.com>
+Date:   Sat Aug 8 05:52:34 2026 -0400
+
+    3500: copy the SMBIOS-reader drop-in, do not generate it
+
+    Configuration files are not auto-generated. The drop-in was printf-ed inline, so
+    its content lived only inside this build step -- unreadable and undiffable where
+    it belongs, and dependent on this script's quoting. It now ships as
+    vm-config-dist usr/share/vm-config-dist/50_dm-smbios-reader.cfg and is copied
+    with the same 'install --mode' used for 20_dist-base-files.cfg above, which is
+    also what keeps the installed mode independent of the builder's umask.
+
+    The unconditional safe-rm stays outside the branch on purpose: a disabled build
+    must clear a file left by an earlier build in the same slot.
+
+    Also bumps the vm-config-dist gitlink to carry the new file (52d2087..0a7b353,
+    reachable on org-ai-assisted).
+
+    Verified through the image's own update-grub in a chroot, no rebuild:
+
+      drop-in absent      0 reader lines, 0 cmdline placeholders
+      static file copied  5 reader lines, 11 placeholders
+      value not "true"    0 reader lines, 0 placeholders
+
+    The first run of that check reported "absent" as enabled -- the image is reused
+    across runs and an earlier run had deliberately left it opted in under the
+    previous filename, which the rename orphaned. The check now clears every
+    50_dm-*.cfg before the absent case.
+
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 4a01d4a8244f73994f5a65b5ab8e7a623a491bb9
+Author: claude (dev164 e74055e0-f238-4bc0-9e8f-f0f1761cc555) <noreply@anthropic.com>
+Date:   Sat Aug 8 05:09:13 2026 -0400
+
+    gitlink workflow: document the second invariant it now enforces
+
+    The header described resolvability only, while the job also fails a gitlink
+    that deviates from the merge base with Kicksecure/derivative-maker.
+
+    - Both invariants stated, with why 1 does not imply 2: a pointer merely BEHIND
+      the submodule's upstream tip is resolvable, yet an upstream merge still
+      conflicts on the submodule for anyone without it checked out.
+    - 'submodules: false' and the default depth 1 are now explained as deliberate:
+      the check must reach its verdict WITHOUT submodule objects, since that is the
+      case that conflicts, and it deepens from origin itself when it needs history.
+    - GITHUB_TOKEN is documented as required, not a rate-limit nicety: a sweep that
+      verified nothing exits 2 rather than reporting a green pass.
+    - Step names say what the steps now do.
+
+    No behaviour change; the tool needed no workflow change to start enforcing
+    invariant 2.
+
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit c602c2ab1f0438d32be429fd2190e78cb8ea09ef
+Author: claude (dev165 6b2fcae5-ab58-4636-91b6-0eca317a86c6) <noreply@anthropic.com>
+Date:   Sat Aug 8 04:16:09 2026 -0400
+
+    SMBIOS reader: check the serial-number string index before reading it
+
+    ISO copy of the reader, kept identical to the disk copy in vm-config-dist, plus
+    the matching gitlink bump (00dd919..52d2087, reachable on org-ai-assisted).
+
+    Type 1 offset 7 holds a string INDEX, and 0 means "no string" (DSP0134 6.1.3), so
+    an unguarded --get-string 7 makes GRUB print 'error: failed to retrieve the
+    structure field.' on every ordinary boot of an image built with the reader -- the
+    QEMU gate passes on any QEMU guest, and the serial is set only when a tester
+    injects. Probe the index byte first; read the string only when it is non-zero.
+
+    Found by coderabbit on org-ai-assisted/vm-config-dist#8.
+
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 2376a029b2d9510296e1b9e6a4fbb5dd26d5c3c0
+Author: claude (dev165 6b2fcae5-ab58-4636-91b6-0eca317a86c6) <noreply@anthropic.com>
+Date:   Fri Aug 7 12:20:23 2026 -0400
+
+    local-boot-test.yml: comment out the disabled vbox upload step
+
+    actionlint rejects 'if: false' as a constant condition. The step is already inert,
+    so commenting it out is behaviour-identical and matches how the other disabled
+    vbox pieces are expressed. Re-enable instructions kept.
+
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit faa8dd2997230c3b05ca4f3092337be536edff5b
+Author: claude (dev165 6b2fcae5-ab58-4636-91b6-0eca317a86c6) <noreply@anthropic.com>
+Date:   Fri Aug 7 12:02:12 2026 -0400
+
+    build option --smbios-reader: ship the GRUB SMBIOS cmdline reader opt-in only
+
+    The reader turns a firmware-supplied string (SMBIOS Type 1 Serial Number, after a
+    'dm-cmdline=' sentinel) into trailing kernel command line, so whoever can write
+    that field gets 'init=/bin/sh'. The kernel command line is the part of the boot
+    chain Secure Boot does not authenticate, and vm-config-dist is a dependency of
+    dist-general-cli, so the reader shipped on bare-metal installs too. It exists only
+    for the QEMU boot-test harness.
+
+    Realistic writers without OS root: Supermicro SUM EditDmiInfo/ChangeDmiInfo over
+    IPMI with no OS on the box, HPE via RBSU through iLO KVM, and any OEM or
+    refurbisher DMI editor -- set once in the supply chain it survives disk wipe and
+    reinstall. Stock Redfish is narrower: SerialNumber is readonly, only AssetTag is
+    writable.
+
+    - help-steps/parse-cmd, help-steps/variables: --smbios-reader [true|false],
+      default false, exported to the build steps.
+    - 3500_install-packages: write /etc/default/grub.d/50_dm-smbios-reader.cfg into
+      the chroot before grub-mkconfig; remove it when disabled, so it cannot survive
+      from an earlier build in the same slot.
+    - 3600_convert-raw-to-iso: gate both halves of the ISO path -- the
+      ${dm_smbios_extra} placeholder on --bootappend-live, and inlining the reader
+      into config.cfg.
+    - live-build-data/grub-config: the reader lives in smbios-reader.cfg so it can be
+      omitted; config.cfg no longer carries it.
+    - local-boot-test.yml: pass --smbios-reader true. Without it every boot leg would
+      time out with a 0-byte serial log rather than fail loudly.
+    - Bump the vm-config-dist gitlink for the matching disk-path guard.
+
+    Not a Secure Boot bypass: Secure Boot never covered the kernel command line. This
+    is a hardening gap -- every attacker who can reach it can already do worse -- but
+    Kicksecure appears to be the only distro reading SMBIOS into the cmdline in
+    grub.cfg, and under SEV-SNP/TDX it would be a real boundary crossing, which is why
+    systemd stopped trusting SMBIOS there.
+
+    Verified without a rebuild: placeholder escaping is byte-identical to the previous
+    inline form and empty when disabled; the opt-in was exercised through a built
+    image's own update-grub in a chroot (absent 0 reader lines / 0 placeholders,
+    enabled 5 / 11); the QEMU gate was exercised by booting a built image five ways,
+    canary-checked. The build-option plumbing itself is checked statically only and
+    needs one real build.
+
+    Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
+commit 7c2ec8b8b4c3f830926b0773bbed6ebf456de4f4
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Tue Aug 4 16:34:06 2026 -0400
+
+    local-build.yml: re-enable the virtualbox reproducibility lane
+
+    vbox-ova-reproducible-normalize is present at the pinned helper-scripts gitlink
+    (63608f3d), so the .ova export no longer aborts dm-prepare-release. Offer
+    'virtualbox' as a target choice; REPRO_MULTI_TARGET_LIST already yields
+    'virtualbox' for a non-iso target, the upload globs already collect *.ova, and
+    the compare job already maps virtualbox -> *.ova. So a virtualbox dispatch
+    builds two runners' .ova and diffoscopes them byte-for-byte.
+
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+commit 1761e3a483b59ce40de191e2dc5b3fbf1395c71f
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Tue Aug 4 07:05:04 2026 -0400
+
+    ci/dry-run: pass sign-and-tag opt-in past run-as-user's env strip
+
+    The dry-run runs BOTH 200_sign-and-tag and the build (300) via run-as-user,
+    whose 'sudo --preserve-env=PATH' strips every var but PATH. With
+    dist_build_sign_and_tag defaulting off, the earlier fix set it only for step
+    200, so the build's git_sanity_test saw sign_and_tag=false ->
+    ignore_unsigned=true, colliding with the forced dist_build_redistributable=true
+    (mutually exclusive) and failing the lane.
+
+    - 300_run-derivative-maker: add dist_build_sign_and_tag=true to the env prefix
+      that already carries CI/arch past run-as-user, so git_sanity_test sees it.
+    - 200_sign-and-tag: keep the env-prefix opt-in so sign-and-tag actually signs
+      (300 asserts the buildinfo carries recorded provenance, not 'unrecorded').
+    - ci/dry-run: drop the export attempt (run-as-user strips it) and document that
+      the opt-in must ride each run-as-user hand-off's env prefix.
+
+    The full build lanes (local-build.yml, local-boot-test.yml,
+    ci/reproducible-build-twice) run dm-build-official directly with no run-as-user
+    layer, so their existing export reaches git_sanity_test -- confirmed by the
+    full build passing its signature verification.
+
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+commit ad279daa26b8f4a807e1290647f60e000c88b300
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Tue Aug 4 06:43:52 2026 -0400
+
+    sign-and-tag: default off; redistributable dispatch opts in
+
+    - dist_build_sign_and_tag now defaults false (variables): signing rewrites
+      submodule HEADs + re-commits gitlinks, which local/dev/AI builds do not
+      want. An explicit value (--sign-and-tag, env, dispatch site) still wins.
+    - dist_build_ignore_unsigned now defaults to the INVERSE of sign_and_tag, so
+      a non-signing build skips signature verification in lockstep instead of
+      failing git_sanity_test on its own unsigned tree. This is the behaviour
+      git_sanity_test already documented; the code now matches.
+    - Redistributable dispatch opts in explicitly (a redistributable image
+      requires signatures; git_sanity_test rejects unsigned+redistributable):
+      local-build.yml, local-boot-test.yml, ci/reproducible-build-twice,
+      ci/dry-run.d/200_sign-and-tag. CI build behaviour is unchanged -- it signs
+      exactly as before, now by explicit opt-in rather than the default.
+    - parse-cmd help text updated.
+
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+commit f5be457e790e1249eb0ea9c26773ed7c9132404b
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Tue Aug 4 05:51:51 2026 -0400
+
+    3600: pin ISO squashfs symlink mtimes for reproducibility
+
+    The disk path (4350) already pins symlink mtimes to SOURCE_DATE_EPOCH; the ISO
+    squashfs chroot had the same update-alternatives symlink wall-clock-mtime leak
+    (the build's mtime-pinning follows links, pinning targets not the links). Add
+    the same 'find -type l -exec touch -h @SDE' before mksquashfs. The ISO EFI FAT
+    (efi.img) is already reproducible via live-build (SOURCE_DATE_EPOCH volume-id +
+    pinned mtimes + zeroed fresh image), so no FAT normalization is needed on the
+    ISO path -- confirmed by upstream live-build code review.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 3511a9b65465cef35af4091396be58c524e51b9b
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Tue Aug 4 05:49:55 2026 -0400
+
+    ci/locate-boot-image: find image by extension, not Kicksecure prefix
+
+    Boot-test image discovery hardcoded 'Kicksecure-*.{iso,ova,qcow2.libvirt.xz}',
+    which misses Whonix images. Match by extension only. (Also fixed a pre-existing
+    R-030 printf in the touched file.)
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 7b2d0e46cb53e239e039f09ad25c766755c61069
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Tue Aug 4 05:48:37 2026 -0400
+
+    boot-test CI: match image globs by extension, not Kicksecure prefix
+
+    Same generalization as local-build.yml: 'Kicksecure-*.qcow2*/.iso/.ova' globs
+    miss Whonix images; match by extension so both products work. The variables
+    'Kicksecure-*' VMNAME defaults are per-flavor config (kicksecure-cli etc.),
+    correct as-is; Whonix flavors set their own.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit b4196af43d4928326e5798e79eb7cd6ad791d5e7
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Tue Aug 4 05:47:15 2026 -0400
+
+    CI: match image artifacts by extension, not Kicksecure prefix (Whonix too)
+
+    Image filenames are '<Product>-<flavor>-<version>...', so 'Kicksecure-*' globs
+    silently drop Whonix-Gateway/-Workstation images. Match the distributable
+    images and sidecars by extension (.qcow2.libvirt.xz / .iso / .ova and .sha512sums
+    / .asc / .sig / .torrent / .pub) so both products are covered. Verified against a
+    real build's output: repro-image catches images+sidecars (no .raw), repro-checksums
+    catches only the small sidecars+pubkeys, neither catches the build-cache dirs.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 5dd30c4fc9e4ee799b544c28ec9de0a9dc66b08c
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Tue Aug 4 05:35:32 2026 -0400
+
+    CI: upload checksums+signatures+pubkeys as a small separate artifact
+
+    A reproducibility check needs only the tiny '.sha512sums' to compare hashes, but
+    today those sidecars are bundled inside the ~1.3 GB 'repro-image' artifact, so a
+    verifier downloads the whole image for one hash line (learned the hard way).
+
+    - local-build.yml: new 'repro-checksums-<copy>' artifact (~100 KB) with every
+      '.sha512sums' (+ '.asc'/'.sig'), image + torrent signatures, and the signing
+      PUBLIC keys. repro-image stays as-is for the compare job.
+    - 5200_prepare-release: export the auto-generated signing PUBLIC keys next to the
+      build output (signify '.pub' verifies '.sig'; OpenPGP cert verifies '.asc').
+      Public keys only; best-effort so it can never fail an otherwise-good build.
+
+    Bundle assembly verified synthetically against a real local build's output:
+    22 files, ~110 KB, both pubkeys exported cleanly (sq cert export + keyname.pub).
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit e79ecf348284fac4ac6ab7ec9319c13df3c25d98
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Tue Aug 4 04:15:20 2026 -0400
+
+    1100_sanity-tests: fail early on insufficient build-output disk
+
+    Adds check-sufficient-disk: a full ISO+qcow2 build writes a ~1.3 GB sparse raw,
+    a live-build chroot, the qcow2 and working copies, and silently runs out deep in
+    a later step (observed: 3600 live-build bootstrap_cache restore, ~40 min in,
+    'No space left on device'). Check free space in the build output folder up front
+    and fail with a clear message + how much is needed. Floor 20 GiB, override via
+    dist_build_min_free_gib.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 030e4d132910f7bf11fc84618aeba386a2ee5342
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Tue Aug 4 03:01:26 2026 -0400
+
+    4350: normalize the EFI System Partition + symlink mtimes for reproducibility
+
+    - Call dm-normalize-fat-partition on the vfat ESP (found on the same kpartx
+      mapping mke2fs just wrote) so the FAT is byte-identical across build hosts --
+      the 3.44 MB local-vs-CI difference. mke2fs -d already handles the ext4 root.
+    - Pin SYMLINK mtimes in the reimage tree to SOURCE_DATE_EPOCH (touch -h): the
+      build's file-mtime pinning uses touch WITHOUT --no-dereference, so it follows
+      update-alternatives links (e.g. /usr/sbin/policy-rc.d) and pins the target,
+      leaving the link's own wall-clock mtime -- the last local-vs-CI byte in the
+      root partition.
+    - Add dosfstools + mtools to the build deps (mkfs.fat + mcopy/mmd); they are
+      only Recommends of grml-debootstrap.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 7034df6605d3e41153b4bf46ecfdcea8951649f4
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Mon Aug 3 10:45:01 2026 -0400
+
+    reimage/iso: normalize debconf Owners for reproducibility
+
+    Call dm-debconf-normalize-owners on the rootfs config.dat before packing
+    (4350 raw/qcow2, 3600 ISO), so debconf question ownership is byte-identical
+    regardless of the build environment's configure sequence. Last local-vs-CI
+    difference. Root cause + fix detail in the developer-meta-files commit.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit bf7a197a8b69b778e278cab0778a9031de0d6826
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Mon Aug 3 08:37:57 2026 -0400
+
+    Stop requesting --target windows in dm-build-official-one
+
+    - Both call sites commented out: the per-flavor sanity-tests loop and the
+      prepare-build-machine call that actually triggers the VirtualBox Windows
+      installer download.
+    - WHY: osslsigncode verifies the installer's Authenticode signature by fetching
+      every CRL distribution point over the network at verify time, so an otherwise
+      offline --freshness frozen build depends on a live fetch to crl3.digicert.com.
+      It failed CI outright.
+    - Disabled at the caller, not neutralised in parse-cmd: --target windows keeps
+      meaning what it says for anyone who passes it deliberately.
+    - Details and the re-enable steps: ~/TODO.md, "osslsigncode / Windows installer
+      target".
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 9c6240adae16721000327ad9a5ffaf57a87292a7
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Mon Aug 3 08:10:21 2026 -0400
+
+    parse-cmd: disable --target windows (osslsigncode CRL fetch)
+
+    Workaround, deliberately loud rather than silent: the target now warns and sets
+    dist_build_windows_installer=false, so a build that asked for it cannot mistake
+    the result for a Windows installer having been produced.
+
+    The target downloads the VirtualBox Windows installer and verifies its
+    Authenticode signature with osslsigncode, which fetches every CRL distribution
+    point over the network at verify time. That makes an otherwise offline
+    '--freshness frozen' build depend on a live fetch to crl3.digicert.com, and it
+    failed a CI build outright:
+
+      PEM routines:get_name:no start line
+      Use the "-CRLfile" option to add one or more CRLs in PEM format.
+      Signature verification: failed
+
+    while the identical installer verified fine in the sandbox minutes earlier.
+
+    A real fix already landed in developer-meta-files 9ac5d857 (fetch the CRLs with
+    curl, convert DER to PEM, retry with -CRLfile, revocation checking preserved).
+    This disables the target anyway so the lane stops depending on it while CI
+    reliability is the priority. Rationale, evidence and re-enable steps recorded in
+    ~/TODO.md.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit f28bded77278d0eed09176a30ff8121d984d17e6
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Mon Aug 3 06:28:48 2026 -0400
+
+    ci: postmortem job, because a dead build cannot report on itself
+
+    Proven by synthetic probe rather than reasoned about. Two kill shapes were run
+    against a throwaway workflow in ~1 minute each instead of ~40:
+
+      process-oom  a memory-limited child killed -- step FAILS, runner survives:
+                   the step-level collector runs, and so does a separate job.
+      runner-oom   the job does not fail cleanly: the step-level collector is
+                   SKIPPED, while a separate job still runs and reports
+                   'victim: cancelled | 1=success,2=cancelled,3=skipped,4=success'.
+
+    The second shape is what the build lane hits: the build step and everything
+    after it, including github's own post-steps, are recorded as never having run.
+    No step in that job can report anything, which is why the earlier 'if: failure()'
+    collector produced nothing.
+
+    The postmortem job runs on a FRESH runner, so it survives. It cannot see the
+    dead runner's memory or dmesg -- the in-step MEMSAMPLE lines cover that, being
+    written into the log while the build is still alive -- but it makes the shape of
+    the failure explicit instead of leaving a silent mystery.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 289db651c6d87d1f79d84d1750da69a9f64ead17
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Mon Aug 3 05:25:24 2026 -0400
+
+    ci: sample memory INSIDE the build step, where the evidence survives
+
+    The failure-handler approach added earlier cannot work for this failure mode,
+    and the run that proved it is unambiguous: build (b) died and EVERY step from
+    the build onward -- the 'if: failure()' diagnostic and github's own post-steps
+    included -- is recorded as never having run. The runner itself dies, so nothing
+    downstream of the build can capture anything.
+
+    The only evidence that survives is whatever already reached the job log. So the
+    sampler runs INSIDE the build step, backgrounded, and its readings interleave
+    into that step's own output right up to the moment of death: MemAvailable,
+    SwapFree, MemTotal and the largest RSS consumer by name, once every 30s.
+
+    One line per interval, so the sampler cannot itself be what fills the log. The
+    build step's trap kills it when the build returns.
+
+    ci/diagnose-build-kill is kept but its comment now states its real scope: it
+    helps when the build fails and the RUNNER SURVIVES -- a container OOM-killed
+    inside an otherwise healthy job, where docker's OOMKilled flag is decisive. That
+    case is real and validated against a genuine OOM kill; it is simply not this one.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit fed7692423f82765d733881c6eaa0b536c144f9b
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Mon Aug 3 03:40:20 2026 -0400
+
+    1200: normalize source file modes, not just symlinks
+
+    Pinning the build's umask does not reach files the CHECKOUT created, because the
+    checkout happened first. git records only 100644 / 100755 and applies the umask
+    on top: 0644 on a umask-022 host, 0660 on a umask-007 one. Any build step that
+    then copies a source file with a plain 'cp' carries that mode into the image.
+
+    Measured on commit 41e408b2: /etc/debootstrap/packages came out 0644 in CI and
+    0640 locally, and it was one of only two differences left between the CI image
+    and a local build of the same commit. grml-debootstrap:2273 copies it with a
+    plain cp, so the mode is inherited straight from the checkout -- the same defect
+    class already fixed for the five derivative-maker chroot placements, but in a
+    submodule and therefore untouched by that fix.
+
+    Normalising the tree to the mode git actually records fixes the whole class at
+    once, wherever the copy happens, instead of chasing each cp site.
+
+    Verified on a fixture with a parent and a submodule, all four files chmod'ed to
+    the umask-007 form beforehand: regular files become 0644 and executables 0755 in
+    both trees.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit d475b1d22f2de0fc7e17fa19ca718514a5b3f5ae
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Mon Aug 3 01:00:42 2026 -0400
+
+    ci/local-checks: fixed printf format string (R-030)
+
+    Literal text and newlines in the format string; the data belongs in the
+    argument. Surfaced by the gate now enforcing R-030.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 8a77bcc870e9d917136088f9c015faf8b3313478
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Mon Aug 3 00:40:58 2026 -0400
+
+    ci: explain a build step that DIED instead of failing
+
+    The build lane has ended three times out of four with the build step never
+    concluding, no 'ERROR detected in script' marker anywhere, and the log stopping
+    mid-trace at 3500_install-packages after ~38-40 minutes. That shape means the
+    process was KILLED, not that the build failed -- but nothing recorded why, so
+    each occurrence cost a full re-run to learn nothing new.
+
+    Collects the evidence while the runner still exists:
+      - docker inspect OOMKilled / ExitCode on every container -- the decisive field
+      - kernel OOM records, from both dmesg and the journal
+      - memory (including swap, which hosted runners may not have), disk, load
+
+    Runs on failure only and cannot fail the job: an evidence collector that itself
+    fails replaces one unexplained failure with two. Every command is guarded and
+    the script ends in an explicit success. Verified end to end: prints its sections
+    and exits 0 on a healthy host.
+
+    Deliberately diagnosis, not a fix. The obvious guess is memory pressure -- the
+    failures began with the 24-gitlink bump, which pulled in newer submodule code
+    and made 3500 heavier -- but guessing at a remedy without the OOMKilled flag
+    would be another 40-minute round trip per attempt.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 2fa61444bca0c6565b961c48edc2f16f507548d6
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Mon Aug 3 00:33:37 2026 -0400
+
+    1100: read the umask values without a pipeline
+
+    'sed ... | head -n 1' under errexit and pipefail is a silent-abort trap: once
+    sed's output exceeds the pipe buffer, head exiting after the first line gives
+    sed SIGPIPE, the pipeline yields 141, and errexit tears the build down with NO
+    message and no error handler.
+
+    Verified rather than assumed: 5 matching lines do NOT trigger it (the buffer
+    absorbs them), while a 40000-line input exits 141 with the following statement
+    never reached. So it is not reachable with these small config files today -- but
+    the shape is a trap, and a bash loop costs nothing.
+
+    Both values are now read with a while-read loop that breaks on the first match.
+    Re-verified all three behaviours afterwards: silent when in sync, fires on a
+    drifted value, fires when no umask is pinned -- and the 40000-line input now
+    completes instead of aborting.
+
+    Found by review (agy).
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit ac76ec42628ab9637ab0e8c8ed04dfa0b50cf059
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sun Aug 2 23:51:15 2026 -0400
+
+    1100: check the build umask stays in sync, and refuse stale nbd mounts
+
+    Two checks, both for failures that are invisible until two images are compared
+    byte for byte or a read mysteriously fails.
+
+    check-umask-in-sync: help-steps/variables pins the build umask so image file
+    modes do not depend on who ran the build. That value is not arbitrary -- it
+    mirrors what security-misc grants sudo (Defaults umask=), precisely so system
+    files do not inherit a user's restrictive umask. If the two drift, the build
+    silently returns to producing host-dependent permissions. Verified: silent when
+    they match, fires on a drifted value, fires when variables pins none at all.
+
+    check-stale-nbd: image inspection and comparison run in a container torn down
+    with SIGKILL, so their cleanup traps never run and the mounts survive in this
+    namespace. The build needs nbd itself (4350 reimage), and attaching an image to
+    a device that still carries a stale mount makes every read return EIO -- which
+    presents as a CORRUPT IMAGE, not as a stale mount. The existing
+    check-stray-mounts only looks under CHROOT_FOLDER, so it does not cover this.
+    Verified against a real leak: silent when clean, fires on an actual nbd mount.
+
+    The error names the fix (dm-nbd-cleanup, --release to act) rather than leaving
+    the reader to work it out.
+
+    Also fixes a pre-existing R-030 violation in this file, surfaced by the gate now
+    enforcing fixed printf format strings.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit ccf81e63a02ddd1e2e8b8a6eb207717cc2cd5594
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sun Aug 2 23:33:01 2026 -0400
+
+    1200: fix two silent failures in the symlink normalizer
+
+    An adversarial review (agy) found both, and both were verified live before
+    fixing.
+
+    1. SUBMODULES WERE NEVER NORMALIZED. The work ran via 'git submodule foreach'
+       with an exported bash function. foreach executes its argument with sh (dash
+       on Debian), where an exported bash function does not exist -- it fails
+       "myfunc: not found", and the '|| true' swallowed it. Every submodule kept the
+       text-file form while the step reported success.
+
+       Submodule paths are now iterated in bash from the parent; foreach is used
+       only to PRINT paths, which any shell can do.
+
+    2. NON-ASCII AND SPECIAL NAMES WERE SKIPPED. 'git ls-files -s' C-quotes such
+       paths ("l\303\244tt.png"), and the extracted quoted string names no existing
+       file, so those entries were silently passed over -- exactly the assets most
+       likely to be branding. Now '-z', parsed with 'read -r -d '''.
+
+    Verified end to end on a fixture with a submodule, a non-ASCII name and a name
+    containing a space: all three were regular files before and real symlinks after.
+    The previous version left all three unconverted.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 519a86ceb1f1e5b914b5a327704567dc6b1c9d9f
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sun Aug 2 23:13:30 2026 -0400
+
+    build: normalize symlinks and pin the umask, so the builder cannot leak in
+
+    Two ways the person running the build reached the image.
+
+    1. SYMLINKS. core.symlinks=false is a security setting on Kicksecure hosts
+       (security-misc-shared /etc/gitconfig). Under it git checks a symlink out as a
+       small REGULAR FILE holding the target path, so
+       live-build-data/d-i-branding/logo_installer.png becomes a 15-byte text file
+       and ships that way -- while CI, whose runner has the git default, ships a real
+       link. Same commit, different image, and the local one has a broken logo.
+
+       1200_prepare-build-machine now materialises a real symlink for every index
+       entry recorded as mode 120000. It does NOT set core.symlinks=true and does not
+       touch git config: turning that setting on would be backwards, since a local
+       rebuilder is expected to keep it false. Verified that git treats the real link
+       and the text-file form as equally clean under core.symlinks=false, so the
+       working tree stays clean either way.
+
+       Only a regular file whose entire content is the recorded target is converted;
+       an empty or multi-line file is left alone rather than guessed at.
+
+    2. UMASK. git checkout creates files as 0666 & ~umask, so the same commit gives
+       0644 on a umask-022 CI runner and 0660 on a umask-007 Kicksecure host, and the
+       mode rides into the image. Measured: 20_dist-base-files.cfg was 0644 in CI and
+       0640 locally.
+
+       help-steps/variables now pins 'umask 0022' for the whole build. Not a value
+       invented here: security-misc already grants exactly that to sudo (Defaults
+       umask=0022, umask_override) because system files must not inherit a user's
+       restrictive umask.
+
+    The five chroot placements use named arrays, cp_reproducible /
+    cp_reproducible_exec, so the mode is stated once and cannot drift between call
+    sites. The mode git records in the index is the intent: 100644 / 100755.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 0f29c9299d64e0d1c43c9d927b61f214e90c2578
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sun Aug 2 22:10:24 2026 -0400
+
+    build-steps: state the mode when placing files in the chroot
+
+    A plain 'cp' carries the SOURCE file's mode into the image, and that mode is
+    whatever the builder's umask produced at checkout. git records 100644, but
+    'git checkout' creates 0666 & ~umask: 0644 on a umask-022 CI runner, 0660 on a
+    umask-007 Kicksecure host. So the image's permissions depended on WHO built it,
+    and no rebuilder with a different umask could ever produce a bit-identical
+    image.
+
+    Found by actually comparing a local build against CI's image of the SAME commit
+    (96fee033c), which only became possible once the gitlinks recorded what CI
+    checks out. /etc/default/grub.d/20_dist-base-files.cfg came out 0644 in CI and
+    0640 locally, and it was one of only TWO differences left between the images.
+
+    All five sites that place a file into the chroot now use 'install --mode=',
+    taking the mode git already records as the intent:
+
+      3500_install-packages  20_dist-base-files.cfg      0644
+      3500_install-packages  apt-get-noninteractive      0755  (100755 in git)
+      3600_convert-raw-to-iso  live_build_kernel_img_conf  0644
+      3600_convert-raw-to-iso  debian.sources             0644
+      3600_convert-raw-to-iso  live_build_etc_hosts       0644
+
+    Regression test in dist-ai refuses any 'cp' into ${CHROOT_FOLDER}, with canaries
+    proving the pattern both matches the broken form and spares the fixed one.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit caab8b66d65b4228144067826ff199c13ef14c46
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sun Aug 2 12:53:26 2026 -0400
+
+    variables: show HEAD when an inherited dist_build_version names another commit
+
+    dist_build_version is auto-detected only when UNSET, so a value inherited from a
+    reused workspace silently wins over the actual tree. That produced a provenance
+    record naming TWO different commits -- 'Source-Commit: 02096cd4...' beside
+    'Source-Version: ...-ge65ff458...'. Nothing ever printed the two side by side, so
+    nobody could see it.
+
+    Now, when an already-set version carries a describe suffix naming a commit that
+    is not HEAD, both are printed.
+
+    REPORTED, never enforced, and that is the point. Legitimate flows make these
+    differ: ci/reproducible-build-twice pins the version BEFORE sign-and-tag, which
+    then rewrites HEAD via 'commit --amend -S', so the version necessarily describes
+    a commit that is neither HEAD nor an ancestor of it. An earlier attempt to
+    ENFORCE equality (in dm-reproducible-buildinfo) failed every signed build and
+    blocked CI on a correct record; this does not repeat that. The message names the
+    expected cause first, so the common case is not read as an error.
+
+    A tag legitimately containing '-g' is not mistaken for a describe suffix: only a
+    hex tail is treated as a commit id.
+
+    Regression test in dist-ai extracts the SHIPPED block and exercises it, asserting
+    both directions -- reported on a mismatch, SILENT when the version does describe
+    HEAD. A diagnostic that fired on every build would be filtered out and is then
+    the same as absent.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit d4aeb8857be80b251e6e34d3a92b0a24fcfe25d1
+Author: claude (dev138 9b889944-0a22-45e7-8fd6-c189113e33b9) <noreply@anthropic.com>
+Date:   Fri Jul 31 09:41:39 2026 -0400
+
+    ci: gate the local workflows on CI_ENABLED_ORG_AI_ASSISTED
+
+    Our workflows ran wherever the branch landed. Merged upstream they burn
+    Kicksecure/Whonix runner quota and post our CI into repos that never
+    asked for it; on a contributor fork they run the whole suite unbidden.
+    Only 5 of 136 workflow files across the fleet carried any owner gate.
+
+    Gate: a job-level `vars.CI_ENABLED_ORG_AI_ASSISTED == 'true'`, set once
+    as an organization variable on org-ai-assisted. Zero runner cost -- a job
+    whose `if:` is false never allocates one -- and the run still reports
+    green, so upstream and forks are not handed a red X for a lane they did
+    not opt into. A fork that WANTS the lane sets the same variable in its
+    own repo; no patch to these files, no fork of our workflows.
+
+    ANDed in front of any existing fork-PR guard rather than replacing it.
+
+    Verified: the workflow-yaml validator reports 0 findings for this repo.
+
+    Generated with assistance from Claude Code.
+
+commit bd34eaedd6cfc4ff4ebf16a8725d4dd61159d97a
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sun Aug 2 06:36:47 2026 -0400
+
+    reproducible: empty /run in the image instead of naming leaked entries
+
+    A local build and a CI build of an IDENTICAL source tree (all 82 submodule SHAs
+    equal, every other buildinfo input equal) still produced different bytes. Tracked
+    down to exactly ONE empty directory: /run/mount, created by util-linux when a
+    mount happens inside the chroot.
+
+    One directory = one inode and one block, which changed the ext4 free counts
+    (25300685 vs 25300686 blocks, 6492690 vs 6492691 inodes), hence the superblock
+    checksum, hence the image. The ESP differed too: same files, same contents, but a
+    different FAT allocation table.
+
+    The code already deleted /run/blkid by name, with the comment that "/run is
+    runtime tmpfs state that must be empty in a shipped image". The intent was right;
+    naming entries one at a time is what failed -- the images still shipped 8 to 9
+    /run entries, and /run/mount was simply not on the list.
+
+    So empty the directory. systemd mounts a tmpfs over /run at boot, so nothing
+    stored there is ever visible to the running system: it is dead weight AND a
+    reproducibility hazard, because WHICH transient entries survive depends on what
+    late chroot activity ran on that particular build host.
+
+    Verified safe: of the entries CI shipped, only /run/sdwdate/status (0 bytes,
+    recreated by usr/lib/tmpfiles.d/sdwdate.conf) and /run/udev/data (empty dir,
+    repopulated during coldplug) had any content.
+
+    Both image paths, matching each other: 4350_reimage-raw-reproducible and
+    3600_convert-raw-to-iso.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit d23c85b5238768f88c1c28c249851723851c0859
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sun Aug 2 04:53:25 2026 -0400
+
+    variables: export the unnormalized version when normalizing
+
+    --reproducible-dist-build-version overwrote dist_build_version in place, so what
+    the version WOULD have been was lost. dm-reproducible-buildinfo now records both
+    (developer-meta-files f906971f), which needs the original preserved here.
+
+    Without it a normalized image cannot be tied back to the release artifact it
+    corresponds to without the repo in hand -- and correlating the two is the whole
+    reason to normalize.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit ec777c16eec9e4ced85e4ade87e0783825e8beb9
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sun Aug 2 04:43:59 2026 -0400
+
+    add --reproducible-dist-build-version (verification aid, not for releases)
+
+    dist_build_version embeds the git describe suffix '-<n>-g<commit>', and that
+    string reaches the artifact NAME, the libvirt XML and the .dm-buildinfo. Two
+    builds of an IDENTICAL source tree therefore cannot be byte-identical when their
+    commit ids differ.
+
+    That is exactly the position a local rebuild of a CI image is in: reproducing CI
+    means checking out its off-pin submodule SHAs, which dirties the superproject
+    gitlinks, and help-steps/sign-and-tag then commits that state under a NEW commit.
+    Measured on run 30721565223: all 82 submodule SHAs identical, every other input
+    identical, and only Source-Commit differing -- so the version alone stood between
+    a byte comparison and a real answer.
+
+    The flag normalizes the version to the nearest tag, so every REMAINING byte
+    difference is a genuine finding rather than an artifact of the commit id.
+
+    NOT a change to release semantics, and deliberately not the default. For an
+    official build the version is the point: a rebuilder gets byte-for-byte identity
+    only from the SAME TAG, and extra commits SHOULD change the version. Intended
+    users are the CI reproducibility lane and local reproducible debug builds; once
+    the tree is stable and official it is not used at all.
+
+    Images built with it are marked 'Version-Normalized: true' in the .dm-buildinfo
+    (developer-meta-files 0e5ced86), so such an image can never be mistaken for the
+    artifact an official build of that commit would produce.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 2e62c7f32295b3f08398637cac6a619feadee94f
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 18:32:40 2026 -0400
+
+    CI: persist the buildinfo far longer than the image it describes
+
+    The image artifact expires after 2 days -- it is half a gigabyte and only the
+    compare job reads it. But the '.dm-buildinfo' beside it is a few kilobytes and is
+    the only record of what source a run ACTUALLY built: its Submodule-State is where
+    the branch TIPS this lane checks out (instead of the commit's pins) are written
+    down. Measured on run 30695272567: 82 submodules, 24 of them off-pin.
+
+    Losing that after 2 days makes every older run unanalysable, and recovering a few
+    KB of metadata costs an hour-long rebuild. So it is uploaded as its own artifact
+    (repro-buildinfo-a/-b) with 90-day retention, alongside the short-lived image.
+
+    if-no-files-found: error -- a run that produced an image but no provenance record
+    is a defect, not an empty upload to shrug at.
+
+    Co-Authored-By: Claude <noreply@anthropic.com>
+
+commit 6d8ae3e4eba1a7ce66f29363f2bd56fdae3bfbc7
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 13:20:17 2026 -0400
+
+    dm-build-official: forward the tolerances as ARGUMENTS
+
+    derivative-update sources help-steps/variables, which runs
+    dist_build_one_parse_cmd on its OWN "$@" -- so it parses --allow-uncommitted and
+    --allow-untagged itself. Passing them is the right shape; the environment export
+    this replaces worked but bypassed that parser, leaving two ways to express one
+    intent and only one of them validated.
+
+    Selective, not "$@": derivative-update rejects --tag and --ref alongside
+    --update-only, and this script receives the whole build argument set, so
+    forwarding everything would turn a tolerated dirty tree into a usage error.
+
+commit 5ad7f6e30932b77dfa9c96422e2962e0166e1baf
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 12:57:05 2026 -0400
+
+    dm-build-official: carry the caller's tolerances into derivative-update
+
+    The CI branch runs 'derivative-update --update-only', which runs git_sanity_test,
+    which reads $dist_build_ignore_uncommitted and $dist_build_ignore_untagged from
+    the ENVIRONMENT and dies if either is unset. The '--allow-uncommitted true' that
+    expresses the caller's intent is parsed by help-steps/parse-cmd, which runs
+    DOWNSTREAM of this script -- so it never reached that check.
+
+    Result: the dry-run lane failed at "Uncommitted changes in: main repo" despite
+    passing --allow-uncommitted true. help-steps/sign-and-tag amends the parent to
+    absorb the staged submodule gitlinks, so the tree IS momentarily dirty at exactly
+    that point.
+
+    Read from ARGV here, the same way dm-build-official-one reads '--dry-run', and
+    for the same reason.
+
+    This branch runs only under CI=true, which never reached the build until the
+    dry-run lane started exporting it -- so the gap had no earlier opportunity to
+    show. Also completes the strict-mode preamble the gate wants for this file.
+
+commit e5e063a723721a3750b12f297eda38f76727a433
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 12:43:17 2026 -0400
+
+    ci: cut the trigger rationale to one line
+
+    Twenty lines of measurement and justification in a trigger block dates fast --
+    the run counts and percentages are true of one afternoon. What the file needs to
+    say is what the trigger IS and how to fire it; docs/build-paths.md keeps the
+    reasoning.
+
+    Both lanes, not just one: leaving the block in the sibling would move the
+    duplication rather than remove it.
+
+commit 551179a1cd4fc0fbca352ecd8c39136621874ceb
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 12:04:33 2026 -0400
+
+    dry-run lane: collect artifacts as root
+
+    mkdir: cannot create directory dryrun-artifacts: Permission denied
+
+    The privileged container ran ci/dry-run as ROOT in the bind-mounted workspace, so
+    it is root-owned by the time the collect step runs. The workflow already has a
+    "Reclaim workspace ownership" step, but it runs later -- after teardown, and
+    docker cp needs the container alive. So this step does its own sudo mkdir/cp and
+    hands the result back before upload-artifact reads it.
+
+commit c406384265115cb01b535e86315fb06892cc6528
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 11:49:43 2026 -0400
+
+    dry-run lane: publish the image and its buildinfo
+
+    The lane builds a real .qcow2.libvirt.xz and its .dm-buildinfo and then threw
+    both away, so nothing it produced could be inspected. Publishing them is also
+    what makes a local-vs-CI comparison possible at dry-run cost (~35 min) rather
+    than a full build: dm-repro-verify-against-ci needs a CI artifact carrying the
+    provenance record to compare inputs against.
+
+    - copied OUT of the container: the build writes to the build user;s home inside
+      it, not the bind-mounted workspace
+    - if-no-files-found: error, so a lane that built nothing cannot look like one
+      whose artifacts expired
+
+commit 82a92ff4b7b5cdffc216e74817e91f3ef259d2c4
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 08:16:43 2026 -0400
+
+    ci: the two image-build lanes become dispatch-only
+
+    Minutes are free on a public repo, so this is not a cost decision -- measured
+    billable.total_ms = 0 on a run whose jobs burned 71 minutes. Concurrency is the
+    constraint: 20 jobs ORG-WIDE on the free plan, and one push to 'ai' fanned out 17
+    across these two lanes plus the PR lanes on the same commit.
+
+    Measured over the last 100 push runs: 54% cancelled as superseded, Build green
+    7/49, Boot Test 9/49. Most of that volume re-ran a known-red lane while starving
+    every other repo in the org.
+
+    A push trigger fires on whatever was committed. A dispatch can refuse:
+    dm-ci-dispatch runs dm-preflight and will not fire on a tree whose submodule work
+    is uncommitted -- which is exactly how a commit reached this repo carrying none
+    of the change it was meant to test.
+
+    Unchanged: release tags still build, the weekly cron still runs, and every cheap
+    lane (lint, dry-run, dist-ai tests, CodeQL -- all under a minute) still fires on
+    every PR. Dropping the branch trigger also retires the double-fire where a
+    tag-bearing branch push produced two runs.
+
+commit 4eceed9835114a2fbf46734fb538ef747a195fe6
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 08:00:08 2026 -0400
+
+    ci: build both lanes from kicksecure-debug
+
+    The repro lane built kicksecure-cli (or lxqt for iso) and the boot lane
+    kicksecure-debug, so the same commit was built twice into images that could never
+    be shared. One flavor is the prerequisite for the boot lane consuming the repro
+    lane's artifact instead of rebuilding it.
+
+    kicksecure-debug verified as sufficient to boot:
+    - dracut arrives through ram-wipe's own Depends, so the initramfs path is present
+      even though the meta package does not name it
+    - absent are grub-live-dracut, bootclockrandomization and boot-info-script --
+      live-mode, clock-privacy and diagnostics, none needed to boot
+    - user-sysmaint-split is present, so both boot sessions have a real target
+    - the boot lane has produced green boots on this flavor
+
+    Still to come: have local-boot-test.yml download the repro image rather than
+    build its own. That needs the two lanes in ONE workflow run, since artifacts do
+    not cross runs.
+
+commit a6f0362da4387d0a3c2f84a1dde76050a5a0d7c3
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 07:34:00 2026 -0400
+
+    dry-run lane: note that the provenance assertion depends on the pin
+
+commit 7f93a6ca27636f3374a5d41af5d9352f457d14a8
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 07:26:21 2026 -0400
+
+    ci: make the dry-run lane test the CI path; record pre-sign provenance
+
+    The dry-run lane exists to gate CI, and was running a configuration CI never
+    runs: run-as-user hands off with 'sudo --preserve-env=PATH', so the workflow's
+    CI=true reached ci/dry-run but not the build, where variables defaults it to
+    false. Pass it (and the amd64 the runners use) on the env prefix.
+
+    - dm-reproducible-buildinfo reads the pre-sign source state sign-and-tag writes
+      and validates it: a blank line in that file is a Deb822 record terminator, and
+      a file without Submodule-State is incomplete provenance published as complete.
+      Nothing read that file before, so every released record named the post-amend
+      commit, which cannot be fetched
+    - 300: assert the qcow2 leg's buildinfo by name; the loose glob was satisfied by
+      the ISO leg's
+    - 1600_export-libvirt-xml owns the libvirt precondition and skips source builds;
+      1100_sanity-tests no longer duplicates it
+    - 1100: drop the binary probe that repeated the tool-to-package mapping; the
+      package list installs and declares the same tools
+    - one definition of the container image reference, arch-derived
+    - assert-submodule-not-stale --all sweeps every pin from .gitmodules
+    - 400_reproducible-buildinfo moves to dist-ai: refusals and a default output name
+      need neither a build nor a container
+    - lint and dry-run tag globs match the build lane's, so a slash-tag cannot build
+      without being checked
+    - docs/build-paths.md: the per-step dry-run table, replacing a claim that
+      everything but the image size runs the same in both modes. Seven steps return
+      before doing any work
+
+commit 136f6fdf41080d869b19151e74cfe90c0211f3d9
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 06:51:34 2026 -0400
+
+    docs: flow charts of the four build lanes and the dry-run divergence
+
+    - one spine: dm-build-official -> dm-build-official-one -> derivative-maker
+    - per-lane charts: reproducibility, dry-run, boot-test, local
+    - dry-run yes/no table with the three rsync mock sites and their precedence
+
+commit d10aa65e6997c46b17283821d9377644a11f5591
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 06:12:47 2026 -0400
+
+    docker: actually re-fetch the trust store from the snapshot; fix the build context
+
+    From PR #87 review (coderabbit).
+
+    - ca-certificates was listed among the packages of a plain 'apt-get install'. It
+      is already installed at that point (apt-bootstrap-ca-certificates installs it
+      from the base image's own unpinned sources, so https to the snapshot can be
+      validated at all), and apt then reports "already the newest version" and fetches
+      nothing whenever the live archive and the snapshot carry the same version --
+      the normal case. The trust store therefore stayed the one from the unpinned
+      fetch, while the README claimed it had been reinstalled from the snapshot. It is
+      now a separate '--reinstall' call, which is what makes that claim true.
+    - README multi-arch commands passed './docker' as the build context while the
+      same document states the context must be the repo root (the Dockerfile COPYs
+      from build_sources/). Corrected to '--file docker/Dockerfile .'.
+    - README's "only unpinned fetch" wording now says WHY it holds: the base image is
+      digest-pinned ('FROM debian:trixie-slim@sha256:...'), not tag-resolved.
+
+commit bf3372cb3f4b1fdc833a1cd4b7f7fc1b6384afa7
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 06:09:42 2026 -0400
+
+    docker: validate every APT URI against the pin, and fail on a missing pin file
+
+    From PR #87 review (coderabbit). Three findings, all reproduced before fixing.
+
+    - frozen_snapshot_sanity_test skipped a declared pin file that was ABSENT
+      ('[ -f ... ] || continue'), so it returned SUCCESS having validated nothing --
+      with both files missing it vouched for a completely unpinned build. A missing
+      declared pin file is now an error.
+    - Both scripts counted DISTINCT TIMESTAMPS rather than validating URIs. A stanza
+      listing the pinned snapshot alongside a live archive
+      ('URIs: http://snapshot.../<pin> https://deb.debian.org/debian') yields exactly
+      one timestamp and passed, while apt still fetched from the live archive --
+      defeating the pin the check exists to prove. Every URI must now carry the
+      snapshot.
+    - Both matched only the 'URIs:' line itself, so a URI on a deb822 FOLDED
+      continuation line was never examined. A pure-bash parser now yields every URI
+      token of the field, folds included.
+
+    Verified against crafted stanzas: all-pinned accepted; pinned+live on one line
+    rejected; a live URI on a folded continuation line rejected (the old check could
+    not see it at all).
+
+    Parser is pure bash rather than awk, per the repo convention.
+
+commit 403fc93b14ce0d6ac120dd33c66b79aea5bcb7c2
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 03:58:46 2026 -0400
+
+    dry-run lane: the lxqt choice is now a default, not a constraint
+
+commit 87eef43a2de4ac33cdfb3754ab15803543ac6be4
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 03:57:53 2026 -0400
+
+    dm-build-official-one: configurable source-release flavor; document the buildinfo origin
+
+    - Phase 4's source release was guarded by 'flavor_built "kicksecure-lxqt"' with
+      the flavor as a literal, so any reduced flavors_list that excluded that name
+      skipped the source release SILENTLY: images published, no source archive, no
+      error. Now 'dist_build_source_release_flavor', defaulting to kicksecure-lxqt so
+      an unconfigured build is unchanged, and a skip is reported instead of vanishing.
+    - Documented why images need no dm-prepare-release call in Phase 4: every
+      '<image>.dm-buildinfo' is emitted and signed by
+      'build-steps.d/5200_prepare-release', which runs inside each Phase 3
+      './derivative-maker' invocation -- that script iterates ALL of build-steps.d,
+      and Phase 3's $skip_shared_args skips only prepare-build-machine,
+      cowbuilder-setup, local-dependencies and published-packages, never 5200.
+      The asymmetry reads like a gap; adding a per-image call here would re-run and
+      re-sign work already done. The source archive is the exception because no
+      per-flavor image build produces it.
+
+    Regression test with canaries: dist-ai source_release_flavor_test.sh. It also
+    pins the two facts that make the asymmetry correct -- 5200 still invokes
+    dm-prepare-release, and Phase 3's skip list never grows to include it -- so
+    images cannot start shipping without provenance unnoticed. 4 assertions fail
+    against the pre-change file.
+
+commit dc67f55ed5a448c881d41750a56a37cca885c33c
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 03:36:28 2026 -0400
+
+    check-libvirt-xml: an empty libvirt_source_kvm_file is its own failure
+
+    From ai-review (agy). 'dirname -- ""' is '.', which exists, so an empty value
+    took the listing branch and dumped the entire source root into the error message
+    instead of naming XML files. It now reports that the variable is empty and where
+    it comes from (SHORT_VMNAME, via help-steps/variables).
+
+    Regression test: dist-ai libvirt_xml_precondition_test.sh; the assertion keys on
+    the listing branch's own header rather than on words the correct message also
+    uses.
+
+commit 85af583afdb02833529b32f478d2d5f495f1406b
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 03:33:57 2026 -0400
+
+    dry-run lane: raise the job timeout; tighten two checks
+
+    From ai-review (coderabbit) over 4dfead346..HEAD. All three verified against the
+    code before acting.
+
+    - MAJOR: the job had 'timeout-minutes: 25' while 300_run-derivative-maker allows
+      'timeout 3600' (60 min) and the run measures ~35 min. GitHub would have
+      cancelled the job before the inner ceiling could fire, so this lane could not
+      have passed in CI regardless of the build. Raised to 75, with the relationship
+      to the inner timeout stated so the two cannot drift apart again.
+    - The provenance check tested only for the literal 'Source-Commit: unrecorded',
+      so a buildinfo with NO Source-Commit field, or an empty one, passed and was
+      reported as recorded provenance. Now requires a non-empty value AND rejects
+      'unrecorded'.
+    - parse-cmd's implicit-type helpers grepped the argument list for '--type' as a
+      SUBSTRING, so an unrelated value containing that text (e.g.
+      '--conffile /tmp/build--type.conf') suppressed the inference and the build then
+      failed the later type check for a reason nothing in the command line suggested.
+      Now --line-regexp, both call sites.
+
+    Regression test: dist-ai target_implies_type_test.sh gains the whole-argument
+    assertion; it fails on the pre-fix parse-cmd.
+
+commit ebcaf8b992b7596feb9dd50119ad711ce90a77e1
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Sat Aug 1 03:07:36 2026 -0400
+
+    ci: run the dry-run in the real build image, through the real entrypoint
+
+    The lane ran ci/dry-run in a bare debian container against './derivative-maker'.
+    It therefore could not see the class of defect where a tool the build invokes is
+    missing from the BUILD image -- which is exactly how an absent 'kmod' reached
+    production and silently degraded the reproducibility comparison.
+
+    - Container is now kicksecure/derivative-maker-docker:x86_64, built through its
+      own canonical path and cached, rather than debian:trixie.
+    - 300_run-derivative-maker drives help-steps/dm-build-official, the entrypoint CI
+      and the boot-test lane actually use.
+    - Flavor and targets go through flavors_list / dist_build_multi_target_list, not
+      --flavor/--target: dm-build-official composes its own and forwards "$@", so an
+      option given here arrives twice.
+    - kicksecure-lxqt, because Phase 4 runs dm-prepare-release only
+      'if flavor_built kicksecure-lxqt'; any other flavor silently skips the source
+      release this lane exists to cover.
+    - qcow2, not raw: parse-cmd marks raw upload-unsupported and dm-upload-images
+      refuses it, so a raw lane dies in Phase 4 by design.
+    - binary_dir resolves the BUILD USER's home via getent. run-as-user's
+      'sudo --preserve-env=PATH' does not carry binary_build_folder_dist, so the
+      assertions had been inspecting a directory the build never writes.
+    - Assertions are non-vacuous by construction: exit 0 alone is not evidence,
+      since most steps return early under --dry-run. The image glob is
+      '*.qcow2.libvirt.xz', NOT '*.qcow2*' -- the loose form also matches
+      '<image>.qcow2.libvirt.xz.dm-buildinfo' and passed with no image present.
+
+    Validated end to end in the sandbox: ci/dry-run exit 0, with the assertions
+    checked against a listing of what the run actually produced --
+    Kicksecure-LXQt-*.Intel_AMD64.qcow2.libvirt.xz (14408 bytes), a signed
+    .dm-buildinfo carrying recorded provenance, and the signed source archive.
+
+commit dc7b4d9d6284cc1db438b5278dff68781378999c
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 22:51:13 2026 -0400
+
+    parse-cmd: '--target raw' implies '--type vm', like every other VM-image target
+
+    - '--target utm' sets dist_build_raw=true AND implies vm; '--target raw' set the
+      same flag and implied nothing. A caller passing '--target raw' without an
+      explicit '--type' therefore reached build-steps.d/1100_sanity-tests with no
+      type and died on "You must add either: '--type vm' '--type host'" -- a message
+      that never names the target that caused it, after the whole package phase had
+      already run. The CI dry-run lane hit exactly this.
+    - An explicit '--type' still wins: implicit_dist_type_vm returns early when one
+      was passed, so this cannot override a caller.
+    - '--target root' deliberately keeps implying nothing: install-to-root is neither
+      a VM image nor a host build.
+
+    Regression test with canaries: dist-ai target_implies_type_test.sh (fails on the
+    pre-fix parse-cmd, on exactly the raw assertion).
+
+commit 94557a6f0d83eae4c6f9235a61e75a749d4b9064
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 22:15:41 2026 -0400
+
+    build: reject unbuildable flavor/target early; honour --dry-run for the ssh check
+
+    1100_sanity-tests: add check-libvirt-xml.
+
+    - 1600_export-libvirt-xml copies a libvirt XML named after SHORT_VMNAME, which
+      comes from the flavor. A flavor with no XML ('--flavor source --target raw')
+      was accepted and the build died ~15 minutes later, after the whole cowbuilder
+      package phase, on a bare "cp: cannot stat .../source.xml" naming neither the
+      flavor nor the combination.
+    - Now rejected in seconds, naming the flavor, the file, and the flavors that do
+      have one. Gated on raw/qcow2 only, matching 1600's own condition.
+
+    dm-build-official-one: make '--dry-run true' reach the ~/.ssh guard.
+
+    - The guard documents dry-run as a reason to skip (rsync is mocked, ~/.ssh is
+      unused) but tested only $build_dry_run, which help-steps/parse-cmd sets --
+      and parse-cmd runs downstream. The branch was therefore dead.
+    - Only an exported CI=true got past, which help-steps/run-as-user does not carry
+      ('sudo --preserve-env=PATH'), so every caller driving the real entrypoint as an
+      unprivileged build user was blocked.
+    - The existing '--show-steps' argv scan now also records '--dry-run true'. The
+      option's VALUE is checked, so '--dry-run false' is not a dry run.
+
+    Regression tests with canaries: dist-ai 2f025d3
+    (libvirt_xml_precondition_test.sh, dry_run_ssh_guard_test.sh).
+
+commit 670c6f69324d76e7f625b48fdb5897a8ded9b420
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 21:25:28 2026 -0400
+
+    reproducible-build-twice: honour exit 3 when a build produces nothing
+
+    Found by extending the dist-ai collect test to the failure paths, which is code
+    no green run reaches.
+
+    A build that succeeds but writes no artifact leaves no version directory at all,
+    and 'find' on a missing path fails. Under errexit that exited 1 -- which this
+    script's own contract documents as "images differ" -- and its "produced no
+    <glob>" message never printed. So the one case where a developer most needs to
+    be told what was missing reported the opposite of what happened.
+
+    Absent and empty mean the same thing here, so check the directory first and let
+    both fall through to the existing exit-3 branch.
+
+    Same class as the channel-suffix bug: 'find' failing under errexit before the
+    script can explain itself.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 4dfa1f1d36879a2cf966146a0c760fa871029755
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 21:17:42 2026 -0400
+
+    Record the pre-sign source state, so the buildinfo can name it
+
+    The released '.dm-buildinfo' says 'Source-Commit: unknown' and carries no
+    submodule state, while its header claims it "records the PARAMETERS needed to
+    reproduce the image so a verifier needs no flags". It cannot: merely exporting
+    the variable it reads would be WORSE, because by release time
+    dist_build_current_git_head is the POST-amend HEAD, a commit existing only
+    inside that build. Verified against repro-lane run 30618137118 -- both its
+    amended HEADs return 404 from the API.
+
+    sign-and-tag now records the state before it amends anything, the only moment it
+    exists:
+      Source-Commit:    the parent's pre-sign, pushed, fetchable commit
+      Submodule-State:  'git submodule status --recursive', pre-sign
+
+    The submodule half is not optional. CI's build jobs run
+    ci/checkout-fork-submodule-branches, which moves submodules off their gitlink
+    onto a branch TIP; those tips move, and three were deleted outright during this
+    work once merged. A run recording no submodule state cannot be reproduced
+    afterwards even in principle -- which is why reconstructing run #140 required
+    guessing, and why one guess was wrong.
+
+    Also exports project_clearnet and dist_build_type: dm-reproducible-buildinfo runs
+    as a subprocess of dm-prepare-release and reads them from the environment, so
+    unexported they arrived as the literal string 'unknown' and were published,
+    signed, saying so.
+
+    Fixes two pre-existing R-080 violations the gate surfaced in this file (the
+    shellcheck source= directives were repo-relative, not file-relative).
+
+    Consumer side: org-ai-assisted/developer-meta-files#176, which tolerates a
+    missing state file and says 'unrecorded' with the reason rather than a bare
+    'unknown' that reads like a real value.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 2a84eb6a5ddb7886594de18e915e59a7f0db4652
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 21:04:51 2026 -0400
+
+    reproducible-install-deps: install kmod, then assert the tooling
+
+    This is the compare job's ONLY preflight. That job runs
+    'docker-run -- ci/reproducible-compare' and no build step, so
+    build-steps.d/1100_sanity-tests -- where the build checks its own tools -- never
+    executes for it. Builds get 17 preflight checks; the comparison got none,
+    despite running privileged and mounting the images whose verdict people act on.
+
+    kmod was the gap that proved it. Its absence does not fail loudly: it makes
+    dm-reproducible-compare-artifacts fall back from the mounted route to comparing
+    packed artifacts directly, which OOMs on a multi-gigabyte image and reports
+    "diffoscope could not explain the diff" -- naming neither the tool nor the
+    package, hours into an investigation.
+
+    So install it, then verify: modprobe, qemu-nbd, qemu-img, diffoscope and
+    mountpoint must all be present when this script returns. Asserting after
+    installing costs nothing and turns a silent degradation into a named failure at
+    the point of cause.
+
+    'has' rather than 'command -v' (R-090).
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 111da822c78294b49f04bd0f69069d6b8628ab24
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 20:59:05 2026 -0400
+
+    1100: bootstrap the tools check-required-tools asserts
+
+    bc60fc47d added the assertion but not the means to satisfy it. Verified against
+    the real container image: it ships none of modprobe, qemu-img, qemu-nbd, kpartx
+    or parted -- those arrive later, from *_prepare-build-machine installing
+    buildconfig.d/30_dependencies.conf. 1100 runs FIRST, and its own
+    install_required_packages installs only the small bootstrap list, so the
+    assertion would have failed every build on a fresh container.
+
+    The four packages join that bootstrap list, so this step installs what it then
+    verifies. They stay declared in 30_dependencies.conf, which is what keeps them
+    present for the rest of the build.
+
+    Proven in a throwaway container against the real image: before, the check
+    reports exactly those 5 tools missing; after installing kmod qemu-utils kpartx
+    parted, it passes. losetup and mountpoint were already present.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 995d2f3b434e1ecb3131974f39607288eefb357c
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 20:49:26 2026 -0400
+
+    ci/dry-run: plain run-parts, name constraint in a comment
+
+    Drops the --regex override and the executed-step count added in c15ca5614.
+    run-parts' default filter is accepted; the constraint it implies -- step names
+    must be [a-zA-Z0-9_-] only, so '500_compare.sh' would be skipped -- is a one-line
+    comment rather than runtime machinery.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit cddb0576e4eb8e702e7c57fea2f358fa0580a310
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 20:39:34 2026 -0400
+
+    ci/local-checks: satisfy R-010, R-030 and R-042
+
+    Follow-up to c15ca5614, which I pushed with the static gate red -- the gate's
+    exit code was printed rather than acted on.
+
+    - strict-mode block completed (inherit_errexit, shift_verbose) with a no-strict
+      waiver naming why errexit stays absent: one failing lint must not stop the rest.
+    - blank-line separator dropped rather than reformatted; R-042 says not to emit
+      one at all.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 4eff160500b7e2814ddb335196046e1677852768
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 20:37:00 2026 -0400
+
+    ci: a skipped step must not read as a passing lane
+
+    Two ways this repo's own checks could report success having run nothing.
+
+    ci/dry-run used run-parts with its DEFAULT name filter, which silently ignores
+    any file whose name contains a character outside [a-zA-Z0-9_-] -- a dot above
+    all. A step added as '500_compare.sh' would never execute and the lane would
+    still be green. Now '--regex .*', plus a count assertion that every executable
+    step actually ran, so a future filter change, a lost executable bit or a
+    misspelled name fails loudly instead of quietly shrinking coverage.
+
+    ci/local-checks called './ci/lint-shellcheck', which does not exist -- shellcheck
+    moved to a composite action in local-lint.yml. The script has no errexit, so it
+    collected rc=127, printed FAILED and exited 127; nothing invokes it, so nobody
+    saw. It now DISCOVERS the executable ci/lint-* set rather than hardcoding names,
+    and fails if that set is empty, which is the same "checked nothing" failure in
+    its other form.
+
+    Discovery then exposed two more: the lints refuse to run outside CI unless
+    ALLOW_LOCAL is set, so a script whose entire purpose is local pre-commit
+    coverage refused to check anything locally; and ci/lint-install is not an
+    offline lint at all but the toolchain installer, which needs root for apt.
+    local-checks now grants the documented override and skips the installer, and
+    exits 0 with lint-diagnostics and lint-yaml actually running.
+
+    Verified by running ci/local-checks directly.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 2343cba09a08ef33f6cfc66f5adab43b9af0ae4b
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 20:34:21 2026 -0400
+
+    dry-run: build a raw target, so the real release path runs
+
+    400_reproducible-buildinfo existed because the dry-run could not reach the real
+    caller: dm-prepare-release records an EMPTY target name for the source archive
+    and emits a buildinfo only for virtualbox/raw/qcow2/iso, so with '--target source'
+    alone neither the tool nor the sign_and_verify of its output ever ran. The step
+    compensated with a hand-rolled invocation -- and, being hand-rolled, it passed
+    '--output', which is the one form the real caller never uses.
+
+    Step 300 now also builds '--target raw', so dm-prepare-release invokes the tool
+    itself, with the arguments it really uses, and signs the result. Cheap:
+    help-steps/variables pins VMSIZE to 1M under --dry-run, so this is a 1 MB image
+    through sha512sum, mktorrent and signing, not 100G.
+
+    400 keeps only what a successful release cannot reach:
+    - the DEFAULT output name. dm-prepare-release calls the tool without '--output'
+      and then signs '<image>.dm-buildinfo'; that derivation is load-bearing for the
+      release path and nothing else states it.
+    - the REFUSALS (missing --target, missing --image, nonexistent image, unknown
+      argument). These run only on bad input, so a green lane is precisely the run
+      that never reaches them. A release that silently emitted a buildinfo for a
+      missing image would publish a signed record of nothing.
+    - that an unset build variable renders as 'unknown' rather than empty, keeping
+      the Deb822 record parseable.
+
+    Verified by running 400 directly: all four refusals exit 2 and the default name
+    is derived. The rest is validated by the dry-run lane itself, which is what it
+    is for.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 2c02812e615985b98399d46e930235e83a1e7f52
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 20:25:56 2026 -0400
+
+    1100: require the pipeline's tools, always
+
+    'modprobe' was absent from the build container and nothing checked. The
+    reproducibility comparison needs it to attach an image through nbd; without it
+    that route silently fell back to comparing packed artifacts directly, which OOMs
+    on a multi-gigabyte image, so the run reported "diffoscope could not explain the
+    diff" -- hours in, naming neither the tool nor the package.
+
+    One simple rule instead of per-step reasoning about who needs what: every
+    external tool the pipeline invokes must be present, always, asserted in one
+    place. check-required-tools names both the tool and the package that provides it,
+    so the failure is actionable in seconds rather than a degraded report later.
+
+    Runs AFTER check_required_packages_installed, so a first run on a bare machine
+    installs and then verifies rather than failing on a gap it was about to close.
+
+    kmod is declared in buildconfig.d/30_dependencies.conf alongside it -- asserting
+    a tool without declaring it just moves the failure to install time. qemu-utils,
+    kpartx and parted were already declared there.
+
+    diffoscope is deliberately NOT in this list: ci/reproducible-install-deps pulls
+    it from trixie-backports because the version in trixie OOMs on these artifacts,
+    so declaring it a plain build dependency would install the known-bad one. It is
+    asserted at its own install site instead.
+
+    Regression test in dist-ai (dm-help-steps-tests required_tools_test.sh) drives
+    the shipped function with PATH stripped. Canaried: exit 1 against a pre-fix
+    checkout, exit 0 after.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+    Uses 'has' from helper-scripts (R-090), sourced via HELPER_SCRIPTS_PATH which help-steps/pre already sets to the in-tree submodule, so it resolves before helper-scripts is installed. 'command -v' would also match aliases and shell functions.
+
+commit 6c7e8b8b13208c5e4bb8b80f96716475dfeccd8e
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 20:23:13 2026 -0400
+
+    1100: require the pipeline's tools, always
+
+    'modprobe' was absent from the build container and nothing checked. The
+    reproducibility comparison needs it to attach an image through nbd; without it
+    that route silently fell back to comparing packed artifacts directly, which OOMs
+    on a multi-gigabyte image, so the run reported "diffoscope could not explain the
+    diff" -- hours in, naming neither the tool nor the package.
+
+    One simple rule instead of per-step reasoning about who needs what: every
+    external tool the pipeline invokes must be present, always, asserted in one
+    place. check-required-tools names both the tool and the package that provides it,
+    so the failure is actionable in seconds rather than a degraded report later.
+
+    Runs AFTER check_required_packages_installed, so a first run on a bare machine
+    installs and then verifies rather than failing on a gap it was about to close.
+
+    kmod is declared in buildconfig.d/30_dependencies.conf alongside it -- asserting
+    a tool without declaring it just moves the failure to install time. qemu-utils,
+    kpartx and parted were already declared there.
+
+    diffoscope is deliberately NOT in this list: ci/reproducible-install-deps pulls
+    it from trixie-backports because the version in trixie OOMs on these artifacts,
+    so declaring it a plain build dependency would install the known-bad one. It is
+    asserted at its own install site instead.
+
+    Regression test in dist-ai (dm-help-steps-tests required_tools_test.sh) drives
+    the shipped function with PATH stripped. Canaried: exit 1 against a pre-fix
+    checkout, exit 0 after.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 415f3ce66faa0a30c5e6a493c035edf862714288
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 20:14:08 2026 -0400
+
+    docker-run: load nbd on the host for the compare path
+
+    The container ships no kmod, so a module it needs cannot be loaded from inside
+    it. 'nbd' is what developer-meta-files' dm-reproducible-compare-artifacts
+    attaches the two images through to diff their filesystems; without it that route
+    is unavailable and the comparison silently degrades to the direct-artifact path,
+    which OOMs on a multi-gigabyte artifact and reports only "diffoscope could not
+    explain the diff".
+
+    Soft-failed, unlike the 'loop dm_mod' load above it: nbd is needed by the
+    comparator, not by a build, so a host without it must still build. The
+    comparator now reports the absence by name (org-ai-assisted/developer-meta-files#176).
+
+    'max_part' is set here because it is a module parameter and only takes effect at
+    load time -- a later load of an already-present module cannot change it.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 1d0e6bdb99afa6a3af6fab211e3207fd66d6c77a
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 19:45:45 2026 -0400
+
+    docker-start: complete the strict-mode block
+
+    R-010 wants six distinct strict-mode directives; this file carried four. It is
+    pre-existing debt that the gate surfaces only now, because the gate greps whole
+    CHANGED files and the previous commit changed this one.
+
+    Adds 'inherit_errexit' (a command substitution now inherits errexit rather than
+    silently succeeding) and 'shift_verbose'. The script neither shifts nor relies on
+    a failing substitution passing, so behaviour is unchanged.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 69dbfb9fe641d9bb5407d57fb9f81206ee7471de
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 19:43:54 2026 -0400
+
+    docker-start: return the BUILD's status, not the log writer's
+
+    The script ends with
+
+      "$@" 2>&1 | tee -a -- "${BUILD_LOG}"
+
+    under 'set -o pipefail', so the pipeline reports the rightmost failure. When tee
+    cannot write -- a full disk on the log path -- its status became the script's,
+    and so the docker run's, and so the build verdict the caller sees.
+
+    That inverts a PASS into a FAIL, and into a specific misleading one:
+    ci/reproducible-build-twice documents exit 1 as "images differ". Hit for real
+    here -- a local run whose comparator printed "RESULT: identical (reproducible)",
+    with both images hashing to 9ac7a33c..., exited 1 because tee had hit ENOSPC on
+    the container log earlier in the same run. The reader is sent to look for a
+    reproducibility defect in the image while the actual fault is the disk.
+
+    Now PIPESTATUS is captured and the build's own status is returned. A tee failure
+    is not swallowed either: it means the on-disk log is incomplete, which is worth
+    a warning even though it is not the verdict.
+
+    Both branches of the 'if' capture PIPESTATUS identically on purpose: it is valid
+    only immediately after the pipeline, '|| true' would reset it, and inside an 'if'
+    condition errexit does not abort before it can be read.
+
+    Regression test in dist-ai (dm-help-steps-tests docker_start_exit_status_test.sh)
+    drives a real write failure via /dev/full. Canaried: exit 1 against the pre-fix
+    tree, exit 0 after; the pre-fix idiom is asserted to get the same fixture wrong.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit b9c61cdff22b97f1600cc8ba24d2a41687e0fbc9
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 18:19:52 2026 -0400
+
+    local-boot-test: gate the cowbuilder cache save on a successful build
+
+    a4cc055e1 updated the cache KEY in both lanes but the save gate in only one, so
+    this lane still saved under always(): a run that died during base creation
+    packed whatever tree existed and uploaded it as the newest prefix match. 1300's
+    reuse health check is the single test that '/dev/ptmx' is a character device,
+    which a partially created base can satisfy, so the poisoned base would be
+    restored and reused by every later run.
+
+    Same guard as local-build.yml now: an id on the build step, save conditioned on
+    its success. Pack and free still run under always(), since the artifact upload
+    would otherwise EACCES on the root-owned 0700 chroot.
+
+    From review of a4cc055e1 -- a half-applied fix across two lanes.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit dbf3bc20ae3277318e58071914e83e8ef662f47e
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 17:57:39 2026 -0400
+
+    1100: do not let an unreadable repo pass as "no symlinks here"
+
+    'git ls-files' runs in a process substitution, so the loop never sees its exit
+    status: a directory git refuses to read contributes zero entries and the repo
+    passes the check having verified nothing. Silently skipping a repo is the one
+    outcome this check must not produce, so establish the directory IS a repository
+    first and announce the skip when it is not.
+
+    An uninitialized submodule is a legitimate skip rather than an error -- there is
+    genuinely nothing to verify -- but it is now visible in the log instead of
+    indistinguishable from a clean pass.
+
+    From review of 16a8d9a49.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit c56050754aa58d80b73ef2e8eb59bdfc8ed43c9c
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 17:55:53 2026 -0400
+
+    cowbuilder cache: key on every creation input, save only a good base
+
+    Both from review of the cache added in 0e8304f80.
+
+    The key hashed only 1300_cowbuilder-setup and build_sources/**, but
+    'cowbuilder --create' is also handed '--debootstrap help-steps/mmdebstrap' and
+    '--hookdir help-steps/pbuilder-hooks'. Editing either left the key unchanged, so
+    the restore prefix matched an older tarball and --reuse-cowbuilder-base skipped
+    recreating the base -- the reproducibility lane would then pass against a build
+    environment that no longer matches the tree. Both are now in the key, in
+    local-boot-test.yml too, which had the same gap.
+
+    The save ran under always(), so a run that died during base creation still
+    packed and uploaded whatever tree existed, as the newest prefix match. That is
+    not caught downstream: 1300's reuse health check is the single test that
+    '/dev/ptmx' is a character device, which a partially created base can satisfy,
+    so the poisoned base would be reused by every later run. Saving is now gated on
+    the build step succeeding. Pack and free still run under always(), because the
+    artifact upload globs binary_mnt and would EACCES on the root-owned 0700 chroot.
+
+    Also cap --package-jobs at the number of packages to build: every free-slot scan
+    walks the whole slot array, so a mistyped '--package-jobs 100000' would allocate
+    and rescan 100000 dead slots before the first package started. Announced, like
+    the other reductions.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 883cd0719766bcb097cf1e7bf483c0ace0a6fd7c
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 17:43:27 2026 -0400
+
+    1100: NUL-separate the submodule list in check-git-symlinks
+
+    The list came from 'git submodule foreach' via 'printf "%s\n"' into mapfile, so
+    a newline in a submodule path split one path into fragments. Each fragment then
+    failed the 'test -d' and was skipped -- leaving that submodule unchecked while
+    the step still reported success, which is the one outcome a check like this must
+    never produce.
+
+    Now NUL-separated, matching the 'git ls-files --stage -z' loop directly below it.
+
+    Found by review of the previous commit.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 0a1bd0848449e8ed8cf4180c37d78ab0ac253551
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 17:43:07 2026 -0400
+
+    --package-jobs: verify the precondition instead of documenting it
+
+    Parallel package building was reachable only as a bare variable, and its
+    precondition lived in a comment: parallelism needs genmkfile 'make_cow_suffix'
+    support, without which N workers share ONE 'cow.cow_<arch>' and corrupt each
+    other's chroot. A caller who did not know that got a broken build, with nothing
+    checking or saying so.
+
+    - help-steps/parse-cmd gains '--package-jobs N', documented in the usage.
+    - 2100_create-debian-packages now PROBES both preconditions -- cowbuilder in
+      use, and 'make_cow_suffix' present in the genmkfile copy it actually builds
+      with -- and falls back to serial when either is missing. So the option is safe
+      to pass unconditionally; there is no caveat left for the caller to carry.
+    - The fallback is ANNOUNCED with its reason. A request silently reduced to
+      serial is indistinguishable from one that was honoured, which is the failure
+      mode worth avoiding here. A non-positive-integer count is still a hard error,
+      since it would spin the free-slot loop.
+    - local-build.yml passes '--package-jobs 2' (2100 advises ~nproc-2; ubuntu-24.04
+      runners have 4 vCPU). Both copies get the same value, so it cannot skew the
+      a-vs-b comparison.
+
+    Also, from review of the previous commit: the workflow sets dist_build_version
+    from its own inline 'git describe', which bypasses help-steps/variables and so
+    missed the '--exclude' added there. On a reused workspace carrying an ephemeral
+    '<tag>_<commit>_<key>' tag that pinned the version to the tag. Fresh checkouts
+    in CI hide it; the inline call now carries the same --exclude.
+
+    Regression test in dist-ai (dm-help-steps-tests
+    package_jobs_precondition_test.sh), canaried: exit 1 against the pre-fix tree,
+    exit 0 after.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 2895c4d6142a86cacea22bb2410e2d98fa51c795
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 17:28:27 2026 -0400
+
+    Comments: state the current reason, not the past run
+
+    Comment-only pass over the three files this branch touched, against the
+    house rule that a comment carries the current WHY rather than a narrative.
+
+    - reproducible-build-twice --output-dir: drop the comparison to the wording it
+      replaced; state the requirement.
+    - reproducible-build-twice sign-and-tag: keep the reason (the key never reaches
+      the image, and the CI lane's two-runner split already covers key-independence)
+      but drop the one-off run id and the two amended HEAD shas. Those commits exist
+      only inside the runners that made them, so quoting them in-tree ages into a
+      pair of identifiers nobody can resolve.
+    - local-build.yml package jobs: name the precondition and where it holds
+      (genmkfile make_cow_suffix, on both the gitlink and the fork branch this lane
+      switches to) instead of recording that somebody once checked.
+
+    comments-audit: 0 candidates. pre-push-static: green.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 5ff4cb95afe169c52fd88c4469bff6aa68c7c14f
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 17:25:18 2026 -0400
+
+    local-build: cache the cowbuilder base, build packages in parallel
+
+    Two speed-ups the repro lane was not taking, both already proven elsewhere in
+    this repo.
+
+    Cowbuilder base cache. local-boot-test.yml already caches the base chroot and
+    notes that the ~50-package cowbuilder rebuild dominates its runtime; this lane
+    rebuilt it from scratch every run while caching only the approx downloads and
+    the docker image. Same restore / unpack / pack / free / save sequence, with
+    '--reuse-cowbuilder-base' tied to BASE_CACHE so the flag is never passed when
+    nothing was restored. Pack and free run before the artifact upload, whose glob
+    scandirs binary_mnt and would EACCES on the root-owned 0700 chroot.
+
+    Parallel package builds. 2100_create-debian-packages supports
+    'dist_build_package_jobs=N', serial when unset; set to 2, the ~nproc-2 the
+    script recommends for the 4-vCPU ubuntu-24.04 runner. Its stated precondition
+    is genmkfile 'make_cow_suffix' support, so each worker gets its own cow
+    snapshot instead of N workers colliding on one; verified present in BOTH the
+    gitlink (e2e6642) and the fork-branch tip this lane checks out, so neither
+    checkout path can hit the collision case.
+
+    Neither changes what is compared. The base chroot and the docker image are
+    build infrastructure, not image content, and package builds are independent
+    (no derivative package build-depends on a sibling; the locked reprepro DB stays
+    in Phase 3). Both copies get the same job count, so parallelism cannot skew a
+    against b -- and if it ever did introduce nondeterminism, this is precisely the
+    lane that reports it.
+
+    matrix.copy is in the cowbuilder cache key, as it already is for the approx and
+    docker caches: builds a and b must not share a cache entry, or the two halves
+    of a reproducibility comparison stop being independent.
+
+    ci/lint-yaml passes.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 0025bf6ec7e41cb5da7777415916b9847df2ade2
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 17:08:06 2026 -0400
+
+    reproducible-build-twice: signing once is the decision, not a gap
+
+    Replaces the TODO added in e8a9991f5. Signing both builds with one ephemeral key
+    is deliberate: the key never reaches the image, so varying it between the two
+    builds would exercise nothing this lane is for, and CI already demonstrates
+    key-independence for free -- its two build jobs run on separate runners with
+    different keys and produce bit-identical images.
+
+    Keeps the measurement and the two blockers as the reason it is not merely
+    "cheap to change", but drops the TODO so nobody spends a cycle implementing
+    something already weighed and declined.
+
+    Comment only; no behaviour change.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 90b81d85210fc5a218aee651267a2817af6f7151
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 17:02:54 2026 -0400
+
+    reproducible-build-twice: correct why signing happens once
+
+    The comment justified signing once with "doing it inside build_one would hand
+    build b a different tree than build a". That is not what happens: sign-and-tag
+    runs 'git commit --amend -S', which rewrites the COMMIT and leaves the TREE
+    untouched, so build b would get the same tree either way.
+
+    The commit id does not reach the image at all. CI's two build jobs run on
+    separate runners, each minting its own ephemeral key; in repro-lane run
+    30618137118 their amended HEADs were c48eec926df2c60633d5ca44aa2639eec5ea0e5d
+    and ec01e16f32a04eb26b0a2ac93e7f98818c353c67, with different signing-key
+    fingerprints, and the two images were bit-identical. So a shared key is not
+    needed for the two builds to agree.
+
+    Sharing one key is therefore a limitation, not a requirement, and a real one:
+    somebody reproducing an official image has no access to the signing key either,
+    so key-independence is part of what this test should demonstrate. CI exercises
+    it; this lane does not.
+
+    Records the two concrete blockers to fixing it, so the next person does not
+    rediscover them: signing-key-create REUSES an existing key for DEBEMAIL (the sq
+    keystore is persisted through the docker-run --key-mount), and build b's
+    sign-tag-head would abort on build a's tag being signed by a key its new policy
+    does not authorize. Doing it properly needs a per-build keystore plus a reset to
+    the pre-sign commit between builds.
+
+    Comment only; no behaviour change.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit a71e74d6755bd373ffe6ca3671261ca8995e7542
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 16:14:29 2026 -0400
+
+    1100: fail by name when git materialized symlinks as regular files
+
+    With core.symlinks false, git writes a REGULAR FILE holding the link target
+    wherever the index records a symlink (mode 120000), and treats that as the
+    correct materialization -- so 'git status' reports the tree CLEAN and nothing
+    downstream notices. The build then emits an image carrying text files where it
+    should carry symlinks, with no message naming the cause.
+
+    This is not exotic: Kicksecure and Whonix, the project's own operating systems
+    and so a very likely build host, ship /etc/gitconfig with
+    'core.symlinks = false' via security-misc-shared. It is the DEFAULT there.
+    Observed on a real build host -- 25 paths in a derivative-maker checkout (3 in
+    the parent, 21 in live-build, 1 in qubes-template-whonix) were 15-byte text
+    files, git status clean, no other symptom. It was found only because
+    sign-and-tag's amend later exposed the mode change as an unexplained dirty
+    tree, several build-hours in.
+
+    check-git-symlinks walks the parent and every submodule, compares each mode
+    120000 index entry against the working tree, and errors with the offending
+    paths plus the per-repository fix. It deliberately does NOT touch the
+    packaged system-wide file.
+
+    Regression test in dist-ai (dm-help-steps-tests
+    git_symlink_materialization_test.sh) runs this very function against a
+    core.symlinks=false clone, and carries a canary asserting that 'git status' is
+    clean on that clone -- i.e. that the cheap check genuinely cannot catch this.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit f96479bde0c46fc0f418e5b2ed4e8a24c66a4cdd
+Author: claude (dev141 763ccfe0-7bd8-4e8c-afd0-c39aceb48d72) <noreply@anthropic.com>
+Date:   Fri Jul 31 16:09:04 2026 -0400
+
+    Derive dist_build_version the way the build actually uses it
+
+    Two derivation bugs, each of which costs a full multi-hour build to notice
+    because neither fails at the point of the mistake.
+
+    - Release-channel suffix. help-steps/variables strips '-developers-only' /
+      '-testers-only' / '-stable' BEFORE deriving dist_binary_build_folder, but
+      ci/reproducible-build-twice rebuilt the same path from a raw 'git describe'.
+      The repo's nearest tag is '18.2.2.0-developers-only', so the script cleaned
+      and searched '<binary>/18.2.2.0-developers-only-161-g<sha>' while the build
+      wrote '<binary>/18.2.2.0-161-g<sha>'. It then reported "build a produced no
+      *.qcow2.libvirt.xz" and exited 3 -- after building -- which reads as a build
+      failure, not a path bug. clean_binary silently no-ops for the same reason.
+
+    - Ephemeral signing tags. help-steps/sign-tag-head tags HEAD
+      '<nearest-tag>_<commit>_<key-fingerprint>' on every locally signed build, so
+      a plain 'git describe' resolves to THAT tag on the next run and a re-run on
+      the same checkout silently emits a differently versioned image. Fixed in
+      help-steps/variables, so every caller inherits it, not just this script;
+      release tags carry no underscore, so the two-underscore glob matches only the
+      ephemeral form.
+
+    Also correct the --output-dir note: the collected images are ~0.5 GB each, but
+    4350_reimage-raw-reproducible zero-fills the image's free space and allocates
+    the sparse raw, so a qcow2 run peaks near 32 GB. "A few GB free" understated it
+    by an order of magnitude and a run died of ENOSPC on a 49 GB filesystem.
+
+    Found while reproducing CI repro-lane run #140 locally; both bugs were hit for
+    real. Regression test in dist-ai (dm-help-steps-tests
+    build_version_derivation_test.sh), canaried: its five contract assertions all
+    fail against the pre-fix tree.
+
+    Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+
+commit 1afaafc5113841479ee90a2d141b500a550ccf68
+Author: claude (dev149 a79921e1-1045-43c6-97af-1075bb81ed3a) <noreply@anthropic.com>
+Date:   Fri Jul 31 14:12:00 2026 -0400
+
+    ci: add gitlink-upstream-resolvability check (push-to-master)
+
+    - New .github/workflows/local-gitlink-upstream-check.yml: on push to
+      master, verify every parent submodule gitlink resolves on the
+      submodule's Kicksecure/Whonix upstream master.
+    - Closes the hole where a fork-only gitlink bump reaches master via a
+      GitHub PR MERGE -- a server-side merge runs NO local git hook, so the
+      branch / no-gitlink-on-master guards never see it. push:master is the
+      only point that observes a merged pin; pull_request is deliberately
+      omitted (it would false-flag an ai-branch coordinated bump).
+    - Logic lives in dist-ai (usr/bin/dm-gitlink-upstream-check); this
+      workflow checks dist-ai out beside the workspace and invokes it, the
+      same pattern as local-boot-test.yml.
+
+    Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>
+
+commit b205f0239d3b5900f7764c8d0a2737e49dcd625d
+Author: claude (dev137 d9fb559b-0dab-4323-b124-aebf3bf5f7a9) <noreply@anthropic.com>
+Date:   Fri Jul 31 11:10:57 2026 -0400
+
+    4350: say that the zero-fill ENOSPC is SUCCESS, in the log
+
+    dd writes its own line to the build log before the caller can interpret it:
+
+      dd: error writing '/dev/mapper/loop0p3': No space left on device
+
+    Here that is the SUCCESS signal -- the partition is full because this step
+    just filled it, and end-of-device is how the zero-fill terminates. The code
+    already treated it as the only tolerated outcome, but nothing in the OUTPUT
+    said so, so the log reads like a disk-capacity failure. It cost exactly that
+    wrong diagnosis: a local build was reported as blocked on disk when the
+    message was the intended terminating condition.
+
+    Now the log announces the expectation before dd runs, and confirms
+    completion after, in terms that a reader -- or a grep for "error" / "No space
+    left" -- cannot mistake for a host disk-space problem. The genuinely fatal
+    branch is unchanged and still returns 1.
+
+    Generated with assistance from Claude Code.
+
+commit 0b3ffa2d92150359e00835996982cb0b30662f61
+Author: claude (dev137 d9fb559b-0dab-4323-b124-aebf3bf5f7a9) <noreply@anthropic.com>
+Date:   Fri Jul 31 09:26:45 2026 -0400
+
+    Revert --one-file-system on the two in-image deletes (broke reproducibility)
+
+    The compare lane failed with exit 1 -- "artifacts differ", the REAL
+    reproducibility verdict, not the exit 2 setup error seen earlier. Both builds
+    succeeded and their images did not match.
+
+    Cause, self-inflicted in 09f99c947: '--one-file-system' was added to
+      4350_reimage-raw-reproducible:142  "${reimage_tree}/run/blkid"
+      3600_convert-raw-to-iso:641        "${CHROOT_FOLDER}/run/blkid"
+    Both delete a path INSIDE a tree that is packed into the image afterwards. If
+    /run there is a separate mount, the flag makes the delete refuse to cross it,
+    so the blkid cache SURVIVES into the image -- and its contents (UUIDs,
+    timestamps) are not deterministic, so two builds diverge.
+
+    The flag stays where it belongs: deletes of whole scratch trees
+    (4350:47, 4350:186, 2100:226, 1300, lb-seed-rootfs-cache, and 3600:687 which
+    already had it). There it is a structural guard against a recursive delete
+    crossing a leftover bind mount. On a single in-image path it guards nothing
+    and silently changes what ends up in the image.
+
+    Lesson worth keeping: '--one-file-system' is safe on a tree you are DELETING
+    and destructive on a tree you are about to SHIP.
+
+    Generated with assistance from Claude Code.
+
+commit 84a2db8437fc436afda8b6425ba47e75e61da6d1
+Author: claude (dev137 d9fb559b-0dab-4323-b124-aebf3bf5f7a9) <noreply@anthropic.com>
+Date:   Fri Jul 31 08:22:52 2026 -0400
+
+    ci: fail by name when the developer-meta-files pin trails upstream
+
+    A lane that runs a tool OUT OF a submodule executes the PINNED copy, so a
+    lagging pin fails wherever the old tool happens to break -- never at the pin.
+    Both of this session's CI mysteries were that:
+
+      - the compare lane died on "expected exactly one *.qcow2 under build-a,
+        found 0" (pinned comparator predating artifact_glob="*.qcow2.libvirt.xz").
+        It reads like a reproducibility failure and is not one -- that tool exits
+        2 for not-found and 1 for "artifacts differ".
+      - a build step died on "has.sh: No such file or directory", which was an
+        OLD installed tool, not a missing file.
+
+    Each cost a full build cycle before anyone reached the pin.
+
+    ci/assert-submodule-not-stale reports the LAG itself, naming the path, both
+    shas, how far behind, and the exact update-index line to fix it. Wired into
+    the compare lane, right after the submodule init that feeds it.
+
+    Only a STRICT ancestor counts as lag: a pin that has diverged or is ahead is
+    a deliberate coordinated fork branch, not staleness, and passes. An
+    unreachable pin or a missing submodule directory exits 2 -- it refuses a
+    verdict rather than reporting a stale pin as current.
+
+    Covered by dist-ai submodule_staleness_test.sh (6 assertions, both
+    directions), canary-verified: a check that ignores lag fails 2 of them.
+
+    Generated with assistance from Claude Code.
+
+commit 6757b282786ed840be318f1a8b2692e056e4f8da
+Author: claude (dev137 d9fb559b-0dab-4323-b124-aebf3bf5f7a9) <noreply@anthropic.com>
+Date:   Fri Jul 31 07:08:03 2026 -0400
+
+    mount-raw, unmount-raw, unmount-helper: drop dead code, fix a prefix-unsafe check
+
+    mount-raw and unmount-raw both carried the same verbatim block:
+
+        if [ "${mount_folder:-}" = "" ]; then
+           true
+        else
+           ## hack for help-steps/analyze-image
+           CHROOT_FOLDER="${mount_folder}"
+        fi
+
+    It is provably DEAD, both halves verified: 'help-steps/analyze-image' does
+    not exist in the tree, and 'mount_folder' is never assigned anywhere -- the
+    only occurrences were these two reads. Removed from both.
+
+    unmount-helper decided "already unmounted" with a SUBSTRING grep of
+    /proc/mounts while the two checks after it used 'mountpoint --quiet'. A
+    sibling sharing the string prefix ('<dir>' vs '<dir>_vbox-workdir') matches
+    that grep, so an already-unmounted folder reads as still mounted and the
+    escalation runs every remaining attempt against it. Now 'mountpoint', like
+    its neighbours.
+
+    Generated with assistance from Claude Code.
+
+commit 13fde29e2049647ae53877cf09b5ac8eb69481a0
+Author: claude (dev137 d9fb559b-0dab-4323-b124-aebf3bf5f7a9) <noreply@anthropic.com>
+Date:   Fri Jul 31 07:06:27 2026 -0400
+
+    help-steps, 3600: end-of-options separators (R-062)
+
+    62 sites across chroot-raw, mount-raw, unmount-raw, unmount-helper,
+    unmount-lb and 3600_convert-raw-to-iso. Without '--' a path operand that
+    begins with '-' is read as a flag; these all take build-derived paths.
+
+    Every tool VERIFIED to accept '--' before use, per R-062's "verify before
+    extending the list": diff, ls, readlink, mv, chown, touch, shred, run-parts,
+    sponge, parted all succeed with it. For mount the check went further than
+    parsing -- 'mount -t tmpfs -- src tgt' and 'mount --bind -- src tgt' really
+    do mount. A '-t proc' failure seen in a bare user namespace reproduces
+    IDENTICALLY without '--' (it needs a PID namespace), and sysfs fails the
+    same way with and without, so '--' is not implicated in either.
+
+    Also folds in the 'cd -- "$( dirname -- ... )"' MYDIR form already used by
+    unmount-helper.
+
+    Generated with assistance from Claude Code.
+
+commit 6950456f0f5ad818a05068b3279943185c30d6e2
+Author: claude (dev137 d9fb559b-0dab-4323-b124-aebf3bf5f7a9) <noreply@anthropic.com>
+Date:   Fri Jul 31 07:02:03 2026 -0400
+
+    build-steps: fail closed and --one-file-system before recursive deletes
+
+    1300_cowbuilder-setup:214 is the ONE umount_kill.sh call site that is
+    followed by a recursive delete (the other seven delete nothing -- :250 and
+    :329 exist so the base tree stays COPYABLE for 'cp -al'). It now sweeps with
+    unmount-tree, which exits non-zero while anything is still mounted, so the
+    delete cannot follow a leftover bind mount out of the tree.
+
+    '--one-file-system' added to the recursive deletes of trees that can hold a
+    mount (1300, 4350 x3, 3600, 2100, lb-seed-rootfs-cache). It is the structural
+    backstop debootstrap, pbuilder and sbuild all use in some form, and it costs
+    nothing when there is no mount. Deliberately NOT added to deletes of plain
+    data trees (git checkouts, VBox VM folders), where it would be noise.
+
+    Both guards are kept because neither is sufficient alone: --one-file-system
+    does not cover a bind mount from the SAME filesystem (identical device
+    number), and the sweep cannot cover a mount created between sweep and delete.
+
+    Generated with assistance from Claude Code.
+
+commit 8c87f7cdc9d0d86bb4ce8762a60df4e76c8ffee9
+Author: claude (dev137 d9fb559b-0dab-4323-b124-aebf3bf5f7a9) <noreply@anthropic.com>
+Date:   Fri Jul 31 06:38:30 2026 -0400
+
+    pre: one definition of the per-variant cleanup steps
+
+    exception_handler_{unchroot_unmount,unmount,unmount_lb} and
+    exception_handler_signal each carried their own copy of the same three step
+    lists -- six bodies, two of every list, free to drift apart.
+
+    Now one 'exception_handler_cleanup_run <kind> <tolerate_failure>' holds the
+    table, and both paths call it. The per-kind ERR handlers stay as thin
+    wrappers because '$?' and '$BASH_COMMAND' must be captured before anything
+    else runs, and because exception_handler_setup derives the signal cleanup
+    kind from the handler's NAME.
+
+    The failure policy is now a parameter rather than a property of which copy
+    you happened to be reading: the signal path tolerates a failing step (it is
+    already exiting, and cleanup must not mask the signal), the ERR path does
+    not.
+
+    Stopping on failure is also EXPLICIT ('|| return') instead of leaning on
+    errexit. A trap handler can be reached from a context where errexit is
+    disarmed -- any '||'-guarded caller -- and there the old loop ran on past a
+    failed step. Found by the new test, not by inspection.
+
+    Covered by dist-ai pre_cleanup_dispatch_test.sh (9 assertions).
+
+    Generated with assistance from Claude Code.
+
+commit 7eca0018f45bc7f5ef7ceac4e3e4e8b2152ea1c1
+Author: claude (dev137 d9fb559b-0dab-4323-b124-aebf3bf5f7a9) <noreply@anthropic.com>
+Date:   Fri Jul 31 06:27:34 2026 -0400
+
+    help-steps: sweep via unmount-tree in unchroot-raw; correct the findmnt rationale
+
+    unchroot-raw
+    - Reap, then ONE unmount-tree sweep of the tree, replacing the hardcoded
+      dev/pts, dev, proc, sys list plus the per-path unmount-helper calls. The
+      list could only ever unmount what someone remembered to add to it; the
+      sweep also covers create-local-temp-apt-repo's per-derivative binds and
+      chroot-raw's etc/{resolv.conf,hosts,hostname} binds.
+    - Fails CLOSED by design: stray leftovers under a tree that is about to be
+      deleted are worse than an aborted step.
+    - Bare metal install ('$CHROOT_FOLDER' is EMPTY, so every path names the
+      HOST's own file) keeps per-path unmounts; a tree sweep or a reaper there
+      would act on the running system.
+    - Drop the unmount of etc/network/interfaces: nothing mounts it. Verified --
+      the only other reference in the tree is an unrelated comment in
+      3200_create-raw-image.
+
+    unmount-tree
+    - Correct an overstated claim. findmnt DOES document its '\xHH' escaping for
+      '--raw'/'--pairs'; what it does not ship is an unescape helper, so each
+      consumer must reimplement the decoding -- and the implementations replaced
+      here never decoded at all. '--list' escaping is undocumented and leaves
+      spaces literal; '--json' emits invalid JSON for a non-UTF-8 path. Reading
+      mountinfo avoids all of it.
+    - State the real reason the sweep repeats: a child mounted BEFORE something
+      was mounted OVER its parent keeps the hidden lower parent, so one pass can
+      miss it. Sorting cannot fix that; re-reading can.
+
+    umount_kill.sh
+    - Accept '--', so callers can shield a path operand. None could before.
+    - Drop the duplicated 'hostname' skip-list entry.
+
+    chroot-raw
+    - safe-rm, not rm (4 sites).
+
+    Gate debt in the touched files, fixed: complete the strict-mode block in
+    chroot-raw, unchroot-raw, unmount-helper and umount_kill.sh; bare function
+    names as trap targets (R-051); drop a change-narrative comment (R-154).
+
+    Covered by dist-ai dm-help-steps-tests: 35 assertions, 0 fail, 0 skip.
+
+    Generated with assistance from Claude Code.
+
+commit 80fd4c84e0f84d78526388a44c6572d1eb501e0a
+Author: claude (dev137 d9fb559b-0dab-4323-b124-aebf3bf5f7a9) <noreply@anthropic.com>
+Date:   Fri Jul 31 04:57:18 2026 -0400
+
+    unmount-lb: sweep via unmount-tree
+
+    First caller migrated onto the shared primitive. Drops lb_mounts_under,
+    the second of the three divergent copies of "list mounts under a tree,
+    deepest first".
+
+    Fixes a real defect in the process: lb_mounts_under read
+    'findmnt --list', which renders a TAB in a mount point as '\x09'. The
+    escaped string names no mount, so 'umount' failed and the sweep reported
+    the tree clean while a host bind mount was still attached -- the exact
+    state the 'rm --one-file-system' downstream exists to catch.
+
+    The warn-only contract is unchanged and still deliberate: no caller
+    consumes the exit code, and a non-zero 'return' would trip this script's
+    own ERR trap (installed by the sourced 'pre') before any caller could
+    react. unmount-tree already prints what remains, so the wrapper only adds
+    the do-not-delete warning.
+
+    Generated with assistance from Claude Code.
+
+commit 94efe6e45ab2369ab838e932407e91780e334f68
+Author: claude (dev137 d9fb559b-0dab-4323-b124-aebf3bf5f7a9) <noreply@anthropic.com>
+Date:   Fri Jul 31 04:44:56 2026 -0400
+
+    help-steps: add unmount-tree, a standalone deepest-first mount sweep
+
+    Single implementation of "unmount everything under a tree", to replace the
+    three divergent copies (umount_kill.sh, unmount-lb, unchroot-raw).
+
+    - Standalone: sources neither 'pre' nor 'variables', so it needs no
+      populated build environment and is directly testable. That is what the
+      existing copies could not be.
+    - Reads /proc/self/mountinfo, not findmnt. findmnt ESCAPES a mount point
+      containing whitespace ('--raw' -> '\x20', '--list' -> '\x09') with no way
+      to decode it, so the escaped string reaches 'umount', names no mount, and
+      the sweep reports success while the mount is still live. mountinfo's
+      field 5 carries the kernel's own octal escaping, which 'printf %b'
+      decodes exactly.
+    - Sorts the ENCODED form: newline-free, so a line-based sort cannot split
+      an entry, and a child is always a strict string extension of its parent,
+      so reverse order is deepest-first for any names.
+    - Fails CLOSED: an unreadable mount table, or anything still mounted after
+      the sweep, exits non-zero. Callers follow this with a recursive delete,
+      where a leftover bind mount is what lets the delete escape the tree.
+    - STRICT submounts only: the tree's own root mount belongs to the caller.
+
+    Covered by dist-ai 'unmount_tree_test.sh' (17 assertions).
+
+    Generated with assistance from Claude Code.
+
+commit 4d499439571e46e9dc455cbdfa8322aff2a36686
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 20:57:52 2026 -0400
+
+    one build path: reproducible-build-twice drives dm-build-official, ci/build retired
+
+    - ci/reproducible-build-twice invoked ci/build, which called ./derivative-maker
+      directly with different flags (--allow-uncommitted, --allow-untagged) and no
+      --base-image-role, so the shared-base copy path was never exercised locally.
+      A local verdict therefore did not transfer to CI, and any local-vs-CI hash
+      difference was build-path drift masquerading as non-reproducibility.
+    - It now drives help-steps/dm-build-official with the same env shape CI uses.
+      CI=true is required: without it dm-prepare-release's rsync is LIVE and a local
+      reproducibility check could publish. It does not force a dry run -- parse-cmd
+      injects build_dry_run only for a CROSS-build, and dist_build_target_arch is set.
+    - signing-key-create + sign-and-tag run ONCE, before either build: sign-and-tag
+      rewrites HEAD, so signing per build would hand build b a different tree than
+      build a and manufacture a non-defect difference.
+    - 3600's live-build tree deletion gains --one-file-system, the structural guard
+      that retired with ci/build. Verified in a sandbox: with a tmpfs mounted inside
+      the tree, rm skips it ("on a different device"), exits 1, and the mount and its
+      contents survive; the existing '|| true' absorbs that exit.
+    - unmount-lb and variables no longer cite ci/build as the guarantee's home.
+
+commit 6dc5bea87675b612312e6a42034e44e9c05d378a
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 20:53:09 2026 -0400
+
+    build-steps: end-of-options on cp, sort and debugfs path operands
+
+    - `--` before a variable-derived path operand, so one starting with a hyphen
+      cannot be parsed as an option.
+    - Verified per tool rather than swept blindly: cp, sort and debugfs all accept
+      `--` (debugfs checked precisely -- with `--` it opens the named device,
+      matching the control run).
+    - mktemp deliberately untouched: `-d`/`--directory` has no TEMPLATE operand to
+      protect, and `--` does not shield `-p`'s value. Same for `sort` reading stdin.
+
+commit d16e3a951576260e207e0e7437acde65eb477607
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 20:48:44 2026 -0400
+
+    docs + CI: trim AGENTS.md tests, split the actions-security doc, end-of-options
+
+    - AGENTS.md Tests chapter follows the bash-style-guide pattern already in the
+      file: point at the canonical location, do not duplicate. Run-it-in-CI detail
+      belongs to the ci skill.
+    - agents/github-actions-security.md keeps only THIS repo's live pin state; the
+      reusable patterns move to dist-ai. The pin list cannot follow: a pin must be
+      bumped in the same commit as the workflow line it documents, and a Dependabot
+      bump here could not touch another repo. Filename unchanged, so all existing
+      references still resolve.
+    - 4350: dirname with `--`, so a path starting with a hyphen cannot be read as
+      an option (verified: `dirname -weird/sub` fails, `dirname -- -weird/sub` does
+      not).
+    - repro-image artifacts drop to 2 days, matching boot-image-*. The compare job
+      is their only reader.
+
+commit cf67c00da80c5c70e522b2fd39d587d2f33874bd
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 20:12:56 2026 -0400
+
+    iso grub config: mirror the disk reader's terminal_output rationale
+
+    - Keeps the ISO copy's comments in step with vm-config-dist
+      etc/grub.d/01_smbios-reader, so the two parallel implementations do not
+      drift in reasoning either.
+    - Comment only; the emitted GRUB block is unchanged (parity test 17/17).
+
+commit fd770e9b1cc2ad89eb68a3458847a652d2cf4529
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 19:31:29 2026 -0400
+
+    buildconfig.d/30_apt_opts.conf: restore 0644, waive the shebang check
+
+    - The file is SOURCED by help-steps/variables, never executed; its shebang
+      only drives shellcheck dialect detection.
+    - 0755 claimed it was runnable to satisfy
+      check-shebang-scripts-are-executable. Marked
+      `## style-ok: sourced-fragment` instead (dist-ai 49c38e3), so the mode
+      matches every sibling fragment.
+
+commit b135626f1b159462845cc852e93554b893694117
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 18:16:54 2026 -0400
+
+    iso grub config: keep the SMBIOS reader in step with the disk path
+
+    The ISO carries its own copy of the SMBIOS reader in
+    live-build-data/grub-config/config.cfg -- live-build ships that template verbatim
+    and grub-mkconfig output never reaches the ISO bootloader (3600_convert-raw-to-iso
+    scrapes only the 'linux' line from it). So the disk fix in vm-config-dist
+    etc/grub.d/01_smbios-reader does not apply here, and the two copies had drifted.
+
+    Brings the ISO copy level:
+    - insmod serial, rather than relying on command.lst autoloading the serial command
+    - clear dm_smbios_oem / dm_smbios_extra before use, since smbios and regexp leave
+      them untouched on no-match
+
+    The serial + timeout=0 block itself was already here and is unchanged; the ISO legs
+    were green throughout. This is drift removal, not a fix.
+
+    Also notes at the top of the block that the two implementations must change
+    together.
+
+    buildconfig.d/30_apt_opts.conf, in scope for the gate after the /dev/null change:
+    brace a variable reference (SC2250) and carry the same '## style-ok: no-strict'
+    waiver 25_apt_sources.conf already documents -- a sourced fragment must not set
+    inherit_errexit / shift_verbose, which would leak into the build shell.
+
+commit 2430de0f1e1566c3dc71106d716ac438c395ac13
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 14:29:26 2026 -0400
+
+    apt empty sourcelist: /dev/null instead of EMPTY_DIR
+
+    apt_sourcelist_empty pointed Dir::Etc::sourcelist at EMPTY_DIR, a DIRECTORY that
+    had to be created inside every chroot first. /dev/null is an empty file that
+    always exists, so the option needs no setup at all.
+
+    Verified equivalent against real apt: with sourcelist pointed at an empty
+    directory and at /dev/null, 'apt-get --print-uris update' returns the same URI set
+    from sourceparts and neither emits an E: or W: line.
+
+    Removes:
+    - EMPTY_DIR and its export from help-steps/variables
+    - the chroot 'mkdir --parents ${CHROOT_FOLDER}/${EMPTY_DIR}' in
+      create-local-temp-apt-repo, and a stale example comment
+    - the R-170 '/tmp' waiver that only existed to justify EMPTY_DIR="/tmp/empty"
+
+    Nothing outside derivative-maker read it: six references, all in this repo. The
+    "export, so chroot-scripts-post.d can read it" comment was stale twice over --
+    no script reads it, and it is not in env_vars_keep_list, so it would not survive
+    sudo into a chroot anyway.
+
+    Also records why the dist-upgrade in 3500_install-packages stays now that both
+    sides resolve one snapshot: a no-op upgrade is a cheap, fast sanity test that they
+    really do agree.
+
+    Generated with assistance from Claude Code.
+
+commit 04257ab60667cca799ae8b5c4eabcdf7ddb48b0d
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 14:15:47 2026 -0400
+
+    comments audit: state the reason, not the expression
+
+    - local-boot-test.yml: the COWBASE_REUSE_FLAG comment restated the ternary it sat
+      above (R-151 paraphrase). Says why the flag is tied to BASE_CACHE instead.
+    - help-steps/variables: waive R-170 for EMPTY_DIR with the reason. It is a path
+      inside the target chroot, used as apt's empty sourcelist via
+      buildconfig.d/30_apt_opts.conf; TMP and TMPDIR are host state stripped before
+      entering a chroot, so it cannot be derived from them. Pre-existing, and surfaced
+      because this branch brought the file into the gate's changed set.
+
+    Both repos' gates now pass with no advisory findings.
+
+    Generated with assistance from Claude Code.
+
+commit 688b9fa01440e5e3dd71c4068d82a3b122d2bdaf
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 14:10:09 2026 -0400
+
+    frozen builds: anchor SOURCE_DATE_EPOCH to the snapshot pin
+
+    grml-debootstrap bootstraps the BASE SYSTEM from
+    "${SNAPSHOT_ARCHIVE}/debian/$(date -u -d @${SOURCE_DATE_EPOCH})". With
+    SOURCE_DATE_EPOCH taken from the changelog, that resolved to a different snapshot
+    than the build's own apt, and only the dist-upgrade in 3500_install-packages
+    reconciled the two. Measured in CI: base 20260728T132930Z against pin
+    20260730T083809Z, a gap spanning DSA-6404-1.
+
+    A frozen build now derives SOURCE_DATE_EPOCH from build_sources/frozen-snapshot-timestamp,
+    so both come from one snapshot. Verified the conversion round-trips: the epoch maps
+    back to exactly the pin grml recomputes as SOURCE_DATE_EPOCH_PRETTY.
+
+    - Applied after buildconfig.d sourcing, the first point where the freshness
+      selection is known.
+    - Only for 'frozen'. A 'current' build has no pin and keeps the changelog
+      timestamp.
+    - Still a pure function of the committed tree, so a rebuild from a given commit
+      reproduces. What it changes is the anchor's MEANING: file mtimes, and grml's
+      SOURCE_DATE_EPOCH-derived disk identifiers and UUIDs, now move when the snapshot
+      is bumped rather than when the source is released.
+    - Malformed or missing pin is fatal rather than a silent fall back to the
+      changelog date, which would reintroduce the split.
+
+    The dist-upgrade in 3500_install-packages is deliberately NOT removed yet. It
+    should now be a no-op, but grml may bootstrap from 'trixie' alone while the frozen
+    sources also carry trixie-updates and trixie-security, in which case it still does
+    real work. Removing it needs the evidence this change makes available: a build log
+    reporting 0 upgraded.
+
+    Generated with assistance from Claude Code.
+
+commit 2affd468fe2941f500de36737ba466f0a6aef2e8
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 14:08:13 2026 -0400
+
+    docker image: apt options instead of config files; one sources file in build_sources
+
+    Config reaches apt by the highest rung that works: options first, a static file
+    only where an option cannot carry it. The image previously shipped three files
+    under docker/apt/; it now ships none.
+
+    - '-o Dir::Etc::sourcelist' names the only sources file apt reads and
+      '-o Dir::Etc::sourceparts=-' disables sources.list.d, so the base image's own
+      sources are never consulted. Nothing is overwritten and nothing is blanked, which
+      retires both the empty sources.list and the COPY over the base's debian.sources.
+    - '-o Acquire::Check-Valid-Until=false' replaces the apt.conf.d drop-in, matching
+      buildconfig.d/30_apt_opts.conf, which already passes that setting as an option.
+    - The sources file moves to build_sources/debian_stable_frozen_direct_clearnet.sources,
+      beside the approx-proxied file it mirrors. Direct URLs because approx is not running
+      at image-build time and 127.0.0.1 there is the build container.
+    - The build context becomes the repo root so the Dockerfile can COPY out of
+      build_sources/; .dockerignore holds the context to docker/ plus that one file.
+    - DM_FROZEN_SNAPSHOT is gone: no ARG, no --build-arg, no deb822 parsing in
+      derivative-maker-docker-run.
+
+    The unpinned-source guard shrinks accordingly. Scanning for stray sources was
+    defending against something now impossible, so what remains is validating the one
+    file apt is pointed at: exactly one snapshot in it, and non-empty.
+
+    Verified: 18 pass / 0 fail. The guarantee is tested against real apt rather than
+    asserted -- 'apt-get --print-uris update' with the options does NOT list a stray
+    live .sources, DOES list the pinned snapshot, and a control without
+    'sourceparts=-' shows the stray appearing, so the test can fail.
+
+    Generated with assistance from Claude Code.
+
+commit b37e238ed8e719af9ec8a3da501eb8b08555843a
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 13:42:18 2026 -0400
+
+    local-build: apply the target fallback to REPRO_MULTI_TARGET_LIST
+
+    REPRO_TARGET resolves 'inputs.target || qcow2' so schedule and push runs have a
+    target; REPRO_MULTI_TARGET_LIST read inputs.target raw. On push and schedule there
+    is no input, so it evaluated empty, the build produced no VM image, and the lane
+    failed at artifact upload with "No files were found with the provided path:
+    /home/runner/binary_mnt/**/Kicksecure-*" after a full ~35 minute build.
+
+    Invisible until now because the lane only ever ran on workflow_dispatch, where the
+    input is always set. Triggering it on branch pushes is what surfaced it.
+
+    Generated with assistance from Claude Code.
+
+commit abc9b3dca92c434d6dd86cb5d5876c82f45235ca
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 11:57:19 2026 -0400
+
+    docker: R-070 ';;' on its own line; restore the README section boundary
+
+    - The URI-token case arms in derivative-maker-docker-setup put ';;' inline, which
+      the static gate rejects.
+    - The frozen-snapshot prose had landed between the buildx block and the Apple
+      Silicon note that belongs with it, splitting the multi-arch section. It is now
+      its own 'Frozen snapshot pin' section, and documents the ca-certificates
+      bootstrap.
+    - end-of-file-fixer: drop the trailing blank line.
+
+    Generated with assistance from Claude Code.
+
+commit 488ec25ae7cb614ad57035fd89309b800a1e8090
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 11:55:55 2026 -0400
+
+    docker: mark the ca-certificates bootstrap executable; propagate template comment
+
+    - apt-bootstrap-ca-certificates carries a shebang, so it is tracked 0755. The
+      Dockerfile still chmods after COPY, which covers a hardened-umask checkout, but a
+      shebang script tracked non-executable is its own defect and the static gate says so.
+    - consumer-claude-code.yml re-propagated byte-identical from the corrected
+      developer-meta-files template: issue_comment uses the default branch ref,
+      pull_request_review_comment the PR merge ref.
+
+    Generated with assistance from Claude Code.
+
+commit 105aec22d5966815266fa3a3d10f3d693bc8345d
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 11:55:24 2026 -0400
+
+    docker image: static apt config, https, no build-arg
+
+    The image's apt configuration was generated at image-build time by printf|tee and
+    the pin was threaded in as a --build-arg. It is now three static files under
+    docker/apt/, COPY'd in by the Dockerfile, so what apt obeys is reviewable in the
+    repo rather than reconstructed at build time.
+
+    - docker/apt/debian.sources carries the pin. Rewritten by dm-update-frozen-snapshot
+      alongside build_sources/debian_stable_frozen_clearnet.sources and the plain
+      build_sources/frozen-snapshot-timestamp, which that tool refuses to bump when the
+      three disagree.
+    - docker/apt/99dm-frozen-snapshot is constant (Check-Valid-Until, which a dated
+      snapshot Release outlives).
+    - docker/apt/sources.list is empty and replaces the base image's, so the snapshot
+      is the only source. Shipped rather than truncated in the script.
+
+    https, not http. The previous comment argued the archive keyring makes the
+    transport irrelevant; the project had already decided otherwise, querying this same
+    host over https through scurl with '--proto =https --tlsv1.3'. debian:trixie-slim
+    carries no ca-certificates (Priority: standard, so outside the base system), so
+    apt-bootstrap-ca-certificates installs the trust store first, from the base image's
+    own sources. That is the one unpinned fetch in the image build: ca-certificates is
+    build-host tooling, links into nothing the product ships, and is installed again
+    from the snapshot afterwards, so the finished image carries the pinned version.
+
+    DM_FROZEN_SNAPSHOT is gone. With the pin in a shipped file there is nothing to pass:
+    the Dockerfile has no ARG, derivative-maker-docker-run no longer parses deb822 (it
+    cats build_sources/frozen-snapshot-timestamp), and the setup script reads the pin
+    back out of the sources file it is verifying -- the only thing apt actually obeys,
+    so verifying against anything else would prove the wrong statement. It also rejects
+    a file declaring more than one distinct snapshot, which would resolve the two
+    archives to different snapshots.
+
+    Cache keys now hash the plain pin file rather than the deb822 one; docker/** already
+    covers the shipped config.
+
+    Verified: 19 pass / 0 fail. Covers the cat-based reader, the plain-vs-deb822 sanity
+    test, comment example dates not being mistaken for the pin (that bug bit during
+    authoring), malformed and missing pins, drift, the shipped config passing the guard,
+    four unpinned-source negatives, https-only, and that no generation or build-arg
+    remains.
+
+    Generated with assistance from Claude Code.
+
+commit d035d3151fe6ad0dae451805a0867fd9f284d0c3
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 10:52:58 2026 -0400
+
+    docker image: rebuild on a pin change, validate apt sources per URI
+
+    Two review findings on #87, both real.
+
+    Image reuse ignored the pin. build_docker_image reused any locally tagged image,
+    and the tag is arch-qualified but pin-agnostic, so a snapshot bump silently
+    reused an image whose packages came from the previous snapshot -- or, for an
+    image predating this, from the live archive. The CI cache key already keys on the
+    frozen sources file; this is the same defect on the local-machine path, where no
+    cache key exists.
+
+    - The image is stamped with 'org.kicksecure.derivative-maker.frozen-snapshot' at
+      build time, and reuse now requires that label to equal the sources file's
+      timestamp. An image with no label reports '<no value>' and is rebuilt.
+    - The pin is therefore resolved before the reuse test rather than only on the
+      rebuild path.
+
+    The apt-source guard was judged per LINE. A deb822 'URIs:' field takes several
+    whitespace-separated URIs and apt fetches from every one, so a line holding the
+    pinned URI next to a live one satisfied a whole-line match while still pulling
+    from the live archive. Confirmed against the previous check: it passes such a
+    line. Now each URI token is judged on its own, 'deb-src' is covered, and a tree
+    carrying no pinned URI at all is rejected rather than passing vacuously, which
+    read identically to success.
+
+    Verified: 12 pass / 0 fail, up from 8. The four added cases are a live URI beside
+    the pinned one, a live deb-src line, a one-line 'deb' with options (must still
+    pass, so option and suite tokens are not mistaken for URIs), and an apt tree with
+    no source at all.
+
+    Generated with assistance from Claude Code.
+
+commit 54e70339ae87172e24a0f47135e9b3c8cda8cdbd
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 09:44:08 2026 -0400
+
+    docker image: pin apt to the build's frozen snapshot
+
+    The base image digest is pinned; the packages layered on top were not. With the
+    live archive in the image and '--freshness frozen' in the build, the two
+    disagree: a DSA moves a runtime library ahead of the snapshot, and a '-dev'
+    package the build pulls from the snapshot with a strict '=' dependency on that
+    library becomes uninstallable. DSA-6404-1 (expat) is that case.
+
+    - derivative-maker-docker-run reads the timestamp out of
+      build_sources/debian_stable_frozen_clearnet.sources and passes it as
+      --build-arg DM_FROZEN_SNAPSHOT, so the pin keeps one source of truth. A
+      missing or malformed pin is fatal, not a silently unpinned build.
+    - derivative-maker-docker-setup points apt at that snapshot for both archives
+      and disables Check-Valid-Until, which a dated Release outlives. Both URIs take
+      the same timestamp: snapshot.debian.org resolves it to the nearest preceding
+      snapshot per archive.
+    - The setup script then asserts no configured source lacks the pin, so a base
+      image keeping sources under another name fails loud instead of quietly
+      installing from the live archive.
+    - Both docker-image cache keys gain the frozen sources file. Hashing only
+      'docker/**' would reuse an image built against the previous snapshot after a
+      bump, restoring the mismatch the pin removes.
+    - http, not https: the slim base ships no ca-certificates, and apt's guarantee
+      here is the archive keyring signature named by 'Signed-By'.
+
+    Verified: extraction and the unpinned-source guard exercised standalone,
+    8 pass / 0 fail, including negative cases (unpinned URI, prose naming
+    debian-frozen, malformed timestamp, stray live .sources, one-line deb, wrong
+    pin). Image build itself is exercised by the CI build lane.
+
+    Generated with assistance from Claude Code.
+
+commit eadf971f9afb667cdafe2c1cfabba49741c1c79b
+Author: claude (dev130 fb69d4e9-4716-4e71-ba8c-c9a310d51a5f) <noreply@anthropic.com>
+Date:   Thu Jul 30 09:38:08 2026 -0400
+
+    local build + boot-test lanes: trigger on the ai branch convention
+
+    - Exact 'ai' and 'ai-**' branch prefixes drive both push triggers, so coverage
+      follows the one-branch-named-ai convention automatically.
+    - A substring glob admits branches by accident of spelling: it leaves the rest
+      of them reporting every check green while the build and boot lanes never ran,
+      which is indistinguishable from a real pass.
+    - Cost-neutral: the repo is public, so GitHub-hosted minutes are free, and the
+      existing per-ref 'cancel-in-progress' collapses a burst of pushes to a single
+      run.
+
+    Generated with assistance from Claude Code.
 
 commit 8018f0c3de39c2029766629b0432e9431a3805c2
 Author: Patrick Schleizer <adrelanos@whonix.org>
@@ -82,6 +3153,41 @@ Date:   Sun Aug 30 01:11:48 2026 -0400
 
     .
 
+commit 79741cb4cd81a4c297711b1888e5e96b8fdd1691
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Thu Aug 27 02:40:11 2026 -0400
+
+    git_sanity_test: fail closed on broken bootstrap; validate option values
+
+    - the source-able port moved errexit into main(), so 'bash git_sanity_test'
+      (how mode_submodules re-invokes it) ran the bootstrap with errexit OFF and could
+      exit 0 on an UNVERIFIED repo; guard each bootstrap source with || exit 1
+    - --mode/--context/--ref/--ref-type die with a named error on a missing value
+      instead of a bare nounset 'unbound variable'
+
+commit 5e491e9ec24276b5450d380f700c24ca5b92f0e4
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Thu Aug 27 02:26:06 2026 -0400
+
+    git_sanity_test,parse-cmd: consumption-point AI gate + arg fixes
+
+    - git_sanity_test: refuse the ignore-unsigned skip for an AI session (CLAUDECODE)
+      / dist_build_forbid_allow_unsigned at the CONSUMPTION point (env + buildconfig.d
+      bypass parse-cmd's flag-only check); made source-able so the gate is unit-testable
+    - parse-cmd: :- default on the BUILD_*_PKGS reads (--kernel/--headers/--initramfs
+      crashed under nounset); exit after the --package-jobs integer error
+
+commit 376e1298da63ba11358b3120e9b1788a751bf12f
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Thu Aug 27 01:20:32 2026 -0400
+
+    parse-cmd: refuse --allow-unsigned for AI sessions
+
+    - skipping git_sanity_test verification is a human escape hatch; an AI agent
+      (CLAUDECODE) must sign+tag with a throwaway key (--sign-and-tag) instead
+    - dist_build_forbid_allow_unsigned lets CI / a hardened policy forbid it too;
+      dangerous-options unlock is the human override
+
 commit 589632f1ad38a45f54e7305bca533927585908e7
 Author: Patrick Schleizer <adrelanos@whonix.org>
 Date:   Wed Aug 26 08:10:56 2026 +0000
@@ -93,6 +3199,19 @@ Author: Patrick Schleizer <adrelanos@whonix.org>
 Date:   Wed Aug 26 04:02:16 2026 -0400
 
     .
+
+commit d9cde0901b219aa29a6cca5ba71aad0bbf9b1735
+Merge: 0a5b8aa9a 6691be23e
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 03:44:35 2026 -0400
+
+    Merge upstream github-kicksecure/master (re-sync)
+
+    - advance submodule gitlinks to upstream's current pointers so Kicksecure sees
+      zero gitlink delta when pulling our master (fixes PR #7 gitlink changes)
+    - absorbs Kicksecure's own arraybolt3/trixie merge and the
+      kicksecure-debug -> kicksecure-ci-tiny-do-not-use flavor rename
+    - keep our newer frozen pin 20260821T022305Z; our SMBIOS-reader design retained
 
 commit 6691be23ec40ca5e1a13828d834d6c6356ff6f4b
 Author: Patrick Schleizer <adrelanos@whonix.org>
@@ -107,6 +3226,62 @@ Date:   Wed Aug 26 03:33:58 2026 -0400
 
     Merge remote-tracking branch 'ArrayBolt3/arraybolt3/trixie'
 
+commit 0a5b8aa9a0f0827c30443a5583ff421b63dc2052
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Wed Aug 26 00:44:57 2026 -0400
+
+    Restore our SMBIOS-reader design over arraybolt3's rework
+
+    - ai's boot-test-only reader: opt-in, default-off, removed from released images,
+      gated on SMBIOS Type-1 Manufacturer=QEMU, disk+ISO readers asserted identical by
+      dm-grub-smbios-tests
+    - supersedes arraybolt's DANGEROUS-marked / error_dangerous_option_maybe variant of
+      --smbios-reader; his error_dangerous_option_maybe helper stays for other options
+
+    (cherry picked from commit 066e804f4a3589db5e89ede9bac7477c02742b98)
+
+commit c369306fad0162549faee60f997a5bdc43ec5fb5
+Merge: 9c263dd76 7be37d4cb
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Tue Aug 25 23:39:58 2026 -0400
+
+    Merge arraybolt3/trixie (polish/refactor of our CI + frozen-snapshot mechanism)
+
+    - brings 7be37d4cb: arraybolt's polish/refactor of the AI CI work, incl the
+      frozen-snapshot .in-template + epoch mechanism (docker/apt-populate-frozen-timestamp)
+    - conflicts resolved: 2100 arch-detection kept as the case refactor (ours);
+      frozen pin kept at the newest snapshot (upstream 20260821T022305Z, epoch 1787278985),
+      not arraybolt's older 20260820
+    - gitlinks kept == upstream (no submodule pointer regression on master)
+
+commit 9c263dd764bf002b2290b0bfd03ea9bc22b25b2f
+Merge: 7e3fe5abd ef1371ffb
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Tue Aug 25 23:17:40 2026 -0400
+
+    Merge upstream github-kicksecure/master
+
+    - advance submodule gitlinks to upstream's own pointers so master tracks
+      Kicksecure master (upstream sees no gitlink delta when it pulls our master)
+    - take upstream's frozen snapshot pin 20260821T022305Z
+
+commit 7e3fe5abda5dff8ae40cef581ad906394ed6131d
+Author: claude (dev352 385b930f-4313-4883-93d5-e6857c3f7ea7) <noreply@anthropic.com>
+Date:   Tue Aug 25 23:06:45 2026 -0400
+
+    align parent with refactored developer-meta-files submodule
+
+    - comparator now exits 1 (not 4) for "differs"; update the reproducible
+      lanes and docs comment to match
+    - 2100: source reprepro-freshness.bsh (renamed) and gate --skip on the
+      already-published check, passing the repository name
+    - 1300: drop the cowbuilder TMPDIR/TMP env unset
+    - 2100: read the Architecture field once into a case, dropping the quiet
+      grep that consumed a pipe (R-161) and 4x redundant pipeline re-runs
+    - restore/add the LC_ALL=C strict-mode directive in the touched scripts
+
+    (cherry picked from commit 622f28e2d6e674f2301e55f2da246aa4f49994fa)
+
 commit 1b41e5ac5d4776bcee025003a0a5c4b73f3ba0c0
 Author: Aaron Rainbolt <arraybolt3@gmail.com>
 Date:   Tue Aug 25 22:51:32 2026 -0400
@@ -118,6 +3293,18 @@ Author: Patrick Schleizer <adrelanos@whonix.org>
 Date:   Mon Aug 24 23:34:11 2026 -0400
 
     .
+
+commit 10fdd03af345c1edb5292fe0b9c5ce14715ea0e7
+Author: assisted-by-ai (Bot Account) (Machine Account) <228987186+assisted-by-ai@users.noreply.github.com>
+Date:   Mon Aug 24 23:31:59 2026 -0400
+
+    ci: drop orphaned consumer-codex-review.yml (reusable decommissioned)
+
+commit 02bdf8b2f538846b2a645ca5ef3b7f8d0e72cc2e
+Author: assisted-by-ai (Bot Account) (Machine Account) <228987186+assisted-by-ai@users.noreply.github.com>
+Date:   Mon Aug 24 23:31:56 2026 -0400
+
+    ci: drop orphaned consumer-claude-code.yml (reusable decommissioned)
 
 commit 590f9f0b48a04d247534afa1e30b4d8491de1c50
 Author: Patrick Schleizer <adrelanos@whonix.org>
