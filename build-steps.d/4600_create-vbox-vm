@@ -107,8 +107,6 @@ main() {
 
    ## '--preserve-env' carries the variables exported above through cowbuilder
    ## into the chroot script's environment; no env file is passed.
-   ##
-   ## '${UNSHARE_PID_NS:-}': private PID namespace, see 'help-steps/pre'.
    ${SUDO_TO_ROOT} \
       --preserve-env \
          ${COWBUILDER_PREFIX:-} \
@@ -127,7 +125,7 @@ main() {
                || { cowbuilder_exit_code="$?" ; true; };
 
    if [ -d "${base_folder}" ]; then
-      ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/umount_kill.sh" -- "${base_folder}"
+      ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/mount-cleanup" -- "${base_folder}"
    fi
 
    if [ ! "${cowbuilder_exit_code:-}" = "0" ]; then
