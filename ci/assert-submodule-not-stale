@@ -66,14 +66,19 @@ check_one_submodule() {
    local remote_refreshed verdict_qualifier ancestor_rc
 
    if [ ! -d "${submodule_path}" ]; then
-      printf '%s\n' "${0##*/}: '${submodule_path}' is not a directory -- run 'git submodule update --init' first." >&2
+      printf '%s\n' "${0##*/}: '${submodule_path}' is not a directory -- you may need to run 'git submodule update --init' first." >&2
       return 2
    fi
 
    ## The gitlink recorded by the SUPERPROJECT is the pin; the submodule's own
    ## checked-out HEAD can differ (a lane may check out a fork branch on top).
-   pinned_sha=""
-   pinned_sha="$(git ls-tree HEAD -- "${submodule_path}" | { read -r _ object_type object_sha _ ; [ "${object_type}" = "commit" ] && printf '%s' "${object_sha}" ; } )" || true
+   pinned_sha="$(git ls-tree HEAD -- "${submodule_path}")"
+   if [ "$(printf '%s' "${pinned_sha}" | cut -d' ' -f2)" = 'commit' ]; then
+      pinned_sha="${pinned_sha#*commit }"
+      pinned_sha="${pinned_sha%%$'\t'*}"
+   else
+      pinned_sha=""
+   fi
    if [ -z "${pinned_sha}" ]; then
       printf '%s\n' "${0##*/}: no gitlink recorded for '${submodule_path}' in HEAD." >&2
       return 2
@@ -126,7 +131,7 @@ check_one_submodule() {
       return 2
    fi
 
-   upstream_sha="$(git -C "${submodule_path}" rev-parse "${upstream_ref}^{commit}")"
+   upstream_sha="$(git -C "${submodule_path}" rev-parse --verify "${upstream_ref}^{commit}")"
 
    verdict_qualifier=""
    if [ "${remote_refreshed}" = "false" ]; then
@@ -153,7 +158,7 @@ check_one_submodule() {
    fi
    if [ "${ancestor_rc}" -eq 0 ]; then
       behind_count="$(git -C "${submodule_path}" rev-list --count "${pinned_sha}..${upstream_sha}")"
-      printf '%s\n' "${0##*/}: ERROR: '${submodule_path}' pin TRAILS ${upstream_ref} by ${behind_count} commit(s)." >&2
+      printf '%s\n' "${0##*/}: ERROR: '${submodule_path}' pin TRAILS ${upstream_ref} by ${behind_count} commit(s)${verdict_qualifier}." >&2
       printf '%s\n' "  pinned:   ${pinned_sha}" >&2
       printf '%s\n' "  upstream: ${upstream_sha} (${upstream_ref})" >&2
       printf '%s\n' "  A lane running a tool out of this submodule executes the PINNED copy, so it will" >&2
@@ -167,8 +172,8 @@ check_one_submodule() {
    return 0
 }
 
-## Every submodule the SUPERPROJECT records, read from .gitmodules rather than
-## listed here, so a submodule added later is covered without an edit.
+## Check every submodule the superproject records, read from .gitmodules rather
+## than listed here, so a submodule added later is covered without an edit.
 check_all_submodules() {
    local report_only="$1"
    local submodule_path submodule_rc
