@@ -10,8 +10,6 @@
 # shellcheck disable=SC2086,SC2004
 ## style-ok: no-safe-rm
 
-## FIXME: Mention of 'lb' that must be changed/removed.
-##
 ## ERR path:
 ##   exception_handler_general | exception_handler_unchroot_unmount | exception_handler_unmount
 ##   -> exception_handler_process_shared -> function_trace -> process_backtrace -> exception_handler_shell -> exception_handler_retry -> exception_handler_maybe_exit
