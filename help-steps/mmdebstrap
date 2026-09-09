@@ -159,7 +159,10 @@ path_variable_remove_help_steps() {
 
    new_path=""
    for path_part in "${path_array[@]}"; do
-      if [[ "${path_part:-}" != *"help-steps"* ]]; then
+      ## Match a path COMPONENT named exactly 'help-steps' (trailing slash
+      ## trimmed), not the '*help-steps*' substring -- the latter would also drop
+      ## an unrelated entry like '/opt/legacy-help-steps-scripts'.
+      if [[ "${path_part%/}" != */help-steps ]]; then
          new_path+="${path_part}:"
       fi
    done
