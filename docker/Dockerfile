@@ -21,23 +21,25 @@ HOME=/home/user
 ARG DM_UID=1000
 ENV DM_UID=${DM_UID}
 
-## Trust store first: the pinned sources below are https, and the slim base image
-## has no ca-certificates (Priority: standard, so not in the base system). Runs
-## against the base image's live sources -- the one unpinned fetch here, explained
-## in the script.
+## Install ca-certificates and ensure the expected files from it are present.
 COPY docker/apt-bootstrap-ca-certificates /usr/bin
 RUN chmod 0755 /usr/bin/apt-bootstrap-ca-certificates \
     && /usr/bin/apt-bootstrap-ca-certificates
 
-## The frozen sources file the build itself pins, fetched directly rather than
-## through approx. Landed outside apt's default locations on purpose: setup passes
-## '-o Dir::Etc::sourcelist' at it and '-o Dir::Etc::sourceparts=-', so this is the
-## only source apt reads and the base image's own sources need no overwriting.
-COPY build_sources/debian_stable_frozen_direct_clearnet.sources /etc/apt/dm-frozen.sources
+## Provide the container a timestamp-pinned sources file. We use apt options to
+## point apt at this file, so it doesn't need to be in sources.list.d.
+COPY build_sources/debian_stable_frozen_direct_clearnet.sources.in /etc/apt/dm-frozen.sources
 
-## COPY preserves the source file mode, and under a hardened umask (027/007) the
-## checked-out file is 0660, which apt cannot read as another user.
+## Fix any umask-induced permission issues.
 RUN chmod 0644 /etc/apt/dm-frozen.sources
+
+## Populate the timestamp in the frozen sources file. Note that
+## apt-populate-frozen-timestamp deletes /etc/apt/frozen-snapshot-timestamp
+## when it's done with it.
+COPY docker/apt-populate-frozen-timestamp /usr/bin
+COPY build_sources/frozen-snapshot-timestamp /etc/apt/frozen-snapshot-timestamp
+RUN chmod 0775 /usr/bin/apt-populate-frozen-timestamp \
+    && /usr/bin/apt-populate-frozen-timestamp
 
 COPY docker/derivative-maker-docker-setup /usr/bin
 COPY docker/build-data/docker-entrypoint.target /etc/systemd/system
@@ -59,11 +61,7 @@ LABEL org.opencontainers.image.vendor="ENCRYPTED SUPPORT LLC"
 COPY docker/entrypoint.sh /usr/bin
 COPY docker/derivative-maker-docker-start /usr/bin
 
-## COPY preserves the source file mode; under a hardened umask (e.g. 027/007)
-## the checked-out scripts are 0770 (no world-exec), so once COPY'd 0770
-## root:root they cannot be executed by the unprivileged 'user' the entrypoint
-## drops to ('sudo -u user'), failing with "Permission denied". Force 0755 so
-## the image is executable regardless of the builder's umask.
+## Fix any umask-induced permission issues.
 RUN chmod 0755 /usr/bin/entrypoint.sh /usr/bin/derivative-maker-docker-start
 
 ENTRYPOINT ["/usr/bin/entrypoint.sh"]

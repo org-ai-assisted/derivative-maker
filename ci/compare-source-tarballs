@@ -4,12 +4,10 @@
 ## See the file COPYING for copying conditions.
 
 ## Compare the two independent reproducibility runners' source tarballs
-## (derivative-maker-source-<version>.xz) byte-for-byte. A source tarball is a
-## pure function of the NORMALIZED source tree -- no host-compiled bytes -- so any
-## difference is a real normalize/tar nondeterminism, not a package-build one.
+## (derivative-maker-source-<version>.xz) byte-for-byte.
 ##
 ## Usage: ci/compare-source-tarballs <dir-a> <dir-b>
-## Exit:  0 reproducible (byte-identical), 1 differ, 2 usage / tarball not found.
+## Exit:  0 reproducible, 1 differ, 2 usage / tarball not found.
 
 set -o errexit
 set -o nounset
@@ -33,8 +31,8 @@ if [ -z "${tarball_a}" ] || [ -z "${tarball_b}" ]; then
    exit 2
 fi
 
-printf 'A %s\n' "$( sha256sum "${tarball_a}" )"
-printf 'B %s\n' "$( sha256sum "${tarball_b}" )"
+printf '%s\n' "A $( sha256sum "${tarball_a}" )"
+printf '%s\n' "B $( sha256sum "${tarball_b}" )"
 
 if cmp --silent "${tarball_a}" "${tarball_b}"; then
    printf '%s\n' "SOURCE TARBALL REPRODUCIBLE: byte-identical across two independent builds."
