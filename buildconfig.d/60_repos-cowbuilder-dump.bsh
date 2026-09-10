@@ -3,11 +3,11 @@
 ## Copyright (C) 2012 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
 
-## Sourced fragment of help-steps/variables, loaded via variables.d/*.bsh.
+## Sourced fragment of help-steps/variables, loaded via buildconfig.d/*.bsh.
 ## apt repository + reprepro variables, cowbuilder folders + pbuilder config, SKIP_SCRIPTS, SUDO_TO_ROOT finalize, variable/function dump hooks.
 ## Strict mode, locale, and the base path variables are owned by the loader
 ## 'help-steps/variables' and inherited here; do not recompute them from
-## BASH_SOURCE (this file lives in variables.d/, not help-steps/).
+## BASH_SOURCE (this file lives in buildconfig.d/, not help-steps/).
 ## style-ok: no-strict
 ## style-ok: no-has
 ## style-ok: no-safe-rm
@@ -382,7 +382,7 @@ fi
 ## (name-sorted, bodies intact), so the consumer can baseline the functions this
 ## script introduces on top of 'pre' -- the piece 'declare -p' cannot see. Used
 ## by the same dm-help-steps-tests net to prove a 'variables' refactoring (the
-## variables.d split) moves functions without altering their bodies.
+## buildconfig.d split) moves functions without altering their bodies.
 if [ -n "${dist_build_dump_funcnames:-}" ]; then
    declare -f
    exit 0

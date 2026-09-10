@@ -3,11 +3,11 @@
 ## Copyright (C) 2012 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
 
-## Sourced fragment of help-steps/variables, loaded via variables.d/*.bsh.
+## Sourced fragment of help-steps/variables, loaded via buildconfig.d/*.bsh.
 ## initramfs + ISO extra packages, VMNAME checks, unsafe-io/eatmydata, approx/apt options, curl, chroot_run, tool + rsync defaults.
 ## Strict mode, locale, and the base path variables are owned by the loader
 ## 'help-steps/variables' and inherited here; do not recompute them from
-## BASH_SOURCE (this file lives in variables.d/, not help-steps/).
+## BASH_SOURCE (this file lives in buildconfig.d/, not help-steps/).
 ## style-ok: no-strict
 ## style-ok: no-has
 ## style-ok: no-safe-rm
