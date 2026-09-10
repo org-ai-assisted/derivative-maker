@@ -216,7 +216,12 @@ ${SUDO_TO_ROOT} rm --force -- "${dist_aptgetopt_file}"
 ## their own array variable 'APTGETOPT' (see pbuilderrc) that gets sourced
 ## inside the cowbuilder chroot scripts (help-steps/pbuilder-chroot-script-*).
 ## Cannot export bash array.
-#DIST_APTGETOPT=()
+## Declare it nounset-safe here: later array-length tests on DIST_APTGETOPT
+## (e.g. the pbuilder APTGETOPT block) run under 'set -o nounset' and abort with
+## "unbound variable" if the array was never created, which happens when no
+## 'aptgetopt_add' ran (relying on buildconfig.d always being sourced first is a
+## non-local invariant). '[ -v ]' does not reset a caller-pre-populated array.
+[ -v DIST_APTGETOPT ] || DIST_APTGETOPT=()
 #export DIST_APTGETOPT
 export DIST_APTGETOPT_SERIALIZED
 
@@ -1969,6 +1974,16 @@ fi
 ## matches the sourced-file convention above: it ends the outer, sourcing shell.
 if [ -n "${dist_build_dump_varnames:-}" ]; then
    declare -p | LC_ALL=C sort
+   exit 0
+fi
+
+## Companion function snapshot. 'declare -f' dumps every function DEFINITION
+## (name-sorted, bodies intact), so the consumer can baseline the functions this
+## script introduces on top of 'pre' -- the piece 'declare -p' cannot see. Used
+## by the same dm-help-steps-tests net to prove a 'variables' refactoring (the
+## variables.d split) moves functions without altering their bodies.
+if [ -n "${dist_build_dump_funcnames:-}" ]; then
+   declare -f
    exit 0
 fi
 
