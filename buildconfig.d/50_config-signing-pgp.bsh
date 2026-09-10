@@ -14,15 +14,40 @@
 ## style-ok: no-tmp-hardcode
 # shellcheck disable=SC2086,SC2004
 
-## {{{ buildconfig.d (shipped in-tree tier)
+## {{{ buildconfig.d
 
-## The user override tiers (/etc, ~/buildconfig.d, --confdir, --conffile) were
-## sourced in 10_core.bsh BEFORE the code defaults, so they can override a
-## default. The SHIPPED in-tree tier (the first list entry) is sourced HERE,
-## after the defaults and per-flavor blocks, because its snippets derive from
-## already-resolved inputs (freshness, arch, flavor). dist_build_config_dirs_list
-## is defined in 10_core.bsh; dist_build_source_config_dir lives in 05_lib.bsh.
-dist_build_source_config_dir "${dist_build_config_dirs_list%% *}"
+[ -n "${dist_build_config_dirs_list:-}" ] || dist_build_config_dirs_list="${source_code_folder_dist}/buildconfig.d /etc/buildconfig-dist.d ${HOMEVAR}/buildconfig.d"
+
+dist_build_source_config_dir() {
+   true "${cyan}INFO: Checking if dist_build_config_dir_item ${dist_build_config_dir_item} exists...${reset}"
+   if [ -d "$1" ]; then
+      true "${cyan}INFO: Parsing $1...${reset}"
+      shopt -s nullglob
+      local i
+      for i in "$1/"*".conf"; do
+         bash -n -- "${i}"
+         source "${i}"
+      done
+   else
+      true "${cyan}INFO: Skipping $1 because it does not exist.${reset}"
+   fi
+}
+
+for dist_build_config_dir_item in ${dist_build_config_dirs_list}; do
+   dist_build_source_config_dir "${dist_build_config_dir_item}"
+done
+unset dist_build_config_dir_item
+
+if [ ! "${dist_build_custom_config_dir:-}" = "" ]; then
+   dist_build_source_config_dir "${dist_build_custom_config_dir}"
+fi
+
+if [ ! "${dist_build_conf_file:-}" = "" ]; then
+   if [ -f "${dist_build_conf_file}" ]; then
+      bash -n -- "${dist_build_conf_file}"
+      source "${dist_build_conf_file}"
+   fi
+fi
 
 ## }}}
 
@@ -64,15 +89,15 @@ export flavor_meta_packages_to_install
 ## Layered the same way as buildconfig.d/*.conf via
 ## dist_build_config_dirs_list; later entries override earlier
 ## ones. Written by signing-key-create, read by sign-and-tag.
-set_default_variable openpgp_policy_filename 'openpgp-policy.toml'
+[ -n "${openpgp_policy_filename:-}" ] || openpgp_policy_filename='openpgp-policy.toml'
 [ -n "${openpgp_cert_filename:-}" ]   || openpgp_cert_filename='openpgp-cert.pem'
 
 ## Shipped in-tree (upstream maintainer keys only, no local cert).
-set_default_variable openpgp_policy_file_project "${source_code_folder_dist}/buildconfig.d/${openpgp_policy_filename}"
+[ -n "${openpgp_policy_file_project:-}" ] || openpgp_policy_file_project="${source_code_folder_dist}/buildconfig.d/${openpgp_policy_filename}"
 
 ## signing-key-create writes to the highest-precedence (last) entry.
 [ -n "${openpgp_policy_dir_user:-}" ]  || openpgp_policy_dir_user="${dist_build_config_dirs_list##* }"
-set_default_variable openpgp_policy_file_user "${openpgp_policy_dir_user}/${openpgp_policy_filename}"
+[ -n "${openpgp_policy_file_user:-}" ] || openpgp_policy_file_user="${openpgp_policy_dir_user}/${openpgp_policy_filename}"
 [ -n "${openpgp_cert_file_user:-}" ]   || openpgp_cert_file_user="${openpgp_policy_dir_user}/${openpgp_cert_filename}"
 
 ## Walk dist_build_config_dirs_list once for both policy and cert.
@@ -149,21 +174,21 @@ export make_use_lintian
 export genmkfile_make_cmd
 export make_use_cowbuilder
 
-set_default_variable signify_folder "${HOMEVAR}/.signify"
-set_default_variable signify_private_key "${signify_folder}/keyname.sec"
-set_default_variable signify_public_key "${signify_folder}/keyname.pub"
+[ -n "${signify_folder:-}" ] || signify_folder="${HOMEVAR}/.signify"
+[ -n "${signify_private_key:-}" ] || signify_private_key="${signify_folder}/keyname.sec"
+[ -n "${signify_public_key:-}" ] || signify_public_key="${signify_folder}/keyname.pub"
 
 ## {{{ fallback variables for 'debchange' ('dch'), 'dpkg-buildpackage' and 'debuild'
 
 ## see: 'man debchange'
-set_default_variable DEBFULLNAME "derivative distribution auto generated local APT signing key"
+[ -n "${DEBFULLNAME:-}" ] || DEBFULLNAME="derivative distribution auto generated local APT signing key"
 export DEBFULLNAME
 
-set_default_variable DEBEMAIL "derivative-distribution@local-signing.key"
+[ -n "${DEBEMAIL:-}" ] || DEBEMAIL="derivative-distribution@local-signing.key"
 export DEBEMAIL
 
-set_default_variable debsign_wrapper "${dist_source_help_steps_folder}/sq-debsign-wrapper"
-set_default_variable sq_git_wrapper "${dist_source_help_steps_folder}/sq-git-wrapper"
+[ -n "${debsign_wrapper:-}" ] || debsign_wrapper="${dist_source_help_steps_folder}/sq-debsign-wrapper"
+[ -n "${sq_git_wrapper:-}" ] || sq_git_wrapper="${dist_source_help_steps_folder}/sq-git-wrapper"
 [ -n "${git_verify_command_wrapper:-}" ] || git_verify_command_wrapper=( git -c "gpg.openpgp.program=${sq_git_wrapper}" )
 
 ## Per-call 'git -c key=value' options that configure sq-git-wrapper
@@ -181,12 +206,12 @@ git_signing_command_wrapper=(
    -c "user.name=${DEBFULLNAME}"
 )
 
-set_default_variable make_debsign_opts "-p ${debsign_wrapper}"
+[ -n "${make_debsign_opts:-}" ] || make_debsign_opts="-p ${debsign_wrapper}"
 export make_debsign_opts
 
 ## For whatever it may be worth.
 ## https://forums.whonix.org/t/end-to-end-signed-debs-debsign-debsig-and-dpkg-sig
-set_default_variable make_use_debsign "true"
+[ -n "${make_use_debsign:-}" ] || make_use_debsign="true"
 export make_use_debsign
 
 ## }}}

@@ -196,30 +196,32 @@ export HELPER_SCRIPTS_PATH
 # shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/strings.bsh
 source "${HELPER_SCRIPTS_PATH}"/usr/libexec/helper-scripts/strings.bsh
 
-## Load the split variable-resolution modules in explicit order. The base path
-## variables above were resolved from THIS file's own location (help-steps/
-## variables); the modules inherit them rather than recomputing from their own
-## BASH_SOURCE (which would point at variables.d/). Sourced by explicit name
-## (not a glob loop) so the load order is visible and no plumbing loop variable
-## leaks into the captured build environment.
+## Load the split variable-resolution modules from the top-level buildconfig.d/
+## (a sibling of help-steps/, = source_code_folder_dist), in explicit order. The
+## base path variables above were resolved from THIS file's own location; the
+## modules inherit them rather than recomputing from their own BASH_SOURCE.
+## Sourced by explicit name (not a glob loop) so the load order is visible and no
+## plumbing loop variable leaks into the captured build environment. (buildconfig.d
+## also holds the *.conf config snippets, sourced separately as the config layer;
+## the loader sources only the *.bsh resolver modules here.)
 ##
 ## 05_lib.bsh (set_default_variable + derive_unified_image_paths) loads first so
 ## the later modules can call those helpers; it is a separate, sourced-only file
 ## (not inlined) so a unit test can source and call the helpers directly.
-# shellcheck source=./variables.d/05_lib.bsh
-source "${dist_source_help_steps_folder}/variables.d/05_lib.bsh"
-# shellcheck source=./variables.d/10_core.bsh
-source "${dist_source_help_steps_folder}/variables.d/10_core.bsh"
-# shellcheck source=./variables.d/20_initramfs-iso-io.bsh
-source "${dist_source_help_steps_folder}/variables.d/20_initramfs-iso-io.bsh"
-# shellcheck source=./variables.d/30_version-paths.bsh
-source "${dist_source_help_steps_folder}/variables.d/30_version-paths.bsh"
-# shellcheck source=./variables.d/40_upload.bsh
-source "${dist_source_help_steps_folder}/variables.d/40_upload.bsh"
-# shellcheck source=./variables.d/50_config-signing-pgp.bsh
-source "${dist_source_help_steps_folder}/variables.d/50_config-signing-pgp.bsh"
-# shellcheck source=./variables.d/60_repos-cowbuilder-dump.bsh
-source "${dist_source_help_steps_folder}/variables.d/60_repos-cowbuilder-dump.bsh"
+# shellcheck source=../buildconfig.d/05_lib.bsh
+source "${source_code_folder_dist}/buildconfig.d/05_lib.bsh"
+# shellcheck source=../buildconfig.d/10_core.bsh
+source "${source_code_folder_dist}/buildconfig.d/10_core.bsh"
+# shellcheck source=../buildconfig.d/20_initramfs-iso-io.bsh
+source "${source_code_folder_dist}/buildconfig.d/20_initramfs-iso-io.bsh"
+# shellcheck source=../buildconfig.d/30_version-paths.bsh
+source "${source_code_folder_dist}/buildconfig.d/30_version-paths.bsh"
+# shellcheck source=../buildconfig.d/40_upload.bsh
+source "${source_code_folder_dist}/buildconfig.d/40_upload.bsh"
+# shellcheck source=../buildconfig.d/50_config-signing-pgp.bsh
+source "${source_code_folder_dist}/buildconfig.d/50_config-signing-pgp.bsh"
+# shellcheck source=../buildconfig.d/60_repos-cowbuilder-dump.bsh
+source "${source_code_folder_dist}/buildconfig.d/60_repos-cowbuilder-dump.bsh"
 
 ## Mark this shell's variable resolution complete so a second 'source
 ## help-steps/variables' in the SAME shell is a no-op (each module early-returns
