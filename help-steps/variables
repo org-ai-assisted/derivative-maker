@@ -35,163 +35,12 @@ if [ "${variables_finalized:-}" = "true" ]; then
    return 0
 fi
 
-## Deterministic umask for the whole build. security-misc sets the same umask
-## for commands run with sudo.
-umask 0022
-
-true "${BASH_SOURCE[0]} INFO: begin"
-
-## Silence xtrace while sourcing parse-cmd and running the parser, to
-## avoid flooding output with irrelevant parser trace lines. Restore
-## the previous xtrace state afterwards.
-xtrace_off
-
-#printf "%s\n" "INFO: Currently running script: ${BASH_SOURCE[0]}"
-
-## {{ Sanity Tests.
-
-dist_build_missing_dependency() {
-   error "dist_build_missing_dependency
-programs_to_check_installed_item: $1
-
-Did you install dependencies as mentioned in build documentation chapter
-Host Preparation
-?"
-   true
-}
-
-variables_script_sanity_test() {
-   local dist_build_programs_to_check_installed_list programs_to_check_installed_item
-   dist_build_programs_to_check_installed_list="logname whoami dirname basename awk grep"
-
-   ## None of the programs below need root, so do not invoke them via sudo.
-   ## Using '$SUDO_TO_ROOT' here would also be wrong because SUDO_TO_ROOT
-   ## is only initialized further down in this file.
-   for programs_to_check_installed_item in ${dist_build_programs_to_check_installed_list} ; do
-      command -v "${programs_to_check_installed_item}" >/dev/null || dist_build_missing_dependency "${programs_to_check_installed_item}"
-   done
-}
-
-variables_script_sanity_test
-
-## }}
-
-path_variable_adjustments() {
-   local path_part path_array local_sbin_found standard_sbin_found old_path new_path
-
-   ## Manual testing.
-   ## CI has the following and lacks any mention of 'sbin' in the PATH variable.
-   #PATH="/usr/local/bin:/usr/bin:/bin:/usr/games"
-
-   old_path="${PATH}"
-   true "INFO: old_path: ${old_path}"
-   ## Example PATH:
-   ## /home/user/derivative-maker/help-steps:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-   ## Example PATH on CI:
-   #PATH="/usr/local/bin:/usr/bin:/bin:/usr/games"
-
-   IFS=':' read -ra path_array <<< "${PATH}"
-
-   new_path="${PATH}"
-   for path_part in "${path_array[@]}"; do
-      if [ "${path_part:-}" = "/usr/local/sbin" ]; then
-         local_sbin_found=yes
-      fi
-      if [ "${path_part:-}" = "/usr/sbin" ]; then
-         standard_sbin_found=yes
-      fi
-   done
-
-   if [ ! "${local_sbin_found:-}" = "yes" ]; then
-      new_path="/usr/local/sbin:${new_path}"
-   fi
-
-   if [ ! "${standard_sbin_found:-}" = "yes" ]; then
-      new_path="${new_path}:/usr/sbin"
-   fi
-
-   export PATH="${new_path}"
-   true "INFO: new_path: ${PATH}"
-}
-
-path_variable_adjustments
-## Example PATH:
-## /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-## Determine the invoking (non-root) user. Order of precedence matters:
-## 1. Honor a caller-provided 'user_name'.
-## 2. '$SUDO_USER' - correct when the script is run via 'sudo'.
-## 3. 'logname' - reads the controlling tty's owner; correct on an
-##    interactive terminal but fails without a tty (e.g. some CI jobs).
-## 4. 'whoami' / '$USER' - only trusted if we're not currently root,
-##    because otherwise they would yield 'root' and 'HOMEVAR=/home/root'
-##    would silently point at a nonexistent home directory.
-[ -n "${user_name:-}" ] || user_name="${SUDO_USER:-}"
-[ -n "${user_name:-}" ] || user_name="$(logname 2>/dev/null)" || true
-if [ -z "${user_name:-}" ] && [ "${EUID}" != "0" ]; then
-   user_name="$(whoami)" || true
-   [ -n "${user_name:-}" ] || user_name="${USER:-}"
-fi
-if [ "${user_name:-}" = "" ]; then
-   error "Variable user_name is empty."
-fi
-export user_name
-
-[ -n "${SUDO_TO_ROOT:-}" ] || SUDO_TO_ROOT="sudo --non-interactive"
-[ -n "${HOMEVAR_VBOX_TEMP:-}" ] || HOMEVAR_VBOX_TEMP="/home/dm-vbox-temp"
-export HOMEVAR_VBOX_TEMP
-
-## Use 'sudo' with '-D $HOMEVAR_VBOX_TEMP' ('--chdir') to avoid 'VBoxManage' error.
-#> VBoxManage: error: Could not create the directory '.' (VERR_ACCESS_DENIED)
-[ -n "${SUDO_TO_VBOX_TEMP:-}" ] || SUDO_TO_VBOX_TEMP="sudo --non-interactive -D ${HOMEVAR_VBOX_TEMP} -u dm-vbox-temp"
-
-[ -n "${HOMEVAR:-}" ] || HOMEVAR="/home/${user_name}"
-export HOMEVAR
-export dist_build_slot="${dist_build_slot:-}"
-if [ -n "${binary_build_folder_dist:-}" ]; then
-   true "INFO: using explicitly set binary_build_folder_dist='${binary_build_folder_dist}'"
-elif [ -n "${dist_build_slot:-}" ]; then
-   binary_build_folder_dist="${HOMEVAR}/derivative-binary/${dist_build_slot}"
-else
-   binary_build_folder_dist="${HOMEVAR}/derivative-binary"
-fi
-export binary_build_folder_dist
-
 MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 [ -n "${source_code_folder_dist:-}" ] || source_code_folder_dist="$(dirname -- "${MYDIR}")"
 export source_code_folder_dist
 
-## '$binary_build_folder_dist' and '$source_code_folder_dist' are bind-mounted
-## into the cowbuilder chroot for the VirtualBox VM steps -- see
-## 'build-steps.d/4600_create-vbox-vm' and 'dm-prepare-release' (in
-## developer-meta-files), which pass them via 'cowbuilder --bindmounts'.
-## pbuilder word-splits BINDMOUNTS on whitespace internally
-## ('for i in $BINDMOUNTS'), so a path containing whitespace silently breaks the
-## bind-mount. Fail early here, with a clear message, instead of late with a
-## cryptic pbuilder error.
-for space_check_var in binary_build_folder_dist source_code_folder_dist ; do
-   case "${!space_check_var}" in
-      *[[:space:]]*)
-         error "${space_check_var} must not contain whitespace (it is bind-mounted into the cowbuilder chroot and pbuilder word-splits BINDMOUNTS): '${!space_check_var}'"
-         ;;
-   esac
-done
-unset space_check_var
-
-[ -n "${dist_parent_folder:-}" ] || dist_parent_folder="$(dirname -- "${source_code_folder_dist}")"
-[ -n "${dist_developer_meta_files_folder:-}" ] || dist_developer_meta_files_folder="${source_code_folder_dist}/packages/kicksecure/developer-meta-files"
-
-[ -n "${dist_source_parentdir:-}" ] || dist_source_parentdir="$(dirname -- "${source_code_folder_dist}")"
-export dist_source_parentdir
-
-[ -n "${dist_source_help_steps_folder:-}" ] || dist_source_help_steps_folder="${source_code_folder_dist}/help-steps"
-export dist_source_help_steps_folder
-
 [ -n "${HELPER_SCRIPTS_PATH:-}" ] || HELPER_SCRIPTS_PATH="${source_code_folder_dist}/packages/kicksecure/helper-scripts"
 export HELPER_SCRIPTS_PATH
-
-[ -n "${str_replace_tool:-}" ] || str_replace_tool="${HELPER_SCRIPTS_PATH}/usr/bin/str_replace"
-[ -n "${str_replace_many_tool:-}" ] || str_replace_many_tool="${HELPER_SCRIPTS_PATH}/usr/bin/str-replace-many"
 
 # shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/strings.bsh
 source "${HELPER_SCRIPTS_PATH}"/usr/libexec/helper-scripts/strings.bsh
@@ -210,6 +59,8 @@ source "${HELPER_SCRIPTS_PATH}"/usr/libexec/helper-scripts/strings.bsh
 ## (not inlined) so a unit test can source and call the helpers directly.
 # shellcheck source=../buildconfig.d/05_lib.bsh
 source "${source_code_folder_dist}/buildconfig.d/05_lib.bsh"
+# shellcheck source=../buildconfig.d/00_preamble.bsh
+source "${source_code_folder_dist}/buildconfig.d/00_preamble.bsh"
 # shellcheck source=../buildconfig.d/10_core.bsh
 source "${source_code_folder_dist}/buildconfig.d/10_core.bsh"
 # shellcheck source=../buildconfig.d/20_initramfs-iso-io.bsh
