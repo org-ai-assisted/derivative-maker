@@ -31,7 +31,8 @@
 ## downstream build-step scripts rely on being in the derivative-maker
 ## source tree. Callers that source 'variables' must be aware of this
 ## side effect and either accept it or save/restore their own CWD.
-cd -- "${source_code_folder_dist}"
+## Fail closed: everything below (and the build steps) assume this cd succeeded.
+cd -- "${source_code_folder_dist}" || exit 1
 
 [ -n "${dist_aptgetopt_file:-}" ] || dist_aptgetopt_file="${binary_build_folder_dist}/30_derivative-maker.conf"
 export dist_aptgetopt_file
@@ -113,6 +114,13 @@ export SOURCE_DATE_EPOCH
 [ -n "${tpo_downloader_debug:-}" ] || tpo_downloader_debug="1"
 export tpo_downloader_debug
 
+## Precedence layering (see 05_lib.bsh): snapshot the environment layer BEFORE
+## parse-cmd (only user-exported values are set yet; the code defaults run
+## later), then the post-parse-cmd state, so buildconfig.d cannot later outrank
+## an env value or a --CLI flag. Captured only on a first, real source (the
+## loader's re-source guard already returned; on a helper that pre-set
+## dist_build_one_parsed the CLI layer is simply empty).
+dm_layer_capture dm_layer_env
 if [ ! "${dist_build_one_parsed:-}" = "true" ]; then
    bash -n -- "${source_code_folder_dist}/help-steps/parse-cmd"
    source "${source_code_folder_dist}/help-steps/parse-cmd"
@@ -120,6 +128,8 @@ if [ ! "${dist_build_one_parsed:-}" = "true" ]; then
    dist_build_one_parsed="true"
    export dist_build_one_parsed
 fi
+dm_layer_capture dm_layer_after_pc
+dm_layer_compute_cli
 
 [ -n "${dist_build_target_arch:-}" ] || dist_build_target_arch="$(dpkg --print-architecture)"
 export dist_build_target_arch
