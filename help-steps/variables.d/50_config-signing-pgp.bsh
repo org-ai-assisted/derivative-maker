@@ -33,6 +33,15 @@ dist_build_source_config_dir() {
    fi
 }
 
+## Precedence layering (see 05_lib.bsh): snapshot before sourcing buildconfig.d /
+## --confdir / --conffile, and after, so an unconditional assignment in a config
+## file cannot outrank an environment value or a --CLI flag. dm_layer_reapply
+## restores env/CLI precedence for exactly the variables config CHANGED (config
+## still beats a code default); dm_layer_cleanup drops the snapshots so they do
+## not leak into a variable dump. Done here, right after config, so the
+## downstream derivations in this file see the corrected values.
+dm_layer_capture dm_layer_preconfig
+
 for dist_build_config_dir_item in ${dist_build_config_dirs_list}; do
    dist_build_source_config_dir "${dist_build_config_dir_item}"
 done
@@ -48,6 +57,10 @@ if [ ! "${dist_build_conf_file:-}" = "" ]; then
       source "${dist_build_conf_file}"
    fi
 fi
+
+dm_layer_capture dm_layer_postconfig
+dm_layer_reapply
+dm_layer_cleanup
 
 ## }}}
 
