@@ -94,8 +94,9 @@ env:
   ## image content -- the same reasoning under which the docker image is already
   ## cached here -- so reusing it cannot change what the two builds are compared on.
   BASE_CACHE: "true"
-  ## Parallel package builds, passed as '--package-jobs N'. 2100 falls back to
-  ## serial with a reason when cowbuilder is not in use, so this needs no guard here.
+  ## Parallel package builds, passed as '--package-jobs N'. 2100 verifies its own
+  ## preconditions (cowbuilder in use, genmkfile 'make_cow_suffix' support) and falls
+  ## back to serial with a reason if either is missing, so this needs no guard here.
   ## 2100 advises capping around nproc-2; ubuntu-24.04 runners have 4 vCPU. Both
   ## copies get the same value, so it cannot skew the a-vs-b comparison -- and
   ## nondeterminism introduced by it is what this lane exists to report.

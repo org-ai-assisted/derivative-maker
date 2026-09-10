@@ -463,6 +463,15 @@ create_derivative_distribution_debian_packages() {
       esac
       if [ ! "${make_use_cowbuilder:-}" = "true" ]; then
          true "${cyan}INFO: --package-jobs=${dist_build_package_jobs} requested, but cowbuilder is not in use; building serially.${reset}"
+      elif ! grep --fixed-strings -- 'make_cow_suffix' \
+         "${source_code_folder_dist}/packages/kicksecure/genmkfile/usr/share/genmkfile/make-helper-one.bsh" \
+         >/dev/null 2>&1; then
+         ## REMINDER: a deliberate RUNTIME precondition (enforced by dm-help-steps
+         ## package_jobs_precondition_test). A genmkfile lacking make_cow_suffix makes
+         ## parallel workers share one cow snapshot and corrupt it, so probe the actual
+         ## genmkfile and fall back to serial -- keep this even though the pinned
+         ## gitlink currently ships the feature.
+         true "${cyan}INFO: --package-jobs=${dist_build_package_jobs} requested, but this genmkfile has no 'make_cow_suffix' support (workers would share one cow snapshot); building serially.${reset}"
       else
          max_jobs="${dist_build_package_jobs}"
          if [ "${max_jobs}" -gt "${total_to_build}" ]; then
