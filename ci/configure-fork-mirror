@@ -47,12 +47,6 @@ case "${whonix_mirror}" in
       ;;
 esac
 
-## Idempotent: this helper runs more than once per job (dist-ai's test
-## config helper and the workflow step both call it), and when both args
-## are the same org the two rewrites share one key. --replace-all with a
-## per-value regex sets each rewrite in place -- appended when absent,
-## left as-is when present -- so a repeat run neither fails on an
-## already-multivalued key nor accumulates duplicate values.
 git config --global --replace-all \
    "url.https://github.com/${kicksecure_mirror}/.insteadOf" \
    "https://github.com/Kicksecure/" \
