@@ -196,17 +196,18 @@ export HELPER_SCRIPTS_PATH
 # shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/strings.bsh
 source "${HELPER_SCRIPTS_PATH}"/usr/libexec/helper-scripts/strings.bsh
 
-## set_default_variable + derive_unified_image_paths, sourced (not inline) so a
-## unit test can source and call them directly.
-# shellcheck source=./variables-lib.bsh
-source "${dist_source_help_steps_folder}/variables-lib.bsh"
-
 ## Load the split variable-resolution modules in explicit order. The base path
 ## variables above were resolved from THIS file's own location (help-steps/
 ## variables); the modules inherit them rather than recomputing from their own
 ## BASH_SOURCE (which would point at variables.d/). Sourced by explicit name
 ## (not a glob loop) so the load order is visible and no plumbing loop variable
 ## leaks into the captured build environment.
+##
+## 05_lib.bsh (set_default_variable + derive_unified_image_paths) loads first so
+## the later modules can call those helpers; it is a separate, sourced-only file
+## (not inlined) so a unit test can source and call the helpers directly.
+# shellcheck source=./variables.d/05_lib.bsh
+source "${dist_source_help_steps_folder}/variables.d/05_lib.bsh"
 # shellcheck source=./variables.d/10_core.bsh
 source "${dist_source_help_steps_folder}/variables.d/10_core.bsh"
 # shellcheck source=./variables.d/20_initramfs-iso-io.bsh
