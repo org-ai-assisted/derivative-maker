@@ -122,6 +122,30 @@ if [ ! "${dist_build_one_parsed:-}" = "true" ]; then
    export dist_build_one_parsed
 fi
 
+## Configuration precedence: built-in defaults < config files < environment <
+## command line. The list's FIRST entry is the SHIPPED in-tree buildconfig.d
+## (sourced late, in 50_config-signing-pgp.bsh, because its snippets derive from
+## already-resolved inputs); the remaining entries are USER override tiers,
+## sourced HERE -- before the code defaults below -- so a user config file can
+## override a built-in default while still yielding to an env value or a --CLI
+## flag (every config file uses the fill-if-empty set_default_variable, so an
+## already-set value from parse-cmd or the environment survives). The OpenPGP
+## policy/cert walk in 50 reads the full list.
+[ -n "${dist_build_config_dirs_list:-}" ] || dist_build_config_dirs_list="${source_code_folder_dist}/buildconfig.d /etc/buildconfig-dist.d ${HOMEVAR}/buildconfig.d"
+for dist_build_config_dir_item in ${dist_build_config_dirs_list#* }; do
+   dist_build_source_config_dir "${dist_build_config_dir_item}"
+done
+unset dist_build_config_dir_item
+if [ ! "${dist_build_custom_config_dir:-}" = "" ]; then
+   dist_build_source_config_dir "${dist_build_custom_config_dir}"
+fi
+if [ ! "${dist_build_conf_file:-}" = "" ]; then
+   if [ -f "${dist_build_conf_file}" ]; then
+      bash -n -- "${dist_build_conf_file}"
+      source "${dist_build_conf_file}"
+   fi
+fi
+
 [ -n "${dist_build_target_arch:-}" ] || dist_build_target_arch="$(dpkg --print-architecture)"
 export dist_build_target_arch
 

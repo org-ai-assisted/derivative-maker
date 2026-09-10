@@ -14,40 +14,15 @@
 ## style-ok: no-tmp-hardcode
 # shellcheck disable=SC2086,SC2004
 
-## {{{ buildconfig.d
+## {{{ buildconfig.d (shipped in-tree tier)
 
-[ -n "${dist_build_config_dirs_list:-}" ] || dist_build_config_dirs_list="${source_code_folder_dist}/buildconfig.d /etc/buildconfig-dist.d ${HOMEVAR}/buildconfig.d"
-
-dist_build_source_config_dir() {
-   true "${cyan}INFO: Checking if dist_build_config_dir_item ${dist_build_config_dir_item} exists...${reset}"
-   if [ -d "$1" ]; then
-      true "${cyan}INFO: Parsing $1...${reset}"
-      shopt -s nullglob
-      local i
-      for i in "$1/"*".conf"; do
-         bash -n -- "${i}"
-         source "${i}"
-      done
-   else
-      true "${cyan}INFO: Skipping $1 because it does not exist.${reset}"
-   fi
-}
-
-for dist_build_config_dir_item in ${dist_build_config_dirs_list}; do
-   dist_build_source_config_dir "${dist_build_config_dir_item}"
-done
-unset dist_build_config_dir_item
-
-if [ ! "${dist_build_custom_config_dir:-}" = "" ]; then
-   dist_build_source_config_dir "${dist_build_custom_config_dir}"
-fi
-
-if [ ! "${dist_build_conf_file:-}" = "" ]; then
-   if [ -f "${dist_build_conf_file}" ]; then
-      bash -n -- "${dist_build_conf_file}"
-      source "${dist_build_conf_file}"
-   fi
-fi
+## The user override tiers (/etc, ~/buildconfig.d, --confdir, --conffile) were
+## sourced in 10_core.bsh BEFORE the code defaults, so they can override a
+## default. The SHIPPED in-tree tier (the first list entry) is sourced HERE,
+## after the defaults and per-flavor blocks, because its snippets derive from
+## already-resolved inputs (freshness, arch, flavor). dist_build_config_dirs_list
+## is defined in 10_core.bsh; dist_build_source_config_dir lives in 05_lib.bsh.
+dist_build_source_config_dir "${dist_build_config_dirs_list%% *}"
 
 ## }}}
 
