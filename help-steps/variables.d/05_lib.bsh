@@ -74,3 +74,104 @@ derive_unified_image_paths() {
       set_default_variable binary_image_qcow2_file_for_unified "${dist_binary_build_folder}/${vm_name_item_to_be_exported}-${dist_build_version}.${target_architecture_pretty_name}.qcow2"
    done
 }
+
+## {{ Configuration-precedence layering.
+##
+## The intended ladder is: code defaults < buildconfig.d/--conffile < environment
+## < command-line. But buildconfig.d is sourced LATE (its derivations read
+## already-resolved inputs), so an unconditional assignment there would otherwise
+## outrank a CLI flag or an env value. These helpers capture the environment and
+## CLI layers, then re-apply them over exactly the variables buildconfig.d
+## CHANGED -- restoring env/CLI precedence without disturbing buildconfig.d's own
+## derivations or the intentional module assignments.
+##
+## Whitelist-free by construction: shell/system variables (PATH, HOME, LC_*, ...)
+## are never re-applied because buildconfig.d does not change them, so they never
+## enter the "changed by config" set. Scalars only -- arrays (DIST_APTGETOPT,
+## ...) are accumulators, not user inputs, and are left to their normal building.
+
+## Snapshot every SCALAR variable's current value into the associative array
+## named by $1 (created global). Arrays and the layer snapshots themselves are
+## skipped.
+dm_layer_capture() {
+   local dm_lc_name dm_lc_line dm_lc_flags dm_lc_dump
+   declare -gA "$1"
+   local -n dm_lc_dst="$1"
+   dm_lc_dst=()
+   ## ONE 'declare -p' (no per-variable subprocess -- that was O(vars) forks and
+   ## far too slow across every build combo). Fed via a here-string, NOT process
+   ## substitution '< <(...)', so the loop runs in THIS shell and the assignments
+   ## persist. Keep only scalar lines ('declare -<flags> name="..."'); skip flags
+   ## carrying 'a'/'A' (arrays), for which the indirect "${!name}" scalar read
+   ## would error. The value is read by indirect expansion, not parsed from the
+   ## (shell-quoted) declare -p text.
+   dm_lc_dump="$(declare -p)"
+   while IFS= read -r dm_lc_line; do
+      [[ "${dm_lc_line}" =~ ^declare\ -([a-zA-Z-]+)\ ([A-Za-z_][A-Za-z0-9_]*)= ]] || continue
+      dm_lc_flags="${BASH_REMATCH[1]}"
+      ## Skip arrays ('a'/'A' -- indirect scalar read errors) and readonly ('r' --
+      ## BASHOPTS/SHELLOPTS/EUID/UID/PPID/... which re-apply cannot assign anyway).
+      case "${dm_lc_flags}" in
+         *a*|*A*|*r*)
+            continue
+            ;;
+      esac
+      dm_lc_name="${BASH_REMATCH[2]}"
+      ## Skip the layer snapshots themselves and bash dynamic/special scalars
+      ## (they change every read; re-applying them is meaningless and unsafe).
+      case "${dm_lc_name}" in
+         dm_layer_*|dm_lc_*|dm_lr_*|dm_cc_*)
+            continue
+            ;;
+         RANDOM|SRANDOM|SECONDS|LINENO|BASHPID|EPOCHSECONDS|EPOCHREALTIME|BASH_COMMAND|BASH_SUBSHELL|_)
+            continue
+            ;;
+      esac
+      dm_lc_dst["${dm_lc_name}"]="${!dm_lc_name:-}"
+   done <<< "${dm_lc_dump}"
+}
+
+## Compute the CLI layer: scalars that parse-cmd changed, i.e. differ between the
+## pre-parse-cmd snapshot (dm_layer_env, also the environment layer) and the
+## post-parse-cmd snapshot (dm_layer_after_pc).
+dm_layer_compute_cli() {
+   local dm_cc_name
+   declare -gA dm_layer_cli
+   dm_layer_cli=()
+   for dm_cc_name in "${!dm_layer_after_pc[@]}"; do
+      if [ ! "${dm_layer_after_pc[${dm_cc_name}]}" = "${dm_layer_env[${dm_cc_name}]:-}" ]; then
+         dm_layer_cli["${dm_cc_name}"]="${dm_layer_after_pc[${dm_cc_name}]}"
+      fi
+   done
+}
+
+## Re-apply env + CLI precedence over buildconfig.d. For each scalar buildconfig.d
+## CHANGED (differs between dm_layer_preconfig and dm_layer_postconfig): restore
+## the CLI value if the user passed one, else the environment value if the user
+## exported one; otherwise leave buildconfig.d's value (it outranks a code
+## default). Only config's own changes are touched.
+dm_layer_reapply() {
+   local dm_lr_name
+   for dm_lr_name in "${!dm_layer_postconfig[@]}"; do
+      if [ "${dm_layer_postconfig[${dm_lr_name}]}" = "${dm_layer_preconfig[${dm_lr_name}]:-}" ]; then
+         continue
+      fi
+      ## Guard the dynamic name before 'printf -v' (a name like 'x[$(cmd)]' would
+      ## execute cmd). Names come from declare -p and are already identifier-only,
+      ## but check explicitly as set_default_variable does.
+      check_variable_name "${dm_lr_name}" || continue
+      if [ -n "${dm_layer_cli[${dm_lr_name}]+set}" ]; then
+         printf -v "${dm_lr_name}" '%s' "${dm_layer_cli[${dm_lr_name}]}"
+      elif [ -n "${dm_layer_env[${dm_lr_name}]+set}" ]; then
+         printf -v "${dm_lr_name}" '%s' "${dm_layer_env[${dm_lr_name}]}"
+      fi
+   done
+}
+
+## Drop the snapshots so they do not leak into the build environment / a variable
+## snapshot dump.
+dm_layer_cleanup() {
+   unset dm_layer_env dm_layer_after_pc dm_layer_cli dm_layer_preconfig dm_layer_postconfig
+}
+
+## }}
