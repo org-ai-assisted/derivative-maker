@@ -24,6 +24,17 @@ shopt -s inherit_errexit
 shopt -s shift_verbose
 export LC_ALL=C
 
+## Same-shell idempotency: a second 'source help-steps/variables' in THIS shell
+## returns immediately, so accumulators (DIST_APTGETOPT, pkg_list, SKIP_SCRIPTS,
+## ...) are not re-appended and side effects do not re-run. 'variables_finalized'
+## is set at the very end (after all modules) and is deliberately NOT exported --
+## it guards a same-shell re-source only; a fresh process (every build step) has
+## it unset and resolves normally. On a '--dump' run the dump hook exits before
+## the end-of-file set, so the flag never lands in a variable snapshot.
+if [ "${variables_finalized:-}" = "true" ]; then
+   return 0
+fi
+
 ## Deterministic umask for the whole build. security-misc sets the same umask
 ## for commands run with sudo.
 umask 0022
@@ -208,3 +219,12 @@ source "${dist_source_help_steps_folder}/variables.d/40_upload.bsh"
 source "${dist_source_help_steps_folder}/variables.d/50_config-signing-pgp.bsh"
 # shellcheck source=./variables.d/60_repos-cowbuilder-dump.bsh
 source "${dist_source_help_steps_folder}/variables.d/60_repos-cowbuilder-dump.bsh"
+
+## Mark this shell's variable resolution complete so a second 'source
+## help-steps/variables' in the SAME shell is a no-op (each module early-returns
+## on this flag) rather than re-appending accumulators. Deliberately NOT
+## exported: it guards a same-shell re-source only; an exported flag would make
+## child processes (build steps, recursive derivative-maker/genmkfile) skip
+## resolution entirely. On a '--dump' run the dump hook in the last module exits
+## before reaching this line, so the flag never appears in a variable snapshot.
+variables_finalized="true"
