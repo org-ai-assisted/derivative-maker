@@ -74,3 +74,22 @@ derive_unified_image_paths() {
       set_default_variable binary_image_qcow2_file_for_unified "${dist_binary_build_folder}/${vm_name_item_to_be_exported}-${dist_build_version}.${target_architecture_pretty_name}.qcow2"
    done
 }
+
+## Source every '*.conf' in directory $1 (nothing if it does not exist). Used
+## for both the user override tiers (sourced early, before the code defaults, so
+## a user config file can override a built-in default) and the shipped in-tree
+## dir (sourced late, since its snippets derive from already-resolved inputs).
+dist_build_source_config_dir() {
+   true "${cyan}INFO: Checking if config dir $1 exists...${reset}"
+   if [ -d "$1" ]; then
+      true "${cyan}INFO: Parsing $1...${reset}"
+      shopt -s nullglob
+      local dist_build_config_conf_item
+      for dist_build_config_conf_item in "$1/"*".conf"; do
+         bash -n -- "${dist_build_config_conf_item}"
+         source "${dist_build_config_conf_item}"
+      done
+   else
+      true "${cyan}INFO: Skipping $1 because it does not exist.${reset}"
+   fi
+}
