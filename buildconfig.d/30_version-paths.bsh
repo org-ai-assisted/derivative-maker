@@ -20,7 +20,7 @@ if [ "${dist_build_on_operating_system_detect_skip:-}" = "1" ]; then
    true "Probably run by prepare-build-machine script. lsb_release may not yet installed. Skipping setting dist_build_on_operating_system."
 else
    ## Let's find out on which host operating system the build script is running.
-   [ -n "${dist_build_on_operating_system:-}" ] || dist_build_on_operating_system="$(lsb_release --short --id)"
+   set_default_variable dist_build_on_operating_system "$(lsb_release --short --id)"
    ## Converting dist_build_on_operating_system to lower case to make later if comparison easier.
    dist_build_on_operating_system="${dist_build_on_operating_system,,}"
    ## Example dist_build_on_operating_system: debian
