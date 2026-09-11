@@ -103,15 +103,10 @@ path_variable_adjustments
 ##    interactive terminal but fails without a tty (e.g. some CI jobs).
 ## 4. 'whoami' / '$USER' - only trusted if we're not currently root,
 ##    because otherwise they would yield 'root' and 'HOMEVAR=/home/root'
-##    would silently point at a nonexistent home directory. EXCEPTION: when
-##    'dist_build_allow_root=true' (the deliberate CI/container root override),
-##    root IS the intended build user, so fall back to whoami/$USER rather than
-##    abort with an empty user_name -- otherwise the root override lets root run
-##    but the resolver dies here, before any variable is set.
+##    would silently point at a nonexistent home directory.
 set_default_variable user_name "${SUDO_USER:-}"
 set_default_variable user_name "$(logname 2>/dev/null)" || true
-if [ -z "${user_name:-}" ] \
-   && { [ "${EUID}" != "0" ] || [ "${dist_build_allow_root:-}" = "true" ]; }; then
+if [ -z "${user_name:-}" ] && [ "${EUID}" != "0" ]; then
    user_name="$(whoami)" || true
    set_default_variable user_name "${USER:-}"
 fi
