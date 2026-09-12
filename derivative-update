@@ -10,6 +10,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -128,8 +129,20 @@ update_repo() {
     fi
   fi
 
-  ## Fetch new code from remote.
-  git fetch --recurse-submodules --jobs=100 || error 'Failed to fetch from remote!'
+  ## Fetch new code from remote -- ONLY when we will actually move to a target
+  ## (a --tag / --ref, possibly newer or not yet present locally). In
+  ## --update-only mode the tree is already on the signed tag, its whole history
+  ## and every submodule were just verified LOCALLY by git_sanity_test above, and
+  ## nothing below checks out or merges anything from the remote (the tag branch
+  ## skips checkout; the submodule update merges the RECORDED pins, all present).
+  ## So a fetch here pulls nothing that is used -- it only couples every build to
+  ## network access and to the checkout's remote transport, which needlessly
+  ## breaks offline / air-gapped / ssh-remote builds. Skip it in --update-only.
+  if [ "${update_only:-}" = "true" ]; then
+    true "INFO: --update-only: skipping remote fetch; the checked-out tree was already verified locally."
+  else
+    git fetch --recurse-submodules --jobs=100 || error 'Failed to fetch from remote!'
+  fi
 
   ## If we were asked to check out the 'latest' tag, find the latest tag.
   if [ "${target_tag}" = 'latest' ]; then
