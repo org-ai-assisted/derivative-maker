@@ -510,6 +510,19 @@ if [ "${dist_build_source_run:-}" = "true" ]; then
    set_default_variable dist_build_min_free_gib 2
 fi
 
+## A '--dry-run true' build ("quick blank build") writes only an EMPTY, sparse
+## raw image (build-steps.d/3200_create-raw-image 'create-empty-raw-image') and
+## SKIPS copying VM images into it (3400_copy-vms-into-raw), so its real disk
+## footprint -- the cowbuilder base, the apt cache and one built .deb -- is a
+## small fraction of a full image build. The per-flavor 20 GiB reservation above
+## is sized for a real multi-target image and needlessly gates a dry-run out of
+## small build hosts (a sandbox qube, a CI runner). Cap it for dry-runs. A real
+## '--tag' / '--ref' build keeps its full requirement. Operator-overridable.
+if [ "${build_dry_run:-}" = "true" ]; then
+   dist_build_min_free_gib="${dist_build_min_free_gib_dry_run:-5}"
+fi
+export dist_build_min_free_gib
+
 ## Some flavor/target combinations do not set 'dist_build_type_long' in the
 ## per-flavor blocks above -- e.g. the 'kicksecure-cli' / 'kicksecure-lxqt'
 ## blocks only set it when 'dist_build_type' is 'vm' or 'host', so a
