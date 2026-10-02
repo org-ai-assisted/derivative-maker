@@ -8,6 +8,9 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -34,7 +37,7 @@ skip_patterns=(
   '*/auto-generated-man-pages/*' # auto generated
   '*/keys/*' # OpenPGP keys
   '*/tpoarchive-keys.d/*' # OpenPGP keys
-  '*/torbrowser-updater-keys.d/*' # OpenPGP keys
+  '*/dist-system-metadata/tb-updater/*' # OpenPGP key
   '*/grml-debootstrap/*' # upstream project
   '*/live-build/*' # upstream project
   '*/get-bitcoin-keys*' # a real name
