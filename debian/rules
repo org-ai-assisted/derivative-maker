@@ -9,4 +9,4 @@
 	dh $@
 
 override_dh_install:
-	sudo -u user ./derivative-maker --freshness current --target virtualbox
+	sudo -u user ./derivative-maker --repo true --freshness current --target virtualbox

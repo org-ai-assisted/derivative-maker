@@ -155,6 +155,10 @@ dist_build_redistributable=true
 export dist_build_redistributable
 
 if [ "${dist_build_redistributable:-}" = "true" ]; then
+  ## The derivative APT repository is ENABLED by default for official/release builds
+  ## -- callers of dm-build-official pass NO '--repo'; the official default lives here.
+  ## Forwarded via build_args (each build step re-parses it), consistent with --tb /
+  ## --freedom below; parse-cmd makes --repo mandatory on a bare ./derivative-maker.
   build_args+=(--repo true)
   build_args+=(--tb closed)
   ## Install package 'firmware-nonfreedom' by default.

@@ -58,9 +58,29 @@ else
    ## Non-redistributable builds use '--tb open' by default.
    default_if_empty anon_shared_inst_tb "open"
 
-   ## Disable derivative repository by default, the user might want to only
-   ## update from source code.
-   default_if_empty build_remote_repo_enable "false"
+   ## No silent default for the derivative repository on the bare path: the choice
+   ## is MANDATORY (enforced below). The user must choose '--repo true' or
+   ## '--repo false' so an image never ships with the repository state left to an
+   ## implicit default.
+fi
+
+## The derivative APT repository setting is MANDATORY: it must be chosen explicitly,
+## via '--repo true|false' (parse-cmd), the 'build_remote_repo_enable' environment
+## variable, or dist_build_redistributable=true's default above
+## (help-steps/dm-build-official-one sets this for release builds). A silent default
+## is withheld on purpose so an unset choice fails loudly instead of risking an image
+## that ships the repository disabled by accident.
+if [ -z "${build_remote_repo_enable:-}" ]; then
+   error "\
+${red}${bold}The derivative APT repository setting is MANDATORY but is not set.
+
+Choose explicitly whether the built image enables the derivative APT repository:
+  - pass '--repo true' or '--repo false' to derivative-maker, or
+  - export 'build_remote_repo_enable=true' (or false) in the environment, or
+  - build via 'help-steps/dm-build-official-one' (release builds enable it by default).
+
+A silent default is withheld on purpose: an unset choice must fail loudly rather than
+risk shipping an image with the repository disabled by accident.${reset}"
 fi
 export build_remote_repo_enable
 ## Export sq_git_trust_root so 'help-steps/git_sanity_test' can read it.
