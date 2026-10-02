@@ -104,6 +104,12 @@ export dist_build_serial_console_enable
 default_if_empty dist_build_smbios_reader "false"
 export dist_build_smbios_reader
 
+## Rebuild only packages whose source changed, reusing unchanged packages from the
+## prior build, by default. '--skip-published-packages false' opts out for an explicit
+## from-scratch rebuild (e.g. a reproducible-build verification).
+default_if_empty dist_build_skip_published_packages "true"
+export dist_build_skip_published_packages
+
 ## 4x3/BIOS grub theme is the build default for the sake of reproducible
 ## builds.
 default_if_empty dist_build_grub_bios_theme "true"
@@ -182,7 +188,7 @@ else
    ## Example dist_build_on_operating_system: debian
    ## Example dist_build_on_operating_system: ubuntu
 fi
-true "dist_build_on_operating_system: $dist_build_on_operating_system"
+true "dist_build_on_operating_system: ${dist_build_on_operating_system}"
 
 ## Working folder for the intermediate VirtualBox '.vdi' created by
 ## 'build-steps.d/*_create-vbox-vm'. We can't keep the vdi file in the chroot

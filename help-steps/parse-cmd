@@ -200,7 +200,7 @@ Advanced Options:
   --sanity-tests [true|false]     : Enable or disable chroot script sanity tests for faster build speed (default: false).
   --only-packages 'p1 p2'         : Rebuild only listed packages into the persistent local repo, reuse the rest from the prior build.
   --skip-packages                 : Skip package building entirely and reuse the whole local package repo from the prior build.
-  --skip-published-packages       : Rebuild only packages that changed since the last build, reuse unchanged packages from the prior build.
+  --skip-published-packages [true|false] : Rebuild only packages that changed since the last build, reusing unchanged packages from the prior build. Default: true. Pass 'false' for a from-scratch rebuild of all packages.
   --package-jobs N                : Build up to N derivative packages concurrently. Default: 1.
   --skip-prepare-build-machine    : Skip build-steps.d/*_prepare-build-machine. Only safe when the build machine was already prepared by an earlier run in the same session.
   --skip-cowbuilder-setup         : Skip build-steps.d/*_cowbuilder-setup. Only safe when the cowbuilder chroot was already created by an earlier run in the same session.
@@ -638,9 +638,26 @@ dist_build_one_parse_cmd() {
                shift
                ;;
            --skip-published-packages)
-               export dist_build_skip_published_packages="true"
-               true "${cyan}INFO: --skip-published-packages: rebuilding only changed packages.${reset}"
-               shift
+               ## Optional value. Default (no flag) is 'true' (variables.d/10_misc.bsh).
+               ## '--skip-published-packages false' opts out for a from-scratch rebuild
+               ## (e.g. a reproducible-build verification); a bare flag or 'true' keeps it on.
+               case "${2:-}" in
+                  false)
+                     export dist_build_skip_published_packages="false"
+                     true "${cyan}INFO: --skip-published-packages false: rebuilding ALL packages from scratch.${reset}"
+                     shift 2
+                     ;;
+                  true)
+                     export dist_build_skip_published_packages="true"
+                     true "${cyan}INFO: --skip-published-packages true: rebuilding only changed packages.${reset}"
+                     shift 2
+                     ;;
+                  *)
+                     export dist_build_skip_published_packages="true"
+                     true "${cyan}INFO: --skip-published-packages: rebuilding only changed packages.${reset}"
+                     shift
+                     ;;
+               esac
                ;;
            --package-jobs)
                export dist_build_package_jobs="${2:-}"
