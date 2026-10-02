@@ -58,15 +58,24 @@ else
    ## Non-redistributable builds use '--tb open' by default.
    default_if_empty anon_shared_inst_tb "open"
 
-   ## No silent default for the derivative repository on the bare path: the choice
-   ## is MANDATORY (enforced below). The user must choose '--repo true' or
-   ## '--repo false' so an image never ships with the repository state left to an
+   ## No silent default for the derivative repository on the bare path: for an image
+   ## build the choice is MANDATORY (enforced below). The user must choose '--repo true'
+   ## or '--repo false' so an image never ships with the repository state left to an
    ## implicit default.
 fi
 
-## The derivative APT repository setting is MANDATORY: it must be chosen explicitly,
-## via '--repo true|false' (parse-cmd), the 'build_remote_repo_enable' environment
-## variable, or dist_build_redistributable=true's default above
+## Source-run / utility help-steps (sign-and-tag, sign-tag-head, signing-key-test,
+## signing-key-create, cleanup-files, git_sanity_test, and '--flavor source') set
+## dist_build_source_run=true and build NO image, so the repository choice is irrelevant
+## to them -- default it off rather than demanding '--repo'. The mandatory check below
+## then applies only to an actual image build.
+if [ "${dist_build_source_run:-}" = "true" ]; then
+   default_if_empty build_remote_repo_enable "false"
+fi
+
+## The derivative APT repository setting is MANDATORY for an image build: it must be chosen
+## explicitly, via '--repo true|false' (parse-cmd), the 'build_remote_repo_enable'
+## environment variable, or dist_build_redistributable=true's default above
 ## (help-steps/dm-build-official-one sets this for release builds). A silent default
 ## is withheld on purpose so an unset choice fails loudly instead of risking an image
 ## that ships the repository disabled by accident.

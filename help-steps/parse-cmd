@@ -163,7 +163,7 @@ Optional Parameters:
   --build-slot [name]      : Build under derivative-binary/<name> so multiple builds can run
                              concurrently. Name chars: [A-Za-z0-9_-]. Default: unset.
   --connection [option]    : Select 'clearnet' for clearnet apt sources or 'onion' for onion apt sources.
-  --repo [true|false]      : Enable or disable derivative remote repository (default: false).
+  --repo [true|false]      : Enable or disable the derivative remote repository. MANDATORY for an image build (no default): choose true or false, or set build_remote_repo_enable in the environment. help-steps/dm-build-official-one passes true for release builds.
 
 Environment Variables:
   - flavor_meta_packages_to_install: Define meta packages to be installed.
@@ -642,20 +642,22 @@ dist_build_one_parse_cmd() {
                ## '--skip-published-packages false' opts out for a from-scratch rebuild
                ## (e.g. a reproducible-build verification); a bare flag or 'true' keeps it on.
                case "${2:-}" in
-                  false)
-                     export dist_build_skip_published_packages="false"
-                     true "${cyan}INFO: --skip-published-packages false: rebuilding ALL packages from scratch.${reset}"
+                  true|false)
+                     export dist_build_skip_published_packages="${2}"
+                     true "${cyan}INFO: --skip-published-packages ${2}.${reset}"
                      shift 2
                      ;;
-                  true)
-                     export dist_build_skip_published_packages="true"
-                     true "${cyan}INFO: --skip-published-packages true: rebuilding only changed packages.${reset}"
-                     shift 2
-                     ;;
-                  *)
+                  ''|--*)
+                     ## No value (bare flag) or the next token is another option: keep it on.
                      export dist_build_skip_published_packages="true"
                      true "${cyan}INFO: --skip-published-packages: rebuilding only changed packages.${reset}"
                      shift
+                     ;;
+                  *)
+                     ## Reject a typo'd value (e.g. 'False', 'no') rather than silently
+                     ## treating the flag as bare and leaking the value to the parser.
+                     printf '%s\n' "${red}${bold}ERROR: supported options for --skip-published-packages are 'true' or 'false'.${reset}"
+                     exit 1
                      ;;
                esac
                ;;
