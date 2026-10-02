@@ -2,3 +2,11 @@
 --proto =https
 --max-time 3600
 --proxy socks5h://localhost:9050
+
+## snapshot.debian.org is load-balanced and rate-limited; over Tor it is flakier
+## still. A transient 404 / 5xx / timeout on one file otherwise aborts the whole
+## cowbuilder create. --retry-all-errors is required because the transient status
+## includes 404, which plain --retry ignores.
+--retry 5
+--retry-all-errors
+--retry-connrefused
