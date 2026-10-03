@@ -424,13 +424,15 @@ check-stray-mounts() {
    ## of how CHROOT_FOLDER happened to be spelled. '-m' tolerates a not-yet-existing path.
    chroot_canon="$(realpath -m -- "${CHROOT_FOLDER}")"
 
-   ## /proc/mounts octal-escapes whitespace and backslash in the mount-point field. Compare field 2
-   ## VERBATIM and require the canonical chroot path to be free of whitespace or a backslash, so an
-   ## escaped mount is never missed (fail-open). Check chroot_canon (post-realpath): a symlink can
-   ## resolve to such a character even when CHROOT_FOLDER itself is clean. Fail CLOSED; a normal build
-   ## never produces such a path (HOMEVAR, the slug and the flavor VMNAME are all plain).
-   if [[ "${chroot_canon}" == *[[:space:]\\]* ]]; then
-      error "${BASH_SOURCE[0]}: the canonical CHROOT_FOLDER must not contain whitespace or a backslash (it is matched verbatim against /proc/mounts, which octal-escapes those). Canonical path: '${chroot_canon}'"
+   ## /proc/mounts octal-escapes space, tab, newline and backslash in the mount-point field. Compare
+   ## field 2 VERBATIM and require the chroot path to be free of exactly those four, so an escaped
+   ## mount is never missed (fail-open). Check BOTH: the raw CHROOT_FOLDER (command substitution
+   ## stripped any trailing newline from chroot_canon) AND the canonical path (a symlink can resolve
+   ## to such a character even when the spelling is clean). Only the kernel-escaped set -- CR/VT/FF
+   ## are not escaped, so a verbatim compare matches them and they must not abort. Fail CLOSED; a
+   ## normal build never produces such a path (HOMEVAR, the slug and the flavor VMNAME are all plain).
+   if [[ "${CHROOT_FOLDER}" == *[$' \t\n\\']* || "${chroot_canon}" == *[$' \t\n\\']* ]]; then
+      error "${BASH_SOURCE[0]}: CHROOT_FOLDER must not contain a space, tab, newline or backslash (it is matched verbatim against /proc/mounts, which octal-escapes those). CHROOT_FOLDER: '${CHROOT_FOLDER}' canonical: '${chroot_canon}'"
    fi
 
    ## Match the FULL lane-specific CHROOT_FOLDER ("${binary_build_folder_dist}/${VMNAME}_image")
