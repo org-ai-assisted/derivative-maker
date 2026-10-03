@@ -212,7 +212,7 @@ Advanced Options:
   --retry-wait [seconds]          : Set wait time between retry attempts.
   --retry-before [script]         : Specify a script to run before retry. [default: none)
   --retry-after [script]          : Specify a script to run after retry. [default: none)
-  --allow-uncommitted [true|false]: Permit builds with uncommitted changes (default: false).
+  --allow-uncommitted [true|false]: Permit builds with uncommitted changes (default: false). Forbidden for AI sessions.
   --allow-untagged [true|false]   : Permit builds from non-tagged sources (default: false).
   --allow-unsigned [true|false]   : Skip git_sanity_test commit-signature verification (default: false).
   --sign-and-tag [true|false]     : DANGEROUS, DO NOT USE. Amend, sign, and tag HEAD and submodules. This may sign code you did not intend to sign! It may break your ability to pull from git! Only useful for AI agents to test signing verification without access to sensitive keys. Humans should either use --allow-unsigned or set up a GPG key properly. (default: false).
@@ -762,6 +762,12 @@ dist_build_one_parse_cmd() {
                if [ "${2:-}" = "false" ]; then
                   true "${cyan}INFO: Would stop if uncommitted changes detected.${reset}"
                elif [ "${2:-}" = "true" ]; then
+                  ## Do not allow AI to build with uncommitted changes. AI should
+                  ## commit (e.g. bump the submodule gitlink) so the tree is
+                  ## clean. Allow humans to opt into this behavior.
+                  if [ "${CLAUDECODE:-}" = "1" ] || [ "${dist_build_forbid_allow_uncommitted:-}" = "true" ]; then
+                     error "${bold}${red}ERROR: building with uncommitted changes (--allow-uncommitted true) is forbidden for AI sessions or under dist_build_forbid_allow_uncommitted=true. AI models should commit their changes (e.g. bump the submodule gitlink) so the working tree is clean.${reset}"
+                  fi
                   true "${cyan}INFO: Would ignore if uncommitted changes detected.${reset}"
                   export dist_build_ignore_uncommitted="true"
                else
