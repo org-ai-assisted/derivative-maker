@@ -419,6 +419,16 @@ check-stray-mounts() {
       return 0
    fi
 
+   ## The kernel OCTAL-ESCAPES space (\040), tab (\011), newline (\012) and backslash (\134) in the
+   ## /proc/mounts mount-point field. Rather than unescape each line, require CHROOT_FOLDER to be
+   ## free of those characters so field 2 can be compared VERBATIM -- a spaced/backslashed chroot
+   ## path would otherwise silently fail to match and a real stray mount would be missed (fail-open).
+   ## Fail CLOSED instead: such a path is never produced by a normal build (HOMEVAR, the slug and the
+   ## flavor VMNAME are all plain), so this only fires on a deliberately exotic binary_build_folder_dist.
+   if [[ "${CHROOT_FOLDER}" == *[[:space:]]* || "${CHROOT_FOLDER}" == *\\* ]]; then
+      error "${BASH_SOURCE[0]}: CHROOT_FOLDER must not contain whitespace or a backslash (it is matched verbatim against /proc/mounts, which octal-escapes those). CHROOT_FOLDER: '${CHROOT_FOLDER}'"
+   fi
+
    ## Canonicalize (resolve symlink components, strip a trailing slash) so the match is
    ## against the kernel-canonical mount-point path recorded in /proc/mounts, regardless
    ## of how CHROOT_FOLDER happened to be spelled. '-m' tolerates a not-yet-existing path.
@@ -428,18 +438,9 @@ check-stray-mounts() {
    ## EXACTLY, or a mount strictly BELOW it -- never a bare substring. A substring grep would
    ## (a) flag a CONCURRENT lane whose basename ("Kicksecure-CLI_image") is identical, aborting
    ## this build, and (b) false-match a sibling whose path merely starts with ours
-   ## ("..._image_extra"). Field 2 of /proc/mounts is the mount point, but the kernel OCTAL-ESCAPES
-   ## space (\040), tab (\011), newline (\012) and backslash (\134) in it. binary_build_folder_dist
-   ## rejects whitespace, but VMNAME (part of CHROOT_FOLDER) does not, and nothing rejects a
-   ## backslash -- so UNESCAPE field 2 before comparing, else a spaced/backslashed chroot path
-   ## silently fails to match and a real stray mount is missed (fail-open). Backslash last: it is
-   ## the escape introducer, so decoding it before the others could corrupt them.
+   ## ("..._image_extra"). Field 2 is the mount point; the reject above guarantees it is escape-free.
    proc_mounts_grep_result=""
    while read -r _ mount_point _; do
-      mount_point="${mount_point//\\040/ }"
-      mount_point="${mount_point//\\011/$'\t'}"
-      mount_point="${mount_point//\\012/$'\n'}"
-      mount_point="${mount_point//\\134/\\}"
       case "${mount_point}" in
          "${chroot_canon}"|"${chroot_canon}"/*)
             proc_mounts_grep_result+="${mount_point}"$'\n'

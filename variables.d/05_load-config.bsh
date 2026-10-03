@@ -21,33 +21,15 @@ if [ ! "${dist_build_one_parsed:-}" = "true" ]; then
    dist_build_one_parsed="true"
 fi
 
-## Source the build config files FIRST (right after parse-cmd), so a config file may set or
-## override dist_build_slot / binary_build_folder_dist BEFORE the per-build root is derived
-## below. All files can be sourced at once here, no need to handle the repo-local config later.
-default_if_empty dist_build_config_dirs_list "${source_code_folder_dist}/buildconfig.d /etc/buildconfig-dist.d ${HOMEVAR}/buildconfig.d"
-for dist_build_config_dir_item in ${dist_build_config_dirs_list}; do
-   dist_build_source_config_dir "${dist_build_config_dir_item}"
-done
-unset dist_build_config_dir_item
-if [ ! "${dist_build_custom_config_dir:-}" = "" ]; then
-   dist_build_source_config_dir "${dist_build_custom_config_dir}"
-fi
-if [ ! "${dist_build_conf_file:-}" = "" ]; then
-   if [ -f "${dist_build_conf_file}" ]; then
-      bash -n -- "${dist_build_conf_file}"
-      source "${dist_build_conf_file}"
-   fi
-fi
-
-## Derive the per-build scratch/output root HERE: AFTER parse-cmd (so --build-slot on the
-## command line, not just a dist_build_slot env var, takes effect) AND AFTER the config files
-## above (so a config that sets dist_build_slot or binary_build_folder_dist is honored, and the
-## dependent dist_aptgetopt_file + the whitespace check see the FINAL value -- not a pre-override
-## one). --build-slot NAME (env: dist_build_slot) scopes the WHOLE per-build tree -- output tree,
-## the _image chroot (10_misc CHROOT_FOLDER), the local apt repo, the tag-verify temp, the
-## cowbuilder base all derive from binary_build_folder_dist -- so one slot isolates them all and
-## builds that share a $HOME (several sessions as one user on a shared host) run concurrently
-## without colliding.
+## Derive the per-build scratch/output root HERE: after parse-cmd (so --build-slot on the command
+## line, not just a dist_build_slot env var, takes effect) but BEFORE the config files below, which
+## may REFERENCE binary_build_folder_dist / dist_aptgetopt_file -- sourcing a config under
+## 'set -o nounset' that reads an unset one would abort the build. (This matches the long-standing
+## position relative to config: these were previously derived in 00_preamble, also before config.)
+## --build-slot NAME (env: dist_build_slot) scopes the WHOLE per-build tree -- output tree, the
+## _image chroot (10_misc CHROOT_FOLDER), the local apt repo, the tag-verify temp, the cowbuilder
+## base all derive from binary_build_folder_dist -- so one slot isolates them all and builds that
+## share a $HOME (several sessions as one user on a shared host) run concurrently without colliding.
 export dist_build_slot="${dist_build_slot:-}"
 if [ -n "${binary_build_folder_dist:-}" ]; then
    true "INFO: using explicitly set binary_build_folder_dist='${binary_build_folder_dist}'"
@@ -68,3 +50,19 @@ unset space_check_var
 
 default_if_empty dist_aptgetopt_file "${binary_build_folder_dist}/30_derivative-maker.conf"
 export dist_aptgetopt_file
+
+## All files can be sourced at once here, no need to handle the repo-local config later.
+default_if_empty dist_build_config_dirs_list "${source_code_folder_dist}/buildconfig.d /etc/buildconfig-dist.d ${HOMEVAR}/buildconfig.d"
+for dist_build_config_dir_item in ${dist_build_config_dirs_list}; do
+   dist_build_source_config_dir "${dist_build_config_dir_item}"
+done
+unset dist_build_config_dir_item
+if [ ! "${dist_build_custom_config_dir:-}" = "" ]; then
+   dist_build_source_config_dir "${dist_build_custom_config_dir}"
+fi
+if [ ! "${dist_build_conf_file:-}" = "" ]; then
+   if [ -f "${dist_build_conf_file}" ]; then
+      bash -n -- "${dist_build_conf_file}"
+      source "${dist_build_conf_file}"
+   fi
+fi

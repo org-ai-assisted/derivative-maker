@@ -109,9 +109,9 @@ default_if_empty HOMEVAR "/home/${user_name}"
 export HOMEVAR
 
 ## NOTE: binary_build_folder_dist (and its dist_aptgetopt_file) are derived in
-## variables.d/05_load-config.bsh, AFTER it runs parse-cmd and sources the config
-## files -- deriving here would miss a --build-slot given on the command line
-## (parse-cmd has not run yet) and a slot/root set by a config file.
+## variables.d/05_load-config.bsh, right after it runs parse-cmd (and before it sources
+## the config files, so a config may reference them) -- deriving here would miss a
+## --build-slot given on the command line, since parse-cmd has not run yet.
 
 default_if_empty dist_parent_folder "$(dirname -- "${source_code_folder_dist}")"
 default_if_empty dist_developer_meta_files_folder "${source_code_folder_dist}/packages/kicksecure/developer-meta-files"
