@@ -286,41 +286,54 @@ check-sufficient-disk() {
 }
 
 check-stray-loop-devices() {
-   true "INFO: Checking for stray loop devices..."
+   true "INFO: Checking for stray loop devices in build lane '${binary_build_folder_dist}'..."
 
-   local losetup_output
-   losetup_output=$(${SUDO_TO_ROOT} losetup --all)
+   local losetup_output losetup_line backing_file stray_output
+   losetup_output="$(${SUDO_TO_ROOT} losetup --all)"
 
-   if [ "${losetup_output:-}" = "" ]; then
-      true "INFO: Output of losetup_output is empty. No stray loop devices, OK."
+   ## Only a loop device backing a file inside THIS build's lane
+   ## (binary_build_folder_dist) is our concern - it indicates a previously
+   ## broken or aborted build of ours. Ignore /var/swapfile and loop devices
+   ## owned by other concurrent build lanes (different --build-slot), which are
+   ## legitimate and not ours to clean up.
+   stray_output=""
+   while IFS= read -r losetup_line; do
+      [ -n "${losetup_line}" ] || continue
+      ## losetup --all line: '/dev/loop0: [64769]:2097454 (/path/to/backing)'.
+      backing_file="${losetup_line##*(}"
+      backing_file="${backing_file%)}"
+      ## A deleted backing file prints as '/path (deleted)'.
+      backing_file="${backing_file% (deleted)}"
+      case "${backing_file}" in
+         "${binary_build_folder_dist}"/*)
+            stray_output+="${losetup_line}
+"
+            ;;
+      esac
+   done <<< "${losetup_output}"
+
+   if [ -z "${stray_output}" ]; then
+      true "INFO: No stray loop devices in this build lane, OK."
       return 0
    fi
 
-   ## TODO: ignore /var/swapfile loop device
-   ## losetup_output:
-   ## /dev/loop0: [64769]:2097454 (/var/swapfile)
+   true "INFO: Stray loop devices detected in this build lane!
 
-   true "INFO: Stray loop devices detected!
+stray_output: '${stray_output}'
 
-losetup_output: '${losetup_output}'
+To reproduce this manually, run:
 
-This has been detected by the following command... To reproduce this manually, run...
+sudo losetup --all ; echo \$?
 
-sudo losetup --all ; echo $?
-
-expected result:
-0
-
-In other words, this build script as currently implemented expects that there are no open loop devices.
-'sudo losetup --all' should not have any output and exit with exit code 0.
-
-If there is a legitimate loop device, this message can be ignored.
+These loop devices back files under this build's lane
+'${binary_build_folder_dist}', so they are most likely leftovers from a
+previously broken or aborted build of ours.
 
 Potential causes:
 - A previously broken or aborted build might result in a stray loop device.
 
 Recommendation:
-- Reboot. Often a reboot is required to get rid of the stray loop device."
+- Tear down the stray loop (kpartx -d, losetup --detach), or reboot."
 
    true
 }

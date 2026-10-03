@@ -20,6 +20,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -246,6 +247,14 @@ if [ "${CI:-}" = "true" ]; then
   docker_run_opts+=( --tty --env 'CI=true' )
 else
   docker_run_opts+=( --interactive --tty )
+fi
+
+## Forward the build slot so a containerized build honors the caller's lane.
+## The binary volume (host ${HOME}/binary_mnt) is shared across concurrent
+## builds; dist_build_slot scopes the per-build subdir inside it, so two builds
+## in different lanes do not collide on the one shared output mount.
+if [ -v dist_build_slot ] && [ -n "${dist_build_slot}" ]; then
+  docker_run_opts+=( --env "dist_build_slot=${dist_build_slot}" )
 fi
 
 sudo \

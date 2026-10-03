@@ -296,10 +296,15 @@ from steering rollback to an attacker-chosen commit).
 
 ## Parallel execution
 
-Not supported. Only one instance of derivative-maker may run at a
-time. The tag verification temp directory
-(`binary_build_folder_dist/verify_tag_temp`) is cleaned and recreated
-on each run; concurrent runs would conflict.
+Supported across distinct build slots. Each build runs under
+`binary_build_folder_dist`, which the `--build-slot NAME` flag (env:
+`dist_build_slot`) scopes to a per-lane subdirectory. The tag
+verification temp directory (`binary_build_folder_dist/verify_tag_temp`)
+therefore lives inside the lane, so concurrent builds in different slots
+do not conflict. Without a slot, builds share one tree (the default,
+single-build case); builds that share a `$HOME` and run at the same time
+must each pass a distinct `--build-slot`. Two builds sharing one slot
+still conflict and must not run at once.
 
 ## CI status
 

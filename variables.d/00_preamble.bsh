@@ -111,6 +111,12 @@ export dist_build_slot="${dist_build_slot:-}"
 if [ -n "${binary_build_folder_dist:-}" ]; then
    true "INFO: using explicitly set binary_build_folder_dist='${binary_build_folder_dist}'"
 elif [ -n "${dist_build_slot:-}" ]; then
+   ## --build-slot NAME (or the dist_build_slot env var) scopes the whole
+   ## per-build scratch tree. Everything per-build (output tree, the _image
+   ## chroot, the local apt repo, the tag-verify temp, the cowbuilder base)
+   ## derives from binary_build_folder_dist, so one slot isolates them all -
+   ## this is what lets builds that share a $HOME (e.g. several sessions as one
+   ## user on a shared build host) run concurrently without colliding.
    binary_build_folder_dist="${HOMEVAR}/derivative-binary/${dist_build_slot}"
 else
    binary_build_folder_dist="${HOMEVAR}/derivative-binary"
