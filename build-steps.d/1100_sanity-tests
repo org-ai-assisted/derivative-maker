@@ -428,11 +428,18 @@ check-stray-mounts() {
    ## EXACTLY, or a mount strictly BELOW it -- never a bare substring. A substring grep would
    ## (a) flag a CONCURRENT lane whose basename ("Kicksecure-CLI_image") is identical, aborting
    ## this build, and (b) false-match a sibling whose path merely starts with ours
-   ## ("..._image_extra"). Field 2 of /proc/mounts is the kernel-canonical mount point; our lane
-   ## paths reject whitespace (variables.d/05_load-config.bsh), so the /proc/mounts \040 escaping
-   ## never touches an entry that could be ours -- compare field 2 verbatim.
+   ## ("..._image_extra"). Field 2 of /proc/mounts is the mount point, but the kernel OCTAL-ESCAPES
+   ## space (\040), tab (\011), newline (\012) and backslash (\134) in it. binary_build_folder_dist
+   ## rejects whitespace, but VMNAME (part of CHROOT_FOLDER) does not, and nothing rejects a
+   ## backslash -- so UNESCAPE field 2 before comparing, else a spaced/backslashed chroot path
+   ## silently fails to match and a real stray mount is missed (fail-open). Backslash last: it is
+   ## the escape introducer, so decoding it before the others could corrupt them.
    proc_mounts_grep_result=""
    while read -r _ mount_point _; do
+      mount_point="${mount_point//\\040/ }"
+      mount_point="${mount_point//\\011/$'\t'}"
+      mount_point="${mount_point//\\012/$'\n'}"
+      mount_point="${mount_point//\\134/\\}"
       case "${mount_point}" in
          "${chroot_canon}"|"${chroot_canon}"/*)
             proc_mounts_grep_result+="${mount_point}"$'\n'
@@ -518,14 +525,19 @@ this stage; skipping dm/loop self-test.${reset}"
 
    ## Check for stale loop-partition device-mapper devices. A global
    ## 'dmsetup ls | grep loopNpM' would also match a CONCURRENT build lane's live
-   ## mapping and fatally abort this build, so a BACKED mapping is flagged only when its
-   ## backing file is inside THIS lane (binary_build_folder_dist). Map loopNpM ->
-   ## /dev/loopN -> its structured BACK-FILE column -> lane prefix. An ORPHANED mapping
-   ## (its /dev/loopN detached / gone, so BACK-FILE is empty) belongs to no lane and can
-   ## never be a concurrent lane's LIVE mapping (a live one keeps a backing file), so it
-   ## is unconditionally stale and flagged regardless of lane.
-   local stale_dm dm_name loop_dev dm_back
+   ## mapping and fatally abort this build, so a BACKED mapping is treated as FATAL only
+   ## when its backing file is inside THIS lane (binary_build_folder_dist). Map loopNpM ->
+   ## /dev/loopN -> its structured BACK-FILE column -> lane prefix.
+   ##
+   ## An ORPHANED mapping (its /dev/loopN detached / gone, so BACK-FILE is empty) cannot be
+   ## attributed to any lane, so it is only WARNED about, never fatal: on a SHARED build host
+   ## a fatal abort here would (a) defeat lane isolation (kill this build over host-wide state
+   ## that is not ours) and (b) over-abort if the losetup query merely FAILED transiently or the
+   ## loop lives in another mount namespace -- in both of which BACK-FILE also reads empty. The
+   ## lane-backed fatal check and mount-test's own per-image self-test below cover the real risk.
+   local stale_dm orphan_dm dm_name loop_dev dm_back
    stale_dm=""
+   orphan_dm=""
    while read -r dm_name _; do
       case "${dm_name}" in
          loop[0-9]*p[0-9]*)
@@ -544,7 +556,7 @@ this stage; skipping dm/loop self-test.${reset}"
       dm_back="${dm_back#"${dm_back%%[![:space:]]*}"}"
       dm_back="${dm_back%"${dm_back##*[![:space:]]}"}"
       if [ -z "${dm_back}" ]; then
-         stale_dm+="${dm_name} (orphaned: no backing loop device)"$'\n'
+         orphan_dm+="${dm_name} (no backing loop device)"$'\n'
          continue
       fi
       case "${dm_back}" in
@@ -553,8 +565,12 @@ this stage; skipping dm/loop self-test.${reset}"
             ;;
       esac
    done < <(${SUDO_TO_ROOT} dmsetup ls 2>/dev/null || true)
+   if [ -n "${orphan_dm}" ]; then
+      true "${bold}${cyan}INFO ${BASH_SOURCE[0]}: orphaned loop-partition mapping(s) with no backing loop device (not this lane; not fatal -- may be another lane's teardown, a transient losetup failure, or a foreign mount namespace):
+${orphan_dm}If a build later fails on device-mapper, tear these down (kpartx -d / dmsetup remove) or reboot.${reset}"
+   fi
    if [ -n "${stale_dm}" ]; then
-      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: stale device-mapper loop partition mapping(s) present (this lane's backed mappings and/or host-wide orphans):
+      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: stale device-mapper loop partition mapping(s) present in this build lane:
 ${stale_dm}
 Recommendation: tear them down (kpartx -d / dmsetup remove), or reboot the build host, then retry.${reset}"
    fi
