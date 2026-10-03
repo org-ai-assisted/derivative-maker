@@ -419,20 +419,22 @@ check-stray-mounts() {
       return 0
    fi
 
-   ## The kernel OCTAL-ESCAPES space (\040), tab (\011), newline (\012) and backslash (\134) in the
-   ## /proc/mounts mount-point field. Rather than unescape each line, require CHROOT_FOLDER to be
-   ## free of those characters so field 2 can be compared VERBATIM -- a spaced/backslashed chroot
-   ## path would otherwise silently fail to match and a real stray mount would be missed (fail-open).
-   ## Fail CLOSED instead: such a path is never produced by a normal build (HOMEVAR, the slug and the
-   ## flavor VMNAME are all plain), so this only fires on a deliberately exotic binary_build_folder_dist.
-   if [[ "${CHROOT_FOLDER}" == *[[:space:]]* || "${CHROOT_FOLDER}" == *\\* ]]; then
-      error "${BASH_SOURCE[0]}: CHROOT_FOLDER must not contain whitespace or a backslash (it is matched verbatim against /proc/mounts, which octal-escapes those). CHROOT_FOLDER: '${CHROOT_FOLDER}'"
-   fi
-
    ## Canonicalize (resolve symlink components, strip a trailing slash) so the match is
    ## against the kernel-canonical mount-point path recorded in /proc/mounts, regardless
    ## of how CHROOT_FOLDER happened to be spelled. '-m' tolerates a not-yet-existing path.
    chroot_canon="$(realpath -m -- "${CHROOT_FOLDER}")"
+
+   ## The kernel OCTAL-ESCAPES space (\040), tab (\011), newline (\012) and backslash (\134) in the
+   ## /proc/mounts mount-point field. Rather than unescape each line, require the CANONICAL chroot
+   ## path (what is compared below) to be free of exactly those, so field 2 can be compared VERBATIM;
+   ## otherwise a stray mount would be missed (fail-open). Check chroot_canon, NOT the raw
+   ## CHROOT_FOLDER: a symlink component can resolve to an escapable char even when the spelling is
+   ## clean. Fail CLOSED -- a normal build never produces such a path (HOMEVAR, the slug and the
+   ## flavor VMNAME are all plain). CR/VT/FF are NOT escaped by the kernel, so they are intentionally
+   ## NOT rejected (a verbatim compare matches them fine); hence [[:blank:]] + newline, not [[:space:]].
+   if [[ "${chroot_canon}" == *[[:blank:]]* || "${chroot_canon}" == *$'\n'* || "${chroot_canon}" == *\\* ]]; then
+      error "${BASH_SOURCE[0]}: the canonical CHROOT_FOLDER must not contain a space, tab, newline or backslash (it is matched verbatim against /proc/mounts, which octal-escapes those). Canonical path: '${chroot_canon}'"
+   fi
 
    ## Match the FULL lane-specific CHROOT_FOLDER ("${binary_build_folder_dist}/${VMNAME}_image")
    ## EXACTLY, or a mount strictly BELOW it -- never a bare substring. A substring grep would
