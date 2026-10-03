@@ -12,9 +12,13 @@
 ## Source-able: a dist-ai unit test sources this file to call the check-* functions
 ## directly (with stubbed SUDO_TO_ROOT / losetup / CHROOT_FOLDER), without running
 ## the build step or inheriting strict-mode. was_executed gates the auto-run; the
-## build-env setup (pre / variables) lives in main(), not at source time.
+## build-env setup (pre / variables, which set HELPER_SCRIPTS_PATH) lives in main(),
+## not at source time -- so this bootstrap source cannot rely on HELPER_SCRIPTS_PATH
+## being set yet. Self-locate the in-tree submodule from this file's own path (as
+## help-steps/pre does), so it resolves whether executed as a build step or sourced
+## by a test, with or without a system-installed helper-scripts.
 # shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/check_runtime.bsh
-source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/check_runtime.bsh
+source "$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )/../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/check_runtime.bsh"
 
 test-wc() {
    if ! printf '%s\n' "" | wc -l >/dev/null ; then
@@ -408,21 +412,36 @@ check-stale-nbd() {
 check-stray-mounts() {
    true "INFO: Checking for mounts..."
 
-   local proc_mounts_grep_result
+   local chroot_canon mount_point proc_mounts_grep_result
 
    if [ "${CHROOT_FOLDER:-}" = "" ]; then
       true "INFO: CHROOT_FOLDER variable is empty (probably --target root). Skip test for stray mounts, OK."
       return 0
    fi
 
-   ## Match the FULL lane-specific CHROOT_FOLDER ("${binary_build_folder_dist}/${VMNAME}_image"),
-   ## NOT just its basename: the basename ("Kicksecure-CLI_image") is identical across build
-   ## slots, so a basename match would flag a CONCURRENT lane's live mount as this build's stray
-   ## mount and fatally abort. The full path is unique per lane.
-   proc_mounts_grep_result=$(${SUDO_TO_ROOT} cat /proc/mounts | grep -F -- "${CHROOT_FOLDER}") || true
+   ## Canonicalize (resolve symlink components, strip a trailing slash) so the match is
+   ## against the kernel-canonical mount-point path recorded in /proc/mounts, regardless
+   ## of how CHROOT_FOLDER happened to be spelled. '-m' tolerates a not-yet-existing path.
+   chroot_canon="$(realpath -m -- "${CHROOT_FOLDER}")"
+
+   ## Match the FULL lane-specific CHROOT_FOLDER ("${binary_build_folder_dist}/${VMNAME}_image")
+   ## EXACTLY, or a mount strictly BELOW it -- never a bare substring. A substring grep would
+   ## (a) flag a CONCURRENT lane whose basename ("Kicksecure-CLI_image") is identical, aborting
+   ## this build, and (b) false-match a sibling whose path merely starts with ours
+   ## ("..._image_extra"). Field 2 of /proc/mounts is the kernel-canonical mount point; our lane
+   ## paths reject whitespace (variables.d/05_load-config.bsh), so the /proc/mounts \040 escaping
+   ## never touches an entry that could be ours -- compare field 2 verbatim.
+   proc_mounts_grep_result=""
+   while read -r _ mount_point _; do
+      case "${mount_point}" in
+         "${chroot_canon}"|"${chroot_canon}"/*)
+            proc_mounts_grep_result+="${mount_point}"$'\n'
+            ;;
+      esac
+   done < <(${SUDO_TO_ROOT} cat /proc/mounts)
 
    if [ "${proc_mounts_grep_result:-}" = "" ]; then
-      true "INFO: Output of proc_mounts_grep_result is empty. No stray mounts, OK."
+      true "INFO: No stray mounts at or below '${chroot_canon}', OK."
       return 0
    fi
 
@@ -430,12 +449,13 @@ check-stray-mounts() {
 
 proc_mounts_grep_result: '${proc_mounts_grep_result}'
 
-This has been detected by the following command... To reproduce this manually, run...
+This has been detected by scanning /proc/mounts for the build chroot. To reproduce
+this manually, run (prints each mount at or below the build chroot)...
 
-sudo cat /proc/mounts | grep '${CHROOT_FOLDER}' ; echo $?
+sudo awk -v p=\"\$(realpath -m '${CHROOT_FOLDER}')\" '\$2==p || index(\$2, p\"/\")==1 {print \$2}' /proc/mounts
 
 expected result:
-1
+(no output)
 
 Potential causes:
 - A previously broken or aborted build might result in a stray mount.
@@ -496,11 +516,14 @@ this stage; skipping dm/loop self-test.${reset}"
       return 0
    fi
 
-   ## Check for stale loop-partition device-mapper devices LEFT BY THIS LANE. A global
+   ## Check for stale loop-partition device-mapper devices. A global
    ## 'dmsetup ls | grep loopNpM' would also match a CONCURRENT build lane's live
-   ## mapping and fatally abort this build; scope it to mappings whose backing loop
-   ## device backs a file inside this lane (binary_build_folder_dist). Map loopNpM ->
-   ## /dev/loopN -> its structured BACK-FILE column -> lane prefix.
+   ## mapping and fatally abort this build, so a BACKED mapping is flagged only when its
+   ## backing file is inside THIS lane (binary_build_folder_dist). Map loopNpM ->
+   ## /dev/loopN -> its structured BACK-FILE column -> lane prefix. An ORPHANED mapping
+   ## (its /dev/loopN detached / gone, so BACK-FILE is empty) belongs to no lane and can
+   ## never be a concurrent lane's LIVE mapping (a live one keeps a backing file), so it
+   ## is unconditionally stale and flagged regardless of lane.
    local stale_dm dm_name loop_dev dm_back
    stale_dm=""
    while read -r dm_name _; do
@@ -516,6 +539,14 @@ this stage; skipping dm/loop self-test.${reset}"
       loop_dev="/dev/${dm_name%p*}"
       dm_back="$(${SUDO_TO_ROOT} losetup --list --output BACK-FILE --noheadings -- "${loop_dev}" 2>/dev/null || true)"
       dm_back="${dm_back% (deleted)}"
+      ## Trim the whitespace losetup pads the column with, so a backing-less device
+      ## (query returned nothing / only blanks) tests as truly empty below.
+      dm_back="${dm_back#"${dm_back%%[![:space:]]*}"}"
+      dm_back="${dm_back%"${dm_back##*[![:space:]]}"}"
+      if [ -z "${dm_back}" ]; then
+         stale_dm+="${dm_name} (orphaned: no backing loop device)"$'\n'
+         continue
+      fi
       case "${dm_back}" in
          "${binary_build_folder_dist%/}"/*)
             stale_dm+="${dm_name} (${dm_back})"$'\n'
@@ -523,7 +554,7 @@ this stage; skipping dm/loop self-test.${reset}"
       esac
    done < <(${SUDO_TO_ROOT} dmsetup ls 2>/dev/null || true)
    if [ -n "${stale_dm}" ]; then
-      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: stale device-mapper loop partition mapping(s) present in this build lane:
+      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: stale device-mapper loop partition mapping(s) present (this lane's backed mappings and/or host-wide orphans):
 ${stale_dm}
 Recommendation: tear them down (kpartx -d / dmsetup remove), or reboot the build host, then retry.${reset}"
    fi

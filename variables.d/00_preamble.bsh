@@ -109,9 +109,9 @@ default_if_empty HOMEVAR "/home/${user_name}"
 export HOMEVAR
 
 ## NOTE: binary_build_folder_dist (and its dist_aptgetopt_file) are derived in
-## variables.d/07_binary-build-folder.bsh, AFTER 05_load-config runs parse-cmd --
-## deriving here would miss a --build-slot given on the command line (parse-cmd has
-## not run yet), laning only a dist_build_slot from the environment.
+## variables.d/05_load-config.bsh, right after it runs parse-cmd -- deriving here
+## would miss a --build-slot given on the command line (parse-cmd has not run yet),
+## laning only a dist_build_slot from the environment.
 
 default_if_empty dist_parent_folder "$(dirname -- "${source_code_folder_dist}")"
 default_if_empty dist_developer_meta_files_folder "${source_code_folder_dist}/packages/kicksecure/developer-meta-files"
@@ -132,7 +132,7 @@ default_if_empty str_replace_many_tool "${HELPER_SCRIPTS_PATH}/usr/bin/str-repla
 [ -n "${architecture_all_list:-}" ] || architecture_all_list=( amd64 arm64 armel armhf hurd-i386 hurd-amd64 kfreebsd-amd64 kfreebsd-i386 mips mipsel powerpc ppc64 ppc64el s390x sparc source )
 
 ## dist_aptgetopt_file depends on binary_build_folder_dist; derived in
-## variables.d/07_binary-build-folder.bsh (after parse-cmd). Its content accumulator
+## variables.d/05_load-config.bsh (after parse-cmd). Its content accumulator
 ## is initialised here so 60_apt-opts.bsh can append to it unconditionally.
 dist_aptgetopt_file_content=""
 
