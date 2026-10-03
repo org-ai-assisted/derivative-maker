@@ -294,6 +294,11 @@ update_repo() {
 
   if [ -n "$(git status --porcelain=v1 2>&1)" ]; then
     if [ "${dist_build_ignore_uncommitted:-}" = "true" ]; then
+      ## Don't let AI bypass the clean-tree requirement via the env var directly
+      ## (parse-cmd's flag gate is sidesteppable); allow humans to opt in.
+      if [ "${CLAUDECODE:-}" = "1" ] || [ "${dist_build_forbid_allow_uncommitted:-}" = "true" ]; then
+        error 'building with uncommitted changes (dist_build_ignore_uncommitted=true) is forbidden for AI sessions or under dist_build_forbid_allow_uncommitted=true. AI models should commit their changes (e.g. bump the submodule gitlink) so the working tree is clean.'
+      fi
       true "${bold}${cyan}${BASH_SOURCE[0]} INFO: Git reports uncommitted changes! But you requested to ignore uncommitted changes, continuing... ${reset}"
     else
       error 'Unexpected uncommitted changes after checkout.'
