@@ -117,7 +117,7 @@ export dist_build_slot="${dist_build_slot:-}"
 ## check_is_alpha_numeric, which also emits what sandbox_session_slug produces).
 ## Empty = no slot (the default single-build case), so only check a non-empty value.
 if [ -n "${dist_build_slot}" ] && ! check_is_alpha_numeric dist_build_slot; then
-   error "dist_build_slot must contain only [A-Za-z0-9_-] (got: '${dist_build_slot}')"
+   error "dist_build_slot must contain only [A-Za-z0-9_-] (got: $(string_quote_safe "${dist_build_slot}"))"
 fi
 if [ -n "${binary_build_folder_dist:-}" ]; then
    true "INFO: using explicitly set binary_build_folder_dist='${binary_build_folder_dist}'"
