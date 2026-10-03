@@ -1,0 +1,40 @@
+#!/bin/bash
+
+## Copyright (C) 2012 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## See the file COPYING for copying conditions.
+
+## The per-build scratch/output root. Derived HERE, after 05_load-config has run
+## parse-cmd, so a --build-slot given on the command line takes effect (00_preamble
+## runs before parse-cmd, so deriving there would only ever see a dist_build_slot
+## from the environment, never the flag).
+##
+## --build-slot NAME (env: dist_build_slot) scopes the WHOLE per-build tree: the
+## output tree, the _image chroot (10_misc CHROOT_FOLDER), the local apt repo, the
+## tag-verify temp, and the cowbuilder base (70_cowbuilder) all derive from
+## binary_build_folder_dist, so one slot isolates them all -- which is what lets
+## builds that share a $HOME (e.g. several sessions as one user on a shared build
+## host) run concurrently without colliding. An explicit binary_build_folder_dist
+## overrides; no slot = the single-build default.
+## style-ok: no-strict -- sourced fragment.
+
+export dist_build_slot="${dist_build_slot:-}"
+if [ -n "${binary_build_folder_dist:-}" ]; then
+   true "INFO: using explicitly set binary_build_folder_dist='${binary_build_folder_dist}'"
+elif [ -n "${dist_build_slot}" ]; then
+   binary_build_folder_dist="${HOMEVAR}/derivative-binary/${dist_build_slot}"
+else
+   binary_build_folder_dist="${HOMEVAR}/derivative-binary"
+fi
+export binary_build_folder_dist
+
+## pbuilder word-splits paths given to it to bind-mount. Check those paths and the
+## variables they derive from for internal spaces.
+for space_check_var in HOMEVAR binary_build_folder_dist source_code_folder_dist ; do
+   if [[ "${!space_check_var}" == *[[:space:]]* ]]; then
+      error "${space_check_var} must not contain whitespace, as pbuilder will word-split it. Variable contents: '${!space_check_var}'"
+   fi
+done
+unset space_check_var
+
+default_if_empty dist_aptgetopt_file "${binary_build_folder_dist}/30_derivative-maker.conf"
+export dist_aptgetopt_file

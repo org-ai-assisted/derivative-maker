@@ -1,36 +1,20 @@
-#!/bin/bash
+#!/bin/bash -e
 
-## Copyright (C) 2012 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## Copyright (C) 2012 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
 
-set -x
-set -o errexit
-set -o nounset
-set -o pipefail
-set -o errtrace
-shopt -s inherit_errexit
-shopt -s shift_verbose
-export LC_ALL=C
+## errexit on the shebang (direct run only; ignored when sourced) so a failed
+## 'source' below aborts before main() sets the full strict block.
 
 ## style-ok: no-safe-rm -- this is the sanity/bootstrap step that installs safe-rm.
 ## style-ok: allow-echo -- the only 'echo' occurrences are inside strings.
 
-true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
-
-MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-cd "${MYDIR}"
-cd ..
-cd help-steps
-
-source pre
-source variables
-
-cd "${MYDIR}"
-cd ..
-
-# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/has.bsh
-source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/has.bsh
+## Source-able: a dist-ai unit test sources this file to call the check-* functions
+## directly (with stubbed SUDO_TO_ROOT / losetup / CHROOT_FOLDER), without running
+## the build step or inheriting strict-mode. was_executed gates the auto-run; the
+## build-env setup (pre / variables) lives in main(), not at source time.
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/check_runtime.bsh
+source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/check_runtime.bsh
 
 test-wc() {
    if ! printf '%s\n' "" | wc -l >/dev/null ; then
@@ -288,35 +272,31 @@ check-sufficient-disk() {
 check-stray-loop-devices() {
    true "INFO: Checking for stray loop devices in build lane '${binary_build_folder_dist}'..."
 
-   local losetup_output losetup_line backing_file stray_output lane_prefix
-   losetup_output="$(${SUDO_TO_ROOT} losetup --all)"
+   local backing_file stray_output lane_prefix
 
    ## Only a loop device backing a file inside THIS build's lane
-   ## (binary_build_folder_dist) is our concern - it indicates a previously
-   ## broken or aborted build of ours. Ignore /var/swapfile and loop devices
-   ## owned by other concurrent build lanes (different --build-slot), which are
-   ## legitimate and not ours to clean up. Best-effort prefix match (this is an
-   ## informational hint, the function never errors): the no-slot default lane is
-   ## the shared derivative-binary root, so a concurrent slotted lane's loop may
-   ## still match it there, and a symlinked HOMEVAR is not canonicalized.
+   ## (binary_build_folder_dist) is our concern - it indicates a previously broken or
+   ## aborted build of ours. Ignore /var/swapfile and loop devices owned by other
+   ## concurrent build lanes (different --build-slot), which are legitimate and not
+   ## ours to clean up. Read the backing file from losetup's STRUCTURED BACK-FILE
+   ## column (one per line), NOT by parsing the '(...)' of 'losetup --all': the column
+   ## is just the path (plus a ' (deleted)' suffix to strip), so a '(deleted)'/'(lost)'
+   ## node or a '(' in the path cannot corrupt it. Best-effort prefix match (this is an
+   ## informational hint, the function never errors): the no-slot default lane is the
+   ## shared derivative-binary root, so a concurrent slotted lane's loop may still match
+   ## it there, and a symlinked HOMEVAR is not canonicalized.
    lane_prefix="${binary_build_folder_dist%/}"
    stray_output=""
-   while IFS= read -r losetup_line; do
-      [ -n "${losetup_line}" ] || continue
-      ## losetup --all line: '/dev/loop0: [64769]:2097454 (/path/to/backing)',
-      ## or '... (/path/to/backing (deleted))' once the image is unlinked (the
-      ## typical aborted-build leftover). Cut through the FIRST '(' (non-greedy),
-      ## else the ' (deleted)' paren is taken as the opener and the path is lost.
-      backing_file="${losetup_line#*(}"
-      backing_file="${backing_file%)}"
+   while IFS= read -r backing_file; do
+      [ -n "${backing_file}" ] || continue
       backing_file="${backing_file% (deleted)}"
       case "${backing_file}" in
          "${lane_prefix}"/*)
-            stray_output+="${losetup_line}
+            stray_output+="${backing_file}
 "
             ;;
       esac
-   done <<< "${losetup_output}"
+   done < <(${SUDO_TO_ROOT} losetup --list --output BACK-FILE --noheadings 2>/dev/null)
 
    if [ -z "${stray_output}" ]; then
       true "INFO: No stray loop devices in this build lane, OK."
@@ -428,16 +408,18 @@ check-stale-nbd() {
 check-stray-mounts() {
    true "INFO: Checking for mounts..."
 
-   local chroot_folder_base_name proc_mounts_grep_result
+   local proc_mounts_grep_result
 
    if [ "${CHROOT_FOLDER:-}" = "" ]; then
       true "INFO: CHROOT_FOLDER variable is empty (probably --target root). Skip test for stray mounts, OK."
       return 0
    fi
 
-   chroot_folder_base_name="$(basename "${CHROOT_FOLDER}")"
-
-   proc_mounts_grep_result=$(${SUDO_TO_ROOT} cat /proc/mounts | grep -i -- "${chroot_folder_base_name}") || true
+   ## Match the FULL lane-specific CHROOT_FOLDER ("${binary_build_folder_dist}/${VMNAME}_image"),
+   ## NOT just its basename: the basename ("Kicksecure-CLI_image") is identical across build
+   ## slots, so a basename match would flag a CONCURRENT lane's live mount as this build's stray
+   ## mount and fatally abort. The full path is unique per lane.
+   proc_mounts_grep_result=$(${SUDO_TO_ROOT} cat /proc/mounts | grep -F -- "${CHROOT_FOLDER}") || true
 
    if [ "${proc_mounts_grep_result:-}" = "" ]; then
       true "INFO: Output of proc_mounts_grep_result is empty. No stray mounts, OK."
@@ -514,13 +496,36 @@ this stage; skipping dm/loop self-test.${reset}"
       return 0
    fi
 
-   ## Check for stale loop partition device-mapper devices.
-   local stale_dm
-   stale_dm="$(${SUDO_TO_ROOT} dmsetup ls 2>/dev/null | grep -E '^loop[0-9]+p[0-9]+' || true)"
+   ## Check for stale loop-partition device-mapper devices LEFT BY THIS LANE. A global
+   ## 'dmsetup ls | grep loopNpM' would also match a CONCURRENT build lane's live
+   ## mapping and fatally abort this build; scope it to mappings whose backing loop
+   ## device backs a file inside this lane (binary_build_folder_dist). Map loopNpM ->
+   ## /dev/loopN -> its structured BACK-FILE column -> lane prefix.
+   local stale_dm dm_name loop_dev dm_back
+   stale_dm=""
+   while read -r dm_name _; do
+      case "${dm_name}" in
+         loop[0-9]*p[0-9]*)
+            ;;
+         *)
+            continue
+            ;;
+      esac
+      ## Strip only the trailing partition suffix (pN): '%p*' (shortest match), NOT '%%p*',
+      ## which would cut at the 'p' in "loop" ("loop5p1" -> "loo").
+      loop_dev="/dev/${dm_name%p*}"
+      dm_back="$(${SUDO_TO_ROOT} losetup --list --output BACK-FILE --noheadings -- "${loop_dev}" 2>/dev/null || true)"
+      dm_back="${dm_back% (deleted)}"
+      case "${dm_back}" in
+         "${binary_build_folder_dist%/}"/*)
+            stale_dm+="${dm_name} (${dm_back})"$'\n'
+            ;;
+      esac
+   done < <(${SUDO_TO_ROOT} dmsetup ls 2>/dev/null || true)
    if [ -n "${stale_dm}" ]; then
-      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: stale device-mapper loop partition mapping(s) present:
+      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: stale device-mapper loop partition mapping(s) present in this build lane:
 ${stale_dm}
-Recommendation: reboot the build host to clear them, then retry.${reset}"
+Recommendation: tear them down (kpartx -d / dmsetup remove), or reboot the build host, then retry.${reset}"
    fi
 
    ## Create a minimal, partitioned test image.
@@ -749,6 +754,29 @@ check_required_packages_installed() {
 }
 
 main() {
+   set -x
+   set -o errexit
+   set -o nounset
+   set -o pipefail
+   set -o errtrace
+   shopt -s inherit_errexit
+   shopt -s shift_verbose
+   export LC_ALL=C
+
+   true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
+
+   local MYDIR
+   MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+   cd "${MYDIR}"
+   cd ..
+   cd help-steps
+   source pre
+   source variables
+   cd "${MYDIR}"
+   cd ..
+   # shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/has.bsh
+   source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/has.bsh
+
    test-wc "$@"
    check-redistributable-builds-requirements "$@"
    check-git-folder "$@"
@@ -796,4 +824,8 @@ main() {
    true
 }
 
-main "$@"
+## Auto-run only when executed as a build step; a unit test sources this file to
+## call the check-* functions directly, so it must NOT run main().
+if was_executed "${BASH_SOURCE[0]}"; then
+   main "$@"
+fi

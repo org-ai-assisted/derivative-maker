@@ -54,6 +54,10 @@ source "${variables_d_dir}/05_load-config.bsh"
 bash -n -- "${variables_d_dir}/06_skip-scripts.bsh"
 source "${variables_d_dir}/06_skip-scripts.bsh"
 
+# shellcheck source=../variables.d/07_binary-build-folder.bsh
+bash -n -- "${variables_d_dir}/07_binary-build-folder.bsh"
+source "${variables_d_dir}/07_binary-build-folder.bsh"
+
 # shellcheck source=../variables.d/10_misc.bsh
 bash -n -- "${variables_d_dir}/10_misc.bsh"
 source "${variables_d_dir}/10_misc.bsh"

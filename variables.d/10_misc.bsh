@@ -192,8 +192,11 @@ true "dist_build_on_operating_system: ${dist_build_on_operating_system}"
 
 ## Working folder for the intermediate VirtualBox '.vdi' created by
 ## 'build-steps.d/*_create-vbox-vm'. We can't keep the vdi file in the chroot
-## as the pbuilder chroot filesystem may be small.
-default_if_empty binary_image_vdi_dir "${HOMEVAR}/derivative-binary_vbox-workdir"
+## as the pbuilder chroot filesystem may be small. Lane it by dist_build_slot:
+## the per-VM subdir is keyed only by VMNAME, so two concurrent slots building the
+## same flavor would otherwise share it and delete_vbox_vm would remove the other
+## build's VDI dir. (dist_build_slot is finalized in 07_binary-build-folder.bsh.)
+default_if_empty binary_image_vdi_dir "${HOMEVAR}/derivative-binary_vbox-workdir${dist_build_slot:+/${dist_build_slot}}"
 ## Variable must not contain spaces to avoid cowbuilder word-splitting it.
 if [[ "${binary_image_vdi_dir}" == *[[:space:]]* ]]; then
    error "binary_image_vdi_dir must not contain whitespace (it is bind-mounted into the cowbuilder chroot and pbuilder word-splits BINDMOUNTS): '${binary_image_vdi_dir}'"
