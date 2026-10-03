@@ -288,24 +288,30 @@ check-sufficient-disk() {
 check-stray-loop-devices() {
    true "INFO: Checking for stray loop devices in build lane '${binary_build_folder_dist}'..."
 
-   local losetup_output losetup_line backing_file stray_output
+   local losetup_output losetup_line backing_file stray_output lane_prefix
    losetup_output="$(${SUDO_TO_ROOT} losetup --all)"
 
    ## Only a loop device backing a file inside THIS build's lane
    ## (binary_build_folder_dist) is our concern - it indicates a previously
    ## broken or aborted build of ours. Ignore /var/swapfile and loop devices
    ## owned by other concurrent build lanes (different --build-slot), which are
-   ## legitimate and not ours to clean up.
+   ## legitimate and not ours to clean up. Best-effort prefix match (this is an
+   ## informational hint, the function never errors): the no-slot default lane is
+   ## the shared derivative-binary root, so a concurrent slotted lane's loop may
+   ## still match it there, and a symlinked HOMEVAR is not canonicalized.
+   lane_prefix="${binary_build_folder_dist%/}"
    stray_output=""
    while IFS= read -r losetup_line; do
       [ -n "${losetup_line}" ] || continue
-      ## losetup --all line: '/dev/loop0: [64769]:2097454 (/path/to/backing)'.
-      backing_file="${losetup_line##*(}"
+      ## losetup --all line: '/dev/loop0: [64769]:2097454 (/path/to/backing)',
+      ## or '... (/path/to/backing (deleted))' once the image is unlinked (the
+      ## typical aborted-build leftover). Cut through the FIRST '(' (non-greedy),
+      ## else the ' (deleted)' paren is taken as the opener and the path is lost.
+      backing_file="${losetup_line#*(}"
       backing_file="${backing_file%)}"
-      ## A deleted backing file prints as '/path (deleted)'.
       backing_file="${backing_file% (deleted)}"
       case "${backing_file}" in
-         "${binary_build_folder_dist}"/*)
+         "${lane_prefix}"/*)
             stray_output+="${losetup_line}
 "
             ;;

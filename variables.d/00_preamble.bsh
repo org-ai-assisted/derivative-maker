@@ -108,6 +108,17 @@ default_if_empty SUDO_TO_VBOX_TEMP "sudo --non-interactive -D ${HOMEVAR_VBOX_TEM
 default_if_empty HOMEVAR "/home/${user_name}"
 export HOMEVAR
 export dist_build_slot="${dist_build_slot:-}"
+## Validate the slot whether it arrived via --build-slot or the dist_build_slot
+## env var: it becomes a PATH SEGMENT of binary_build_folder_dist below, so an
+## unchecked '..' / '/' / newline would escape the lane -- into a mounted host
+## volume inside the docker build (.gnupg, source tree), or make a later clean of
+## the build folder rm the wrong tree. parse-cmd already constrains --build-slot;
+## apply the SAME [A-Za-z0-9_-] charset to the env path too (reusing helper-scripts'
+## check_is_alpha_numeric, which also emits what sandbox_session_slug produces).
+## Empty = no slot (the default single-build case), so only check a non-empty value.
+if [ -n "${dist_build_slot}" ] && ! check_is_alpha_numeric dist_build_slot; then
+   error "dist_build_slot must contain only [A-Za-z0-9_-] (got: '${dist_build_slot}')"
+fi
 if [ -n "${binary_build_folder_dist:-}" ]; then
    true "INFO: using explicitly set binary_build_folder_dist='${binary_build_folder_dist}'"
 elif [ -n "${dist_build_slot:-}" ]; then
