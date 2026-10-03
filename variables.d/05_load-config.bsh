@@ -22,14 +22,12 @@ if [ ! "${dist_build_one_parsed:-}" = "true" ]; then
 fi
 
 ## Derive the per-build scratch/output root HERE: after parse-cmd (so --build-slot on the command
-## line, not just a dist_build_slot env var, takes effect) but BEFORE the config files below, which
-## may REFERENCE binary_build_folder_dist / dist_aptgetopt_file -- sourcing a config under
-## 'set -o nounset' that reads an unset one would abort the build. (This matches the long-standing
-## position relative to config: these were previously derived in 00_preamble, also before config.)
-## DELIBERATE: a config file that OVERRIDES binary_build_folder_dist does NOT re-point the derived
-## dist_aptgetopt_file or re-lane a config-set dist_build_slot -- same as the long-standing behavior;
-## a config redirects the tree via binary_build_folder_dist directly. Keep this simple; do not add a
-## post-config re-derive (it was tried and reverted as needless complexity).
+## line, not just a dist_build_slot env var, takes effect) but BEFORE the config files below, so a
+## config may REFERENCE binary_build_folder_dist / dist_aptgetopt_file -- sourcing a config under
+## 'set -o nounset' that reads an unset one would abort the build.
+## A config that OVERRIDES binary_build_folder_dist redirects the tree directly; it does NOT re-point
+## the derived dist_aptgetopt_file or re-lane a config-set dist_build_slot. Keep this simple -- do not
+## add a post-config re-derive.
 ## --build-slot NAME (env: dist_build_slot) scopes the WHOLE per-build tree -- output tree, the
 ## _image chroot (10_misc CHROOT_FOLDER), the local apt repo, the tag-verify temp, the cowbuilder
 ## base all derive from binary_build_folder_dist -- so one slot isolates them all and builds that
