@@ -5,6 +5,16 @@
 
 ## Build dependencies for derivative-maker.
 
+## style-ok: no-strict -- sourced fragment.
+
+## Minimal early build dependencies: the tools that must already be present
+## before the sanity tests run -- mount-test needs kpartx/parted/qemu-utils/kmod,
+## and 1200's approx_proxy_setup needs approx. Installed by
+## build-steps.d/1050_early-build-setup; build-steps.d/1100_sanity-tests only
+## CHECKS their presence (read-only, errors if missing). Single source so the
+## install list and the presence check cannot drift.
+dist_build_early_dependencies="git time curl approx lsb-release fakeroot fasttrack-archive-keyring safe-rm gpg-sq kmod qemu-utils kpartx parted"
+
 #dist_build_script_build_dependency_debian_backports+=" currently-none "
 
 ## required signing official images

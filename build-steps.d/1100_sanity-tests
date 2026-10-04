@@ -34,10 +34,9 @@ https://github.com/rspamd/rspamd/issues/5137"
 check-redistributable-builds-requirements() {
    local folder_list folder_item
 
-   ## '~/.gnupg' is required as at least an empty folder for the Qubes
-   ## 'split-gpg-2' bug. Auto-create unconditionally; this is independent
-   ## of the redistributable folder check below.
-   mkdir --parents -- "${HOME}/.gnupg"
+   ## '~/.gnupg' (empty folder for the Qubes split-gpg-2 gpg-agent routing) is
+   ## created by help-steps/signing-key-create / signing-key-test, co-located with
+   ## the 'sq' signing calls that actually need it -- not here.
 
    ## Skip the rest for non-redistributable dev builds: '$dist_build_redistributable=false'
    ## means 'help-steps/signing_key' auto-generates keys (see
@@ -189,41 +188,6 @@ modified quote of the dpkg man page:
 
 The user must fix this issue before proceeding. These issue is most likely not caused by derivative-issue. This is most likely a general system configuration issue."
    true
-}
-
-check-hostname() {
-   ## mmdebstrap requires file '/etc/hostname' to exist.
-   if ! test -f /etc/hostname ; then
-      local local_hostname
-      if ! local_hostname="$(hostname)" ; then
-         error "${bold}${red}ERROR ${BASH_SOURCE[0]}: Running command 'hostname' failed. See above.${reset}"
-      fi
-      if [ "${local_hostname:-}" = "" ]; then
-         error "${bold}${red}ERROR ${BASH_SOURCE[0]}: Running command 'hostname' returned empty output. See above.${reset}"
-      fi
-      true "${bold}${cyan}INFO: File /etc/hostname did not exist. Writing ${local_hostname} to /etc/hostname, ok.${reset}"
-      printf '%s\n' "${local_hostname}" | ${SUDO_TO_ROOT} tee -- /etc/hostname >/dev/null
-   fi
-   if ! test -r /etc/hostname ; then
-      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: /etc/hostname unreadable on the build system!${reset}"
-   fi
-   local build_system_hostname
-   if ! build_system_hostname=$(cat -- /etc/hostname) ; then
-      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: /etc/hostname reading failed the build system!${reset}"
-   fi
-   if [ "${build_system_hostname:-}" = "" ]; then
-      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: /etc/hostname file is empty on build system!${reset}"
-   fi
-   true "INFO: /etc/hostname check ok."
-}
-
-check-mailname() {
-   ## Silence noisy pbuilder warning:
-   ## W: No local /etc/mailname to copy, relying on /var/cache/pbuilder/cow.cow_amd64/cow.950654/etc/mailname to be correct
-   if ! test -f /etc/mailname ; then
-      true "INFO: File /etc/mailname did not exist. Creating empty one...."
-      ${SUDO_TO_ROOT} touch /etc/mailname
-   fi
 }
 
 check-source-folder-permissions() {
@@ -759,47 +723,35 @@ ${help_text}"
    true
 }
 
-install_required_packages() {
-   ## XXX: Ideally this would happen in a different script without
-   ##       "sanity-tests" in its name.
-
-   ## Using the build system's already exiting APT sources list.
-   ## As configured by the local system administrator.
-   ##
-   ## Not using the following command line options:
-   #-o Dir::Etc::sourcelist="$dist_build_sources_list_primary" \
-   #-o Dir::Etc::sourceparts="-" \
-   ## Because dist_build_sources_list_primary requires approx.
-
-   ${SUDO_TO_ROOT} \
-      apt-get \
-         "${DIST_APTGETOPT_WITHOUT_APT_CACHE[@]}" \
-         update
+check-required-packages-present() {
+   ## Read-only sanity check: the early build dependencies must already be
+   ## installed. They are installed by 'build-steps.d/1050_early-build-setup'
+   ## (which sorts before this step) from the single-source list
+   ## '$dist_build_early_dependencies' in 'variables.d/60_dependencies.bsh'. This
+   ## step only VERIFIES presence; it never installs -- a missing tool means 1050
+   ## did not run or failed. mount-test below needs kpartx/parted; 1200's
+   ## approx_proxy_setup needs approx.
+   local required_package_item missing_list=""
 
    # shellcheck disable=SC2086
-   ${SUDO_TO_ROOT} \
-      apt-get \
-         "${DIST_APTGETOPT_WITHOUT_APT_CACHE[@]}" \
-         ${apt_unattended_opts} \
-         --no-install-recommends \
-         --yes \
-         install \
-         ${required_packages_list}
-}
-
-check_required_packages_installed() {
-   required_packages_list="git time curl approx lsb-release fakeroot fasttrack-archive-keyring safe-rm gpg-sq kmod qemu-utils kpartx parted"
-   local required_package_item
-
-   # shellcheck disable=SC2086
-   for required_package_item in ${required_packages_list} ; do
+   for required_package_item in ${dist_build_early_dependencies} ; do
       ## 'dpkg-query' does not exit non-zero if package is absent on the system.
-      if [ "$(dpkg-query --show --showformat='${Version}' "${required_package_item}")" = "" ] ; then
-         true "INFO: Required package '${required_package_item}' missing."
-         install_required_packages
-         break
+      if [ "$(dpkg-query --show --showformat='${Version}' "${required_package_item}" 2>/dev/null)" = "" ] ; then
+         missing_list+="${required_package_item} "
       fi
    done
+
+   if [ -n "${missing_list}" ]; then
+      error "\
+Required early build dependencies are missing: ${missing_list}
+
+These are installed by 'build-steps.d/1050_early-build-setup', which runs before
+this step in a full build. Run the full build, or run that step first. Do not
+install them by hand piecemeal -- the single source of truth is
+'\$dist_build_early_dependencies' in 'variables.d/60_dependencies.bsh'."
+   fi
+
+   true "INFO: all early build dependencies present, ok."
 }
 
 main() {
@@ -832,20 +784,17 @@ main() {
    check-operating-system-version "$@"
    check-sudo "$@"
    check-dpkg "$@"
-   check-hostname "$@"
-   check-mailname "$@"
    check-source-folder-permissions "$@"
    check-sufficient-disk "$@"
    check-stray-loop-devices "$@"
    check-umask-in-sync "$@"
    check-stale-nbd "$@"
    check-stray-mounts "$@"
-   ## Install the required packages (check_required_packages_installed installs any
-   ## missing -- incl. kpartx, parted, approx) BEFORE the checks below that USE them:
-   ## mount-test invokes kpartx, and 1200's approx_proxy_setup needs approx. Running
-   ## it AFTER mount-test (as before) failed a fresh machine with "kpartx: command
-   ## not found" before this install ever ran.
-   check_required_packages_installed "$@"
+   ## Verify the early build dependencies are present (installed by
+   ## build-steps.d/1050_early-build-setup, which runs before this step) BEFORE
+   ## the checks below that USE them: mount-test invokes kpartx, and 1200's
+   ## approx_proxy_setup needs approx. Read-only -- never installs.
+   check-required-packages-present "$@"
    mount-test "$@"
    check-build-primitives "$@"
    check-copy-vms-into-raw "$@"

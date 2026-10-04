@@ -222,6 +222,15 @@ if [ -n "${dist_build_multi_target_list+x}" ]; then
 fi
 
 ############################################################
+## Phase 0: early build setup.
+############################################################
+
+## Install the minimal early build dependencies the sanity tests themselves need
+## (mount-test: kpartx/parted) and 1200 needs (approx), BEFORE the per-flavor
+## sanity loop runs. Flavor-independent; invoked once like prepare-build-machine.
+run_cmd ./build-steps.d/*_early-build-setup "${build_args[@]}" --target iso "${multi_target_args[@]}" --flavor source "$@"
+
+############################################################
 ## Phase 1: per-flavor sanity tests.
 ############################################################
 

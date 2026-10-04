@@ -8,6 +8,9 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -24,6 +27,13 @@ source variables
 
 main() {
    true "make_use_debsign: ${make_use_debsign}"
+
+   ## '~/.gnupg' must exist for the 'sq' keystore/signing calls below under Qubes
+   ## split-gpg-2, which route through gpg-agent (gpg-agent requires the folder to
+   ## exist even though no keys live there). Co-located with the operations that
+   ## need it rather than created as a side effect of an unrelated step.
+   ## Idempotent; harmless on non-split-gpg-2 hosts.
+   mkdir --parents -- "${HOME}/.gnupg"
 
    sq-git policy describe --policy-file "${sq_git_policy_file}" >/dev/null
 

@@ -226,6 +226,41 @@ check-git-folder() {
    fi
 }
 
+check-hostname() {
+   ## mmdebstrap requires file '/etc/hostname' to exist.
+   if ! test -f /etc/hostname ; then
+      local local_hostname
+      if ! local_hostname="$(hostname)" ; then
+         error "${bold}${red}ERROR ${BASH_SOURCE[0]}: Running command 'hostname' failed. See above.${reset}"
+      fi
+      if [ "${local_hostname:-}" = "" ]; then
+         error "${bold}${red}ERROR ${BASH_SOURCE[0]}: Running command 'hostname' returned empty output. See above.${reset}"
+      fi
+      true "${bold}${cyan}INFO: File /etc/hostname did not exist. Writing ${local_hostname} to /etc/hostname, ok.${reset}"
+      printf '%s\n' "${local_hostname}" | ${SUDO_TO_ROOT} tee -- /etc/hostname >/dev/null
+   fi
+   if ! test -r /etc/hostname ; then
+      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: /etc/hostname unreadable on the build system!${reset}"
+   fi
+   local build_system_hostname
+   if ! build_system_hostname=$(cat -- /etc/hostname) ; then
+      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: /etc/hostname reading failed the build system!${reset}"
+   fi
+   if [ "${build_system_hostname:-}" = "" ]; then
+      error "${bold}${red}ERROR ${BASH_SOURCE[0]}: /etc/hostname file is empty on build system!${reset}"
+   fi
+   true "INFO: /etc/hostname check ok."
+}
+
+check-mailname() {
+   ## Silence noisy pbuilder warning:
+   ## W: No local /etc/mailname to copy, relying on /var/cache/pbuilder/cow.cow_amd64/cow.950654/etc/mailname to be correct
+   if ! test -f /etc/mailname ; then
+      true "INFO: File /etc/mailname did not exist. Creating empty one...."
+      ${SUDO_TO_ROOT} touch /etc/mailname
+   fi
+}
+
 approx_proxy_setup() {
    if [ ! "${APPROX_PROXY_ENABLE:-}" = "yes" ]; then
       return 0
@@ -504,6 +539,11 @@ main() {
    approx_proxy_setup "$@"
    repo_proxy_test "$@"
    build_machine_setup "$@"
+   ## Ensure /etc/hostname and /etc/mailname exist (mmdebstrap/pbuilder need
+   ## them later at cowbuilder/create-raw-image). Machine prep, grouped here with
+   ## the other host setup (not a side effect of the sanity-test step).
+   check-hostname "$@"
+   check-mailname "$@"
    normalize-symlinks "$@"
    check-unicode "$@"
    check-git-folder "$@"

@@ -1,0 +1,83 @@
+#!/bin/bash -e
+
+## Copyright (C) 2012 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## See the file COPYING for copying conditions.
+
+## errexit on the shebang (direct run only; ignored when sourced) so a failed
+## 'source' below aborts before main() sets the full strict block.
+
+## Stage one of preparing the build machine: the minimal setup that must exist
+## BEFORE the sanity tests (build-steps.d/1100_sanity-tests) can run. Sorts
+## before 1100 so the top-level dispatcher runs it first. The full build-machine
+## preparation lives in build-steps.d/1200_prepare-build-machine, which runs
+## AFTER sanity passes. For now the only job here is installing the early build
+## dependencies the sanity tests themselves need (mount-test: kpartx/parted) and
+## 1200 needs (approx); the step name is an umbrella for later pre-sanity setup.
+
+## style-ok: allow-echo -- the only 'echo' occurrences are inside strings.
+
+## Source-able: a dist-ai unit test sources this file to assert the functions
+## exist without running the build step. was_executed gates the auto-run; the
+## build-env setup (pre / variables) lives in main(), not at source time. Self-
+## locate the in-tree submodule from this file's own path (as help-steps/pre
+## does), so it resolves whether executed as a build step or sourced by a test.
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/check_runtime.bsh
+source "$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )/../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/check_runtime.bsh"
+
+install_required_packages() {
+   ## Using the build system's already existing APT sources list.
+   ## As configured by the local system administrator.
+   ##
+   ## Not using the following command line options:
+   #-o Dir::Etc::sourcelist="$dist_build_sources_list_primary" \
+   #-o Dir::Etc::sourceparts="-" \
+   ## Because dist_build_sources_list_primary requires approx.
+
+   ${SUDO_TO_ROOT} \
+      apt-get \
+         "${DIST_APTGETOPT_WITHOUT_APT_CACHE[@]}" \
+         update
+
+   # shellcheck disable=SC2086
+   ${SUDO_TO_ROOT} \
+      apt-get \
+         "${DIST_APTGETOPT_WITHOUT_APT_CACHE[@]}" \
+         ${apt_unattended_opts} \
+         --no-install-recommends \
+         --yes \
+         install \
+         ${dist_build_early_dependencies}
+}
+
+main() {
+   set -x
+   set -o errexit
+   set -o nounset
+   set -o pipefail
+   set -o errtrace
+   shopt -s inherit_errexit
+   shopt -s shift_verbose
+   export LC_ALL=C
+
+   true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
+
+   local MYDIR
+   MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+   cd "${MYDIR}"
+   cd ..
+   cd help-steps
+   source pre
+   source variables
+   cd "${MYDIR}"
+   cd ..
+
+   install_required_packages "$@"
+
+   true
+}
+
+## Auto-run only when executed as a build step; a unit test sources this file to
+## assert the functions exist, so it must NOT run main().
+if was_executed "${BASH_SOURCE[0]}"; then
+   main "$@"
+fi

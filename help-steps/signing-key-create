@@ -8,6 +8,9 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -22,6 +25,9 @@ dist_build_source_run="true"
 source pre
 source variables
 
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/has.bsh
+source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/has.bsh
+
 main() {
    sanity_tests "$@"
    gpg_key_create "$@"
@@ -32,17 +38,25 @@ main() {
 }
 
 sanity_tests() {
-   command -v sq >/dev/null
-   command -v sq-git >/dev/null
-   command -v sqop >/dev/null
-   command -v signify-openbsd >/dev/null
-   command -v sponge >/dev/null
+   has sq
+   has sq-git
+   has sqop
+   has signify-openbsd
+   has sponge
 }
 
 gpg_key_create() {
    true "DEBEMAIL: ${DEBEMAIL}"
    ## Debugging.
    pwd
+
+   ## '~/.gnupg' must exist for the 'sq' keystore/signing calls below under Qubes
+   ## split-gpg-2, which route through gpg-agent (gpg-agent requires the folder to
+   ## exist even though no keys live there). Co-located with the operations that
+   ## need it rather than created as a side effect of an unrelated step.
+   ## Idempotent; harmless on non-split-gpg-2 hosts. Mirrors signify_key_create
+   ## creating its own ~/.signify folder.
+   mkdir --parents -- "${HOME}/.gnupg"
 
    if sq cert list --cert-email "${DEBEMAIL}" &>/dev/null ; then
       true "INFO: OpenPGP key with uid DEBEMAIL ${DEBEMAIL} already exists. Skipping OpenPGP key creation, ok."

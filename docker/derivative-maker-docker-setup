@@ -13,6 +13,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 ## TODO: root check or use sudo
 
@@ -31,10 +32,10 @@ dm_apt_options=(
 apt-get "${dm_apt_options[@]}" update
 
 ## TODO: remove
-## 'build-steps.d/1100_sanity-tests' function 'check_required_packages_installed' already installs
-## '$required_packages_list' which contains packages such as 'approx'. Any missing packages should
-## be installed using 'build-steps.d/1100_sanity-tests' not using docker.
-## This is difficult, because 'build-steps.d/1100_sanity-tests' assumes some
+## 'build-steps.d/1050_early-build-setup' function 'install_required_packages' already installs
+## '$dist_build_early_dependencies' which contains packages such as 'approx'. Any missing packages
+## should be installed using 'build-steps.d/1050_early-build-setup' not using docker.
+## This is difficult, because 'build-steps.d/1050_early-build-setup' assumes some
 ## dependencies like 'sudo' are already installed. 'ca-certificates' may also
 ## be required before packages can be installed in some configurations.
 ## TODO: Debian forky: gpg-from-sq gpgv-from-sq
