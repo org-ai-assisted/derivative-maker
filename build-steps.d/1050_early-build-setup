@@ -92,6 +92,13 @@ main() {
    # shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/package_installed_check.sh
    source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/package_installed_check.sh
 
+   ## Deliberate: the install runs before 1100's read-only machine gates
+   ## (check-sudo / check-dpkg / check-operating-system-version). mount-test in
+   ## 1100 needs these tools, so they must exist before 1100 runs. The cost is
+   ## that on a genuinely fresh host a broken-dpkg / unsupported-OS failure
+   ## surfaces as an apt error here rather than 1100's tailored message; the
+   ## pkg_installed skip means apt runs ONLY when a dep is actually missing, so a
+   ## prepared host hits 1100's gates first with no apt side effect.
    install_required_packages "$@"
 
    true
