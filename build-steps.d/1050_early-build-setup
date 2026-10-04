@@ -25,6 +25,25 @@
 source "$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )/../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/check_runtime.bsh"
 
 install_required_packages() {
+   local required_package_item all_present="true"
+
+   ## Skip the apt-get round-trip when every early dependency is already
+   ## installed: a prepared build machine then costs no apt-get update (no
+   ## network, no apt lock). 'pkg_installed' (helper-scripts) is the single
+   ## blessed installed-check; do not hand-roll dpkg-query here.
+   # shellcheck disable=SC2086
+   for required_package_item in ${dist_build_early_dependencies} ; do
+      if ! pkg_installed "${required_package_item}" ; then
+         true "INFO: early dependency '${required_package_item}' missing; installing the full early set."
+         all_present="false"
+         break
+      fi
+   done
+   if [ "${all_present}" = "true" ]; then
+      true "INFO: all early build dependencies already installed; skipping apt-get update + install."
+      return 0
+   fi
+
    ## Using the build system's already existing APT sources list.
    ## As configured by the local system administrator.
    ##
@@ -70,6 +89,8 @@ main() {
    source variables
    cd "${MYDIR}"
    cd ..
+   # shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/package_installed_check.sh
+   source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/package_installed_check.sh
 
    install_required_packages "$@"
 

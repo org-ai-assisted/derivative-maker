@@ -733,10 +733,11 @@ check-required-packages-present() {
    ## approx_proxy_setup needs approx.
    local required_package_item missing_list=""
 
+   ## 'pkg_installed' (helper-scripts) is the single blessed installed-check;
+   ## do not hand-roll dpkg-query here.
    # shellcheck disable=SC2086
    for required_package_item in ${dist_build_early_dependencies} ; do
-      ## 'dpkg-query' does not exit non-zero if package is absent on the system.
-      if [ "$(dpkg-query --show --showformat='${Version}' "${required_package_item}" 2>/dev/null)" = "" ] ; then
+      if ! pkg_installed "${required_package_item}" ; then
          missing_list+="${required_package_item} "
       fi
    done
@@ -777,6 +778,8 @@ main() {
    cd ..
    # shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/has.bsh
    source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/has.bsh
+   # shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/package_installed_check.sh
+   source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/package_installed_check.sh
 
    test-wc "$@"
    check-redistributable-builds-requirements "$@"
