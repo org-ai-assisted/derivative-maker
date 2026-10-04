@@ -20,7 +20,10 @@ export LC_ALL=C
 
 HELPER_SCRIPTS_PATH="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )/../packages/kicksecure/helper-scripts"
 export HELPER_SCRIPTS_PATH
-source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/check_runtime.bsh"
+if ! source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/check_runtime.bsh" ; then
+  printf '%s\n' "$0: ERROR: cannot source check_runtime.bsh!" >&2
+  exit 1
+fi
 
 if was_executed "${BASH_SOURCE[0]}"; then
    parse_cmd_was_sourced='false'
