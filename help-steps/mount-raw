@@ -15,7 +15,8 @@ shopt -s shift_verbose
 
 HELPER_SCRIPTS_PATH="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )/../packages/kicksecure/helper-scripts"
 export HELPER_SCRIPTS_PATH
-if ! source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/check_runtime.bsh" ; then
+source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/check_runtime.bsh" || true
+if ! declare -F was_executed >/dev/null; then
    printf '%s\n' "$0: ERROR: cannot source check_runtime.bsh!" >&2
    exit 1
 fi
