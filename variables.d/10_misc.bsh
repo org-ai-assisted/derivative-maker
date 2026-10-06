@@ -149,14 +149,6 @@ command -v "${git_bin}" >/dev/null
 
 #printf "%s\n" "dist_build_current_git_head: $dist_build_current_git_head"
 
-## TODO: auto retry function error handler trap lacks variables
-## such as variable DIST_APTGETOPT.
-## Would miss out on security related APT configuration options:
-## apt-get --error-on=any / -o APT::Update::Error-Mode=any
-default_if_empty dist_build_auto_retry "0"
-
-default_if_empty dist_build_wait_auto_retry "5"
-
 default_if_empty DEB_INSTALL_FOLDER "mnt/initialdeb"
 export DEB_INSTALL_FOLDER
 

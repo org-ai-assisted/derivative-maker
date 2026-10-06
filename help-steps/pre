@@ -12,7 +12,7 @@
 
 ## ERR path:
 ##   exception_handler_general | exception_handler_unchroot_unmount | exception_handler_unmount
-##   -> exception_handler_process_shared -> function_trace -> process_backtrace -> exception_handler_shell -> exception_handler_retry -> exception_handler_maybe_exit
+##   -> exception_handler_process_shared -> function_trace -> process_backtrace -> exception_handler_shell -> exception_handler_maybe_exit
 ## INT/TERM path:
 ##   exception_handler_signal -> variant cleanup -> exit 128+signum
 
@@ -215,51 +215,6 @@ exit code ${interactive_chroot_shell_bash_exit_code}, cleanup and exit as reques
    fi
 }
 
-exception_handler_retry() {
-   if [ ! "${dist_build_dispatch_before_retry:-}" = "" ]; then
-      "${output_cmd[@]}" "${cyan}${bold}INFO: dispatch before retry (--retry-before)...: ${dist_build_dispatch_before_retry} ${reset}"
-      dist_build_dispatch_before_retry_exit_code="0"
-      eval ${dist_build_dispatch_before_retry} || { dist_build_dispatch_before_retry_exit_code="$?" ; true; };
-      if [ "${dist_build_dispatch_before_retry_exit_code:-}" = "0" ]; then
-         "${output_cmd[@]}" "${cyan}${bold}INFO: dispatch before retry (--retry-before) exit code was 0, ok. ${reset}"
-      else
-         "${output_cmd[@]}" "${red}${bold}INFO: dispatch before retry (--retry-before) non-zero exit code: ${dist_build_dispatch_before_retry_exit_code} ${reset}"
-      fi
-   else
-      "${output_cmd[@]}" "INFO: Skipping dist_build_dispatch_before_retry (--retry-before), because empty, ok."
-   fi
-
-   "${output_cmd[@]}" "${cyan}${bold}INFO: Retrying last_failed_bash_command...: ${last_failed_bash_command} ${reset}"
-   retry_last_failed_bash_command_exit_code="0"
-   ${last_failed_bash_command} || { retry_last_failed_bash_command_exit_code="$?" ; true; };
-   if [ "${retry_last_failed_bash_command_exit_code:-}" = "0" ]; then
-      "${output_cmd[@]}" "${cyan}${bold}INFO: Retry succeeded. exit code of last_failed_bash_command: ${retry_last_failed_bash_command_exit_code} ${reset}"
-      unset dist_build_auto_retry_counter
-   else
-      "${output_cmd[@]}" "${red}${bold}INFO: Retry failed. exit code of last_failed_bash_command: ${retry_last_failed_bash_command_exit_code} ${reset}"
-      last_failed_exit_code="${retry_last_failed_bash_command_exit_code}"
-   fi
-
-   if [ ! "${dist_build_dispatch_after_retry:-}" = "" ]; then
-      "${output_cmd[@]}" "${cyan}${bold}INFO: dispatch after retry (--retry-after)...: ${dist_build_dispatch_after_retry} ${reset}"
-      dist_build_dispatch_after_retry_exit_code="0"
-      eval ${dist_build_dispatch_after_retry} || { dist_build_dispatch_after_retry_exit_code="$?" ; true; };
-      if [ "${dist_build_dispatch_after_retry_exit_code:-}" = "0" ]; then
-         "${output_cmd[@]}" "${cyan}${bold}INFO: dispatch after retry (--retry-after) exit code was 0, ok. ${reset}"
-      else
-         "${output_cmd[@]}" "${red}${bold}INFO: dispatch after retry (--retry-after) non-zero exit code: ${dist_build_dispatch_after_retry_exit_code} ${reset}"
-      fi
-   else
-      "${output_cmd[@]}" "INFO: Skipping dist_build_dispatch_after_retry (--retry-after), because empty, ok."
-   fi
-
-   if [ "${retry_last_failed_bash_command_exit_code:-}" = "0" ]; then
-      return 0
-   else
-      exception_handler_process_shared "NONE_(called_by_exception_handler_retry)"
-   fi
-}
-
 exception_handler_process_shared() {
    last_script="$0"
    ## $1 contains trap signal type.
@@ -270,8 +225,6 @@ exception_handler_process_shared() {
    trap_signal_type_last="$1"
    dist_build_error_counter="$(( dist_build_error_counter + 1 ))"
    benchmark_took_time="$(benchmark_format "${SECONDS}")"
-   local first
-   read -r first _ <<< "${last_failed_bash_command}" || true
 
    ## process_backtrace and function_trace print their result to
    ## stdout; capture into a local before referencing in the report.
@@ -313,39 +266,15 @@ ${cyan}${bold}############################################################${rese
    unset error_reason
 
    ## INT and TERM no longer reach this function - exception_handler_signal
-   ## (installed via exception_handler_setup) handles them directly. The
-   ## only signal types that can reach here are "ERR" (from the trap) and
-   ## "NONE_(called_by_exception_handler_retry)" (from the retry recursion).
+   ## (installed via exception_handler_setup) handles them directly. The only
+   ## signal type that can reach here is "ERR" (from the trap).
 
-   #"${output_cmd[@]}" "INFO: trap_signal_type_last: $trap_signal_type_last, considering auto retry..."
-   if [ ! "${dist_build_auto_retry:-}" = "0" ]; then
-      if [ "${dist_build_auto_retry_counter:-}" = "" ] \
-         || [[ "${dist_build_auto_retry_counter:-}" = *[!0-9]* ]]; then
-         dist_build_auto_retry_counter="1"
-      fi
-      [ -n "${dist_build_auto_retry:-}" ] || dist_build_auto_retry="2"
-      [ -n "${dist_build_wait_auto_retry:-}" ] || dist_build_wait_auto_retry="5"
-      if [ "${first:-}" = "fatal_error_no_retry" ]; then
-         "${output_cmd[@]}" 'INFO: No auto retry, last_failed_bash_command is "fatal_error_no_retry".'
-      elif [ "${dist_build_auto_retry_counter:-0}" -gt "${dist_build_auto_retry}" ]; then
-         "${output_cmd[@]}" "${cyan}${bold}INFO: Auto retried (--retry-max) already ${dist_build_auto_retry} times. No more auto retry. ${reset}"
-      else
-         "${output_cmd[@]}" "${cyan}${bold}INFO: Auto retry attempt number: ${dist_build_auto_retry_counter}. Max retry attempts: ${dist_build_auto_retry} (--retry-max). Auto retry... ${reset}"
-         dist_build_auto_retry_counter="$(( ${dist_build_auto_retry_counter} + 1 ))"
-         if [ ! "${dist_build_wait_auto_retry:-}" = "0" ]; then
-            "${output_cmd[@]}" "${cyan}${bold}INFO: Waiting (--retry-wait) ${dist_build_wait_auto_retry} seconds before auto retry... ${reset}"
-            sleep "${dist_build_wait_auto_retry}" &
-            wait "$!"
-         fi
-         ignore_error="true"
-         error_handler_do_retry="true"
-         exception_handler_retry
-         return 0
-      fi
-   else
-      "${output_cmd[@]}" "INFO: dist_build_auto_retry set to ${dist_build_auto_retry} (--retry-max). No auto retry."
-   fi
-   unset dist_build_auto_retry_counter
+   ## Build-level auto-retry removed: the old mechanism replayed the captured
+   ## ${last_failed_bash_command} string, which is unsound (a command behind
+   ## `cmd || return` / `if` / a pipe captures the wrong token, and a command
+   ## with a variable/quote/space cannot be replayed faithfully). Genuinely
+   ## transient commands (apt-get / curl) retry soundly at the call site via
+   ## help-steps/retry-run's argv-array `retry_run` instead.
 
    while true; do
       ## Default.
@@ -376,12 +305,11 @@ Regrettably, assistance cannot be provided without the aforementioned details.
 
 Options:
 
-Choose ${under}either${eunder} option A), B), C) ${under}or${eunder} D).
+Choose ${under}either${eunder} option A), B) ${under}or${eunder} C).
 
  - A) Press ${blue}${bold}c${reset} and press enter to bypass this error and continue with the build. (For Developers Only!) (Strongly discouraged for regular users as it may lead to unstable builds! Please refrain from reporting any issues encountered subsequently!)
- - B) Press ${blue}${bold}r${reset} and enter to retry.
- - C) Press ${blue}${bold}s${reset} and enter to initiate a chroot interactive shell. (For Developers Only!)
- - D) Press ${blue}${bold}a${reset} and enter to abort.${reset}
+ - B) Press ${blue}${bold}s${reset} and enter to initiate a chroot interactive shell. (For Developers Only!)
+ - C) Press ${blue}${bold}a${reset} and enter to abort.${reset}
 ${blue}${bold}#####${reset}"
 
             read -r -p "Answer? " answer
@@ -390,17 +318,11 @@ ${blue}${bold}#####${reset}"
             break
          fi
       fi
-      error_handler_do_retry=""
       if [ "${answer:-}" = "continue" ] || [ "${answer:-}" = "c" ]; then
          ignore_error="true"
          break
       elif [ "${answer:-}" = "s" ] || [ "${answer:-}" = "shell" ]; then
          exception_handler_shell
-         break
-      elif [ "${answer:-}" = "r" ] || [ "${answer:-}" = "retry" ]; then
-         ignore_error="true"
-         error_handler_do_retry="true"
-         exception_handler_retry
          break
       elif [ "${answer:-}" = "a" ]; then
          ignore_error="false"
@@ -418,12 +340,6 @@ if [ "${dist_build_error_counter:-}" = "" ] \
 fi
 
 exception_handler_maybe_exit() {
-   if [ "${error_handler_do_retry:-}" = "true" ]; then
-      if [ "${retry_last_failed_bash_command_exit_code:-}" = "0" ]; then
-         true "INFO (${FUNCNAME[0]}): auto retry succeeded. Will not exit. Continue."
-         return 0
-      fi
-   fi
    if [ "${ignore_error:-}" != "true" ]; then
       ## Remove lockfile for systemcheck
       rm --force "/run/package_manager_lock"

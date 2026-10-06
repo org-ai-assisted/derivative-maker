@@ -212,10 +212,6 @@ Advanced Options:
   --reuse-cowbuilder-base [true|false] : Reuse an already-present cowbuilder base chroot instead of rebuilding it, if one exists.
   --skip-local-dependencies [true|false] : Skip build-steps.d/*_local-dependencies. Only safe when the local dependencies were already installed by an earlier run in the same session.
   --base-image-role <create|consume> : Creates or reuses a shared base image for building multiple images quicker. Mainly useful for building release images.
-  --retry-max [attempts]          : Set maximum retry attempts. (default: 2)
-  --retry-wait [seconds]          : Set wait time between retry attempts.
-  --retry-before [script]         : Specify a script to run before retry. [default: none)
-  --retry-after [script]          : Specify a script to run after retry. [default: none)
   --allow-uncommitted [true|false]: Permit builds with uncommitted changes (default: false).
   --allow-untagged [true|false]   : Permit builds from non-tagged sources (default: false).
   --allow-unsigned [true|false]   : Skip git_sanity_test commit-signature verification (default: false).
@@ -807,38 +803,6 @@ dist_build_one_parse_cmd() {
                   exit 1
                fi
                export dist_build_hostname="${2}"
-               shift 2
-               ;;
-           --retry-max)
-               if [ "$#" -lt 2 ]; then
-                  printf '%s\n' "${red}${bold}ERROR: --retry-max requires a value.${reset}"
-                  exit 1
-               fi
-               export dist_build_auto_retry="${2}"
-               shift 2
-               ;;
-           --retry-wait)
-               if [ "$#" -lt 2 ]; then
-                  printf '%s\n' "${red}${bold}ERROR: --retry-wait requires a value.${reset}"
-                  exit 1
-               fi
-               export dist_build_wait_auto_retry="${2}"
-               shift 2
-               ;;
-           --retry-before)
-               if [ "$#" -lt 2 ]; then
-                  printf '%s\n' "${red}${bold}ERROR: --retry-before requires a command.${reset}"
-                  exit 1
-               fi
-               export dist_build_dispatch_before_retry="${2}"
-               shift 2
-               ;;
-           --retry-after)
-               if [ "$#" -lt 2 ]; then
-                  printf '%s\n' "${red}${bold}ERROR: --retry-after requires a command.${reset}"
-                  exit 1
-               fi
-               export dist_build_dispatch_after_retry="${2}"
                shift 2
                ;;
            --allow-untagged)
