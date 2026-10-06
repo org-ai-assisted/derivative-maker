@@ -29,14 +29,9 @@ main() {
    true "make_use_debsign: ${make_use_debsign}"
 
    ## '~/.gnupg' must exist for the 'sq' keystore/signing calls below under Qubes
-   ## split-gpg-2, which route through gpg-agent (gpg-agent requires the folder to
-   ## exist even though no keys live there). Co-located with the operations that
-   ## need it rather than created as a side effect of an unrelated step.
-   ## Idempotent; harmless on non-split-gpg-2 hosts. 0700: a gpg homedir with
-   ## group/other bits is "unsafe permissions" to gpg-agent and readable by other
-   ## local users on a shared build host; the default umask would create it 0755.
-   mkdir --parents -- "${HOME}/.gnupg"
-   chmod 0700 -- "${HOME}/.gnupg"
+   ## split-gpg-2.
+   # shellcheck disable=SC2174
+   mkdir --parents --mode=0700 -- "${HOME}/.gnupg"
 
    sq-git policy describe --policy-file "${sq_git_policy_file}" >/dev/null
 

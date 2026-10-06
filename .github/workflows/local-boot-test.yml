@@ -209,15 +209,6 @@ jobs:
         if: env.BASE_CACHE == 'true'
         run: ./ci/cowbuilder-base-cache unpack
 
-      ## The vbox 'flavors' input is free-form and is spliced into the build
-      ## command as flavors_list='<value>' inside a bash -c; validate its charset
-      ## FIRST so it cannot carry a shell metacharacter (command injection).
-      - name: Validate flavors input
-        if: inputs.build_vbox
-        env:
-          FLAVORS: ${{ inputs.flavors }}
-        run: ./ci/validate-flavors "${FLAVORS}"
-
       - name: Build ${{ matrix.flavor }} via dm-build-official (${{ env.BOOT_ARCH }})
         id: dm-build
         ## Build through the official orchestration -- the SAME single build path as
@@ -250,19 +241,7 @@ jobs:
           ## 1300_cowbuilder-setup a stale or absent tree, so the flag is tied to
           ## BASE_CACHE rather than set unconditionally.
           COWBASE_REUSE_FLAG: ${{ env.BASE_CACHE == 'true' && '--reuse-cowbuilder-base' || '' }}
-          ## '--smbios-reader true' below: this lane's images are the only ones
-          ## that need the GRUB SMBIOS cmdline reader, because dm-smbios-reader-qemu selects the
-          ## session and the serial console through it. It is default OFF, so a
-          ## released image carries no reader -- without this flag every boot leg
-          ## would time out with a 0-byte serial log rather than fail loudly.
-        run: >-
-          ./docker/derivative-maker-docker-run --
-          bash -c "export dist_build_sign_and_tag=true &&
-          export dist_build_unlock_dangerous_options=true &&
-          ./help-steps/signing-key-create && ./help-steps/sign-and-tag &&
-          env dist_build_target_arch='${ARCH}' flavors_list='${FLAVOR}'
-          dist_build_multi_target_list='${MULTI_TARGET_LIST}'
-          ./help-steps/dm-build-official --freshness '${FRESHNESS}' --smbios-reader true ${COWBASE_REUSE_FLAG}"
+        run: ./ci/run-build-in-docker
 
       - name: Save docker image to cache
         if: steps.dmimg-cache.outputs.cache-hit != 'true'

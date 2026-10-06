@@ -27,20 +27,19 @@ out="ova-sha512.txt"
 
 ## Read-only over the build output; write the evidence into the workspace, not
 ## next to the (in-container-uid-owned) .ova, so no chown dance is needed.
+##
+## FIXME: Either replace this with a readarray one-liner, or use find's -print0
+## option.
 ova_list=()
 while IFS= read -r ova_item; do
    ova_list+=("${ova_item}")
 done < <(find "${binary_mnt}" -type f -name '*.ova' | sort)
 
 if [ "${#ova_list[@]}" -eq 0 ]; then
-   printf '%s: no .ova found under %s\n' "${BASH_SOURCE[0]}" "${binary_mnt}" >&2
+   printf '%s\n' "${BASH_SOURCE[0]}: no .ova found under ${binary_mnt}" >&2
    exit 1
 fi
 
-true > "${out}"
-for ova_item in "${ova_list[@]}"; do
-   sha512sum -- "${ova_item}" | tee -a -- "${out}"
-done
+sha512sum -- "${ova_list[@]}" | tee -- "${out}"
 
-printf '%s: recorded sha512 for %d .ova file(s) in %s\n' \
-   "${BASH_SOURCE[0]}" "${#ova_list[@]}" "${out}"
+printf '%s\n' "${BASH_SOURCE[0]}: recorded sha512 for ${#ova_list[@]} .ova file(s) in ${out}"

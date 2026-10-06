@@ -51,15 +51,9 @@ gpg_key_create() {
    pwd
 
    ## '~/.gnupg' must exist for the 'sq' keystore/signing calls below under Qubes
-   ## split-gpg-2, which route through gpg-agent (gpg-agent requires the folder to
-   ## exist even though no keys live there). Co-located with the operations that
-   ## need it rather than created as a side effect of an unrelated step.
-   ## Idempotent; harmless on non-split-gpg-2 hosts. Mirrors signify_key_create
-   ## creating its own ~/.signify folder. 0700: a gpg homedir with group/other
-   ## bits is "unsafe permissions" to gpg-agent and readable by other local users
-   ## on a shared build host; the default umask would otherwise create it 0755.
-   mkdir --parents -- "${HOME}/.gnupg"
-   chmod 0700 -- "${HOME}/.gnupg"
+   ## split-gpg-2.
+   # shellcheck disable=SC2174
+   mkdir --parents --mode=0700 -- "${HOME}/.gnupg"
 
    if sq cert list --cert-email "${DEBEMAIL}" &>/dev/null ; then
       true "INFO: OpenPGP key with uid DEBEMAIL ${DEBEMAIL} already exists. Skipping OpenPGP key creation, ok."

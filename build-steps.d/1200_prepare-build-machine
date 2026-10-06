@@ -539,9 +539,6 @@ main() {
    approx_proxy_setup "$@"
    repo_proxy_test "$@"
    build_machine_setup "$@"
-   ## Ensure /etc/hostname and /etc/mailname exist (mmdebstrap/pbuilder need
-   ## them later at cowbuilder/create-raw-image). Machine prep, grouped here with
-   ## the other host setup (not a side effect of the sanity-test step).
    check-hostname "$@"
    check-mailname "$@"
    normalize-symlinks "$@"

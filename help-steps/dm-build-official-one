@@ -125,11 +125,7 @@ build_args+=(--arch "${architecture}")
 ##
 ## NOTE: Fewer flavors are build on CI. If 'CI=true', 'help-steps/parse-cmd'
 ##       will inject 'build_dry_run="true"' (equivalent of '--dry-run true').
-## 'flavors_list' may arrive as a space-separated SCALAR (an env var, e.g. from
-## CI selecting a subset such as 'whonix-gateway-lxqt whonix-workstation-lxqt').
-## Split it into the array the loops below iterate; a scalar iterated as
-## "${flavors_list[@]}" would otherwise be ONE element and pass the whole string
-## as a single '--flavor', which parse-cmd rejects. Unset -> the full default set.
+## 'flavors_list' may be a space-separated string env var. Split it if so.
 if [ -n "${flavors_list:-}" ]; then
   read -r -a flavors_list <<< "${flavors_list}"
 else
@@ -155,10 +151,6 @@ dist_build_redistributable=true
 export dist_build_redistributable
 
 if [ "${dist_build_redistributable:-}" = "true" ]; then
-  ## The derivative APT repository is ENABLED by default for official/release builds
-  ## -- callers of dm-build-official pass NO '--repo'; the official default lives here.
-  ## Forwarded via build_args (each build step re-parses it), consistent with --tb /
-  ## --freedom below; parse-cmd makes --repo mandatory on a bare ./derivative-maker.
   build_args+=(--repo true)
   build_args+=(--tb closed)
   ## Install package 'firmware-nonfreedom' by default.
@@ -225,9 +217,8 @@ fi
 ## Phase 0: early build setup.
 ############################################################
 
-## Install the minimal early build dependencies the sanity tests themselves need
-## (mount-test: kpartx/parted) and 1200 needs (approx), BEFORE the per-flavor
-## sanity loop runs. Flavor-independent; invoked once like prepare-build-machine.
+## Install the minimal early build dependencies the sanity tests and build
+## machine prep needs.
 run_cmd ./build-steps.d/*_early-build-setup "${build_args[@]}" --target iso "${multi_target_args[@]}" --flavor source "$@"
 
 ############################################################
@@ -339,16 +330,11 @@ if flavor_built "${dist_build_source_release_flavor}"; then
   ## have already been prepared at this point.
   run_cmd dm-prepare-release --target source --flavor "${dist_build_source_release_flavor}" "$@"
   run_cmd dm-upload-images --target source --flavor "${dist_build_source_release_flavor}" "$@"
+  if flavor_built "whonix-workstation-lxqt"; then
+    run_cmd dm-upload-images --target source --flavor "whonix-workstation-lxqt" "$@"
+  fi
 else
   true "INFO: ${BASH_SOURCE[0]}: no source release: dist_build_source_release_flavor='${dist_build_source_release_flavor}' is not in flavors_list."
-fi
-## Route the (flavor-independent) source tarball to the whonix upload location
-## too -- but ONLY when it was actually prepared above, i.e. when the
-## source-release flavor is part of this build. A reduced build (e.g. the whonix
-## pair without the source-release flavor) prepares no source, so uploading it
-## would fail on a missing file.
-if flavor_built "${dist_build_source_release_flavor}" && flavor_built "whonix-workstation-lxqt"; then
-  run_cmd dm-upload-images --target source --flavor "whonix-workstation-lxqt" "$@"
 fi
 
 ## TODO: Windows

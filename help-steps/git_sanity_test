@@ -384,12 +384,10 @@ mode_working_tree() {
    git_status="$(git status --porcelain=v1)"
    if [ -n "${git_status:-}" ]; then
       if [ "${dist_build_ignore_uncommitted}" = "true" ]; then
-         ## Don't let AI bypass the clean-tree requirement, whether set via
-         ## --allow-uncommitted or directly through dist_build_ignore_uncommitted.
-         ## Allow humans to opt into this behavior too. Enforced here (point of
-         ## use) so the env-var path cannot sidestep parse-cmd's flag gate.
+         ## Do not allow AI to build with uncommitted changes. Allow humans to
+         ## opt into this behavior.
          if [ "${CLAUDECODE:-}" = "1" ] || [ "${dist_build_forbid_allow_uncommitted:-}" = "true" ]; then
-            printf '%s\n' "${bold}${red}ERROR: building with uncommitted changes (dist_build_ignore_uncommitted=true) is forbidden for AI sessions or under dist_build_forbid_allow_uncommitted=true. AI models should commit their changes (e.g. bump the submodule gitlink) so the working tree is clean.${reset}" >&2
+            printf '%s\n' "${bold}${red}ERROR: building with uncommitted changes is forbidden for AI sessions or under dist_build_forbid_allow_uncommitted=true. AI models should commit their changes so the working tree is clean.${reset}" >&2
             exit 3
          fi
          printf '%s\n' "${cyan}INFO: Uncommitted changes in ${context}, --allow-uncommitted set, continuing.${reset}"

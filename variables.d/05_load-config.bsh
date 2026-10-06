@@ -3,7 +3,8 @@
 ## Copyright (C) 2012 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
 
-## Parses command-line arguments and reads configuration files.
+## Parses command-line arguments, calculates values that config files may need,
+## and reads configuration files.
 
 ## style-ok: no-strict -- sourced fragment.
 # shellcheck disable=SC1090,SC2086
@@ -21,17 +22,8 @@ if [ ! "${dist_build_one_parsed:-}" = "true" ]; then
    dist_build_one_parsed="true"
 fi
 
-## Derive the per-build scratch/output root HERE: after parse-cmd (so --build-slot on the command
-## line, not just a dist_build_slot env var, takes effect) but BEFORE the config files below, so a
-## config may REFERENCE binary_build_folder_dist / dist_aptgetopt_file -- sourcing a config under
-## 'set -o nounset' that reads an unset one would abort the build.
-## A config that OVERRIDES binary_build_folder_dist redirects the tree directly; it does NOT re-point
-## the derived dist_aptgetopt_file or re-lane a config-set dist_build_slot. Keep this simple -- do not
-## add a post-config re-derive.
-## --build-slot NAME (env: dist_build_slot) scopes the WHOLE per-build tree -- output tree, the
-## _image chroot (10_misc CHROOT_FOLDER), the local apt repo, the tag-verify temp, the cowbuilder
-## base all derive from binary_build_folder_dist -- so one slot isolates them all and builds that
-## share a $HOME (several sessions as one user on a shared host) run concurrently without colliding.
+## Calculate build-slot-related variables now, since they depend on
+## command-line options and config files may reference them.
 export dist_build_slot="${dist_build_slot:-}"
 if [ -n "${binary_build_folder_dist:-}" ]; then
    true "INFO: using explicitly set binary_build_folder_dist='${binary_build_folder_dist}'"
@@ -42,7 +34,7 @@ else
 fi
 export binary_build_folder_dist
 
-## pbuilder word-splits bind-mount paths; reject internal whitespace.
+## pbuilder word-splits bind-mount paths, therefore reject internal whitespace.
 for space_check_var in HOMEVAR binary_build_folder_dist source_code_folder_dist ; do
    if [[ "${!space_check_var}" == *[[:space:]]* ]]; then
       error "${space_check_var} must not contain whitespace, as pbuilder will word-split it. Variable contents: '${!space_check_var}'"
@@ -53,7 +45,8 @@ unset space_check_var
 default_if_empty dist_aptgetopt_file "${binary_build_folder_dist}/30_derivative-maker.conf"
 export dist_aptgetopt_file
 
-## All files can be sourced at once here, no need to handle the repo-local config later.
+## All files can be sourced at once here, no need to handle the repo-local
+## config later.
 default_if_empty dist_build_config_dirs_list "${source_code_folder_dist}/buildconfig.d /etc/buildconfig-dist.d ${HOMEVAR}/buildconfig.d"
 for dist_build_config_dir_item in ${dist_build_config_dirs_list}; do
    dist_build_source_config_dir "${dist_build_config_dir_item}"

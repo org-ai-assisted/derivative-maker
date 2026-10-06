@@ -53,21 +53,11 @@ unmount_raw() {
    wait "$!"
    sync
 
-   ## First pass is best-effort: a transient "loopNpM is in use. Not removing"
-   ## here must NOT abort the build. loop_teardown_verify below force-removes any
-   ## leftover and is the authoritative teardown verification.
-   ${SUDO_TO_ROOT} kpartx -d -s -v -- "${img}" || true "INFO: first kpartx -d non-zero exit code (transient in-use); loop_teardown_verify handles it."
-   sync
-
-   ## Authoritative teardown + verification. loop_teardown_verify (misc-helpers.bsh)
-   ## tolerates the benign Qubes/Xen/docker case where 'kpartx -d' leaves the
-   ## backing loop attached (an explicit 'losetup --detach' plus a bounded re-poll
-   ## releases it), but still fails the build on a genuinely stuck device.
    if ! loop_teardown_verify "${img}" ; then
       error "Unmount failed. Loop device(s) still associated with '${img}' after teardown."
    fi
 
-   true "INFO: Middle of ${FUNCNAME[0]}. Running losetup --all for debugging after kpartx -d (Delete partition mappings.)"
+   true "INFO: Middle of ${FUNCNAME[0]}. Running losetup --all for debugging after loop teardown."
    ${SUDO_TO_ROOT} losetup --all
    sync
 
