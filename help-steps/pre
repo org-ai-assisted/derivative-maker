@@ -5,7 +5,7 @@
 
 ## Static-analysis waivers: intentional word-splitting of a few command
 ## variables; '$SUDO_TO_ROOT rm' of specific known runtime files (not user
-## paths). The deliberate 'set +o errexit' toggle (pre's retry/exception mode,
+## paths). The deliberate 'set +o errexit' toggle (pre's exception-handling mode,
 ## documented below) carries the R-011 waiver at the toggle itself.
 # shellcheck disable=SC2086,SC2004
 ## style-ok: no-safe-rm
@@ -93,8 +93,6 @@ ${BASH_SOURCE[0]} INFO: Disabling verbose/debug output (xtrace) (set +x). For mo
 fi
 
 ## Resolve build interactivity once, with precedence:
-##   0. retry-max 0:   fail-fast, always non-interactive (the continue/retry
-##                     menu cannot resume under errexit anyway).
 ##   1. command line:  --interactive true|false
 ##   2. environment:   dist_build_interactive (export before sourcing pre)
 ##   3. auto-detect:   interactive only with a TTY on both stdin and stdout
@@ -469,7 +467,7 @@ exception_handler_unmount() {
 }
 
 ## Simple signal (INT/TERM) handler. Unlike the ERR path this does not
-## retry, does not open an interactive menu, and does not recurse.
+## open an interactive menu and does not recurse.
 exception_handler_signal() {
    local signal kind signum exit_code
    signal="$1"
