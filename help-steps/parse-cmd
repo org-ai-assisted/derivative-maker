@@ -844,6 +844,7 @@ dist_build_one_parse_cmd() {
            --allow-untagged)
                if [ "${2:-}" = "false" ]; then
                   true "${cyan}INFO: Would stop if building from untagged commits.${reset}"
+                  export dist_build_ignore_untagged="false"
                elif [ "${2:-}" = "true" ]; then
                   true "${cyan}INFO: Would build from untagged commits.${reset}"
                   export dist_build_ignore_untagged="true"
@@ -856,6 +857,7 @@ dist_build_one_parse_cmd() {
            --allow-uncommitted)
                if [ "${2:-}" = "false" ]; then
                   true "${cyan}INFO: Would stop if uncommitted changes detected.${reset}"
+                  export dist_build_ignore_uncommitted="false"
                elif [ "${2:-}" = "true" ]; then
                   ## Do not allow AI to build with uncommitted changes. Allow
                   ## humans to opt into this behavior.
@@ -962,6 +964,8 @@ dist_build_one_parse_cmd() {
                ;;
            --unsafe-io)
                if [ "${2:-}" = "false" ]; then
+                  dist_build_unsafe_io="false"
+                  export dist_build_unsafe_io
                   true "${cyan}INFO: Not using unsafe io.${reset}"
                elif [ "${2:-}" = "true" ]; then
                   dist_build_unsafe_io="true"
