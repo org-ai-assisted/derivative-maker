@@ -274,7 +274,7 @@ run_cmd ./build-steps.d/*_local-dependencies "${build_args[@]}" --target iso --t
 run_cmd ./build-steps.d/*_create-raw-image "${build_args[@]}" --target iso "${multi_target_args[@]}" --flavor kicksecure-cli --base-image-role create "$@"
 
 ## '--target iso' is required to download calamares from backports.
-run_cmd ./build-steps.d/*_create-debian-packages "${build_args[@]}" --target iso "${multi_target_args[@]}" --flavor source --skip-published-packages "$@"
+run_cmd ./build-steps.d/*_create-debian-packages "${build_args[@]}" --target iso "${multi_target_args[@]}" --flavor source --skip-published-packages true "$@"
 
 ############################################################
 ## Phase 3: per-flavor image builds.
