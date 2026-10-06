@@ -1022,11 +1022,21 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
             -t|--tag)
-               target_tag="${2:-}"
+               ## Guard a MISSING value (trailing bare flag -> 'shift count out of
+               ## range' under errexit); an explicit empty value is left to the caller.
+               if [ "$#" -lt 2 ]; then
+                  printf '%s\n' "${red}${bold}ERROR: -t/--tag requires a tag.${reset}"
+                  exit 1
+               fi
+               target_tag="${2}"
                shift 2
                ;;
             -r|--ref)
-               target_ref="${2:-}"
+               if [ "$#" -lt 2 ]; then
+                  printf '%s\n' "${red}${bold}ERROR: -r/--ref requires a branch or ref.${reset}"
+                  exit 1
+               fi
+               target_ref="${2}"
                shift 2
                ;;
             -u|--update-only)

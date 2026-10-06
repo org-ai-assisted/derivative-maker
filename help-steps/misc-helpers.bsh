@@ -138,7 +138,10 @@ unmount_if_mounted() {
          ## mountpoint(1) could not decide: a CONFIRMED-nonexistent path is nothing
          ## to unmount, but anything else (an existing path mountpoint errored on, or
          ## an existence check that itself failed) PROPAGATES -- fail closed, so a
-         ## possibly-live mount is never silently skipped.
+         ## possibly-live mount is never silently skipped. 'test' cannot distinguish
+         ## ENOENT from a path inaccessible even to root (e.g. root-squashed NFS),
+         ## but derivative-maker teardown targets are local chroot mounts under
+         ## CHROOT_FOLDER reached as root, so that case does not arise here.
          if ${SUDO_TO_ROOT} test ! -e "$1"; then
             return 0
          fi
