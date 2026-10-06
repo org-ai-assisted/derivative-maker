@@ -417,28 +417,30 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
            --vmram)
-               export VMRAM="${2:-}"
-               shift 2
-               if [ "${VMRAM:-}" = "" ]; then
+               ## Check the value BEFORE 'shift 2': a trailing bare flag otherwise
+               ## dies on a raw 'shift count out of range' instead of this message.
+               if [ -z "${2:-}" ]; then
                   printf '%s\n' "${red}${bold}ERROR: You forgot to specify how much MB to use for --vmram.${reset}"
                   exit 1
                fi
+               export VMRAM="${2}"
+               shift 2
                ;;
            --vram)
-               export VRAM="${2:-}"
-               shift 2
-               if [ "${VRAM:-}" = "" ]; then
+               if [ -z "${2:-}" ]; then
                   printf '%s\n' "${red}${bold}ERROR: You forgot to specify how much MB to use for --vram.${reset}"
                   exit 1
                fi
+               export VRAM="${2}"
+               shift 2
                ;;
            --vmsize)
-               export VMSIZE="${2:-}"
-               shift 2
-               if [ "${VMSIZE:-}" = "" ]; then
+               if [ -z "${2:-}" ]; then
                   printf '%s\n' "${red}${bold}ERROR: You forgot to specify how much GB to use for --vmsize.${reset}"
                   exit 1
                fi
+               export VMSIZE="${2}"
+               shift 2
                ;;
            --freshness)
                if [ "${2:-}" = "frozen" ]; then
@@ -534,6 +536,12 @@ dist_build_one_parse_cmd() {
                true "${cyan}openpgp_cert_file_user set to ${openpgp_cert_file_user}.${reset}"
                shift 2
                ;;
+           ## --kernel / --headers / --initramfs contract: 'none' is the exclusive
+           ## sentinel (build no kernel / header / initramfs packages), honored when
+           ## it is the final/sole value. Repeated real packages accumulate. Mixing
+           ## 'none' with a real package in one invocation is unsupported user error
+           ## (e.g. '--kernel none --kernel linux-image-amd64' is not a coherent
+           ## request and its result is undefined).
            --initramfs)
                if [ "${2:-}" = "" ]; then
                   printf '%s\n' "${red}${bold}ERROR: --initramfs must not be empty.${reset}"
@@ -632,7 +640,11 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
            --only-packages)
-               export dist_build_only_packages="${2:-}"
+               if [ -z "${2:-}" ]; then
+                  printf '%s\n' "${red}${bold}ERROR: --only-packages requires a package list.${reset}"
+                  exit 1
+               fi
+               export dist_build_only_packages="${2}"
                true "${cyan}INFO: --only-packages: rebuilding only '${dist_build_only_packages}', reusing the rest.${reset}"
                shift 2
                ;;
@@ -727,27 +739,51 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
            --file-system)
-               export dist_build_file_system="${2:-}"
+               if [ -z "${2:-}" ]; then
+                  printf '%s\n' "${red}${bold}ERROR: --file-system requires a filesystem type.${reset}"
+                  exit 1
+               fi
+               export dist_build_file_system="${2}"
                shift 2
                ;;
            --hostname)
-               export dist_build_hostname="${2:-}"
+               if [ -z "${2:-}" ]; then
+                  printf '%s\n' "${red}${bold}ERROR: --hostname requires a hostname.${reset}"
+                  exit 1
+               fi
+               export dist_build_hostname="${2}"
                shift 2
                ;;
            --retry-max)
-               export dist_build_auto_retry="${2:-}"
+               if [ -z "${2:-}" ]; then
+                  printf '%s\n' "${red}${bold}ERROR: --retry-max requires a value.${reset}"
+                  exit 1
+               fi
+               export dist_build_auto_retry="${2}"
                shift 2
                ;;
            --retry-wait)
-               export dist_build_wait_auto_retry="${2:-}"
+               if [ -z "${2:-}" ]; then
+                  printf '%s\n' "${red}${bold}ERROR: --retry-wait requires a value.${reset}"
+                  exit 1
+               fi
+               export dist_build_wait_auto_retry="${2}"
                shift 2
                ;;
            --retry-before)
-               export dist_build_dispatch_before_retry="${2:-}"
+               if [ -z "${2:-}" ]; then
+                  printf '%s\n' "${red}${bold}ERROR: --retry-before requires a command.${reset}"
+                  exit 1
+               fi
+               export dist_build_dispatch_before_retry="${2}"
                shift 2
                ;;
            --retry-after)
-               export dist_build_dispatch_after_retry="${2:-}"
+               if [ -z "${2:-}" ]; then
+                  printf '%s\n' "${red}${bold}ERROR: --retry-after requires a command.${reset}"
+                  exit 1
+               fi
+               export dist_build_dispatch_after_retry="${2}"
                shift 2
                ;;
            --allow-untagged)
