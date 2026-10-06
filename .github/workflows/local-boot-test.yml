@@ -240,7 +240,7 @@ jobs:
           ## Reusing a base the cache never restored would hand
           ## 1300_cowbuilder-setup a stale or absent tree, so the flag is tied to
           ## BASE_CACHE rather than set unconditionally.
-          COWBASE_REUSE_FLAG: ${{ env.BASE_CACHE == 'true' && '--reuse-cowbuilder-base' || '' }}
+          COWBASE_REUSE: ${{ env.BASE_CACHE == 'true' && 'true' || 'false' }}
         run: ./ci/run-build-in-docker
 
       - name: Save docker image to cache

@@ -207,7 +207,7 @@ Everything else: forwarded one token at a time to `parse-cmd`.
 
 One-token-at-a-time forwarding (not pairs) is important because
 parse-cmd knows its own token counts. Greedy pair forwarding would
-swallow subsequent tokens for bare flags like `--debug`.
+swallow subsequent tokens for value-less flags like `--update-only`.
 
 `dist_build_source_run="true"` tells parse-cmd to accept zero or
 unknown args without erroring.

@@ -282,10 +282,10 @@ run_cmd ./build-steps.d/*_create-debian-packages "${build_args[@]}" --target iso
 
 ## Skip all the one-time steps we just did and ensure we reuse the base image.
 reuse_shared_args=(
-  --skip-prepare-build-machine
-  --skip-cowbuilder-setup
-  --skip-local-dependencies
-  --skip-published-packages
+  --skip-prepare-build-machine true
+  --skip-cowbuilder-setup true
+  --skip-local-dependencies true
+  --skip-published-packages true
   --base-image-role consume
 )
 

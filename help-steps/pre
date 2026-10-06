@@ -70,12 +70,24 @@ source "${HELPER_SCRIPTS_PATH}/usr/libexec/helper-scripts/trace.bsh"
 ## Debugging.
 #xtrace_restore
 
-## Keep xtrace on if '--debug' was passed; otherwise silence it. Cannot be
-## moved to help-steps/parse-cmd because parse-cmd runs later.
-if ! printf '%s\n' "${@:-}" | grep --fixed-strings -- "--debug" &>/dev/null; then
+## Keep xtrace on only if '--debug true' was passed; otherwise silence it. Cannot
+## be moved to help-steps/parse-cmd because parse-cmd runs later. parse-cmd is the
+## authoritative validator of the value; this early value-capturing scan (mirroring
+## the --interactive scan below) makes it available before parse-cmd runs.
+dist_build_debug_cli=""
+dist_build_debug_prev=""
+for dist_build_debug_arg in "${@}"; do
+   if [ "${dist_build_debug_prev}" = "--debug" ]; then
+      dist_build_debug_cli="${dist_build_debug_arg}"
+   fi
+   dist_build_debug_prev="${dist_build_debug_arg}"
+done
+unset dist_build_debug_prev dist_build_debug_arg
+
+if [ ! "${dist_build_debug_cli}" = "true" ]; then
    if test -o xtrace ; then
       true "\
-${BASH_SOURCE[0]} INFO: Disabling verbose/debug output (xtrace) (set +x). For more verbose output add the following build option: --debug"
+${BASH_SOURCE[0]} INFO: Disabling verbose/debug output (xtrace) (set +x). For more verbose output add the following build option: --debug true"
       xtrace_off
    fi
 fi

@@ -19,7 +19,7 @@ printf -v inject_arch '%q' "${ARCH}"
 printf -v inject_flavor '%q' "${FLAVOR}"
 printf -v inject_multi_target_list '%q' "${MULTI_TARGET_LIST}"
 printf -v inject_freshness '%q' "${FRESHNESS}"
-printf -v inject_cowbase_reuse_flag '%q' "${COWBASE_REUSE_FLAG}"
+printf -v inject_cowbase_reuse '%q' "${COWBASE_REUSE}"
 
 ## No single quotes around injected variables by design. printf '%q' escapes
 ## all characters the shell might interpret specially, including spaces.
@@ -42,4 +42,4 @@ printf -v inject_cowbase_reuse_flag '%q' "${COWBASE_REUSE_FLAG}"
       ./help-steps/dm-build-official \\
         --freshness ${inject_freshness} \\
         --smbios-reader true \\
-        ${inject_cowbase_reuse_flag}"
+        --reuse-cowbuilder-base ${inject_cowbase_reuse}"

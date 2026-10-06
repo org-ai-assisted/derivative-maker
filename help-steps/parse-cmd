@@ -203,14 +203,14 @@ Advanced Options:
   --smbios-reader [true|false]    : DANGEROUS, DO NOT USE. Allow injecting kernel parameters via the SMBIOS serial number field. This will allow attackers with physical access to inject arbitrary kernel parameters into the boot process! Only useful for CI and AI agents.
   --sanity-tests [true|false]     : Enable or disable chroot script sanity tests for faster build speed (default: false).
   --only-packages 'p1 p2'         : Rebuild only listed packages into the persistent local repo, reuse the rest from the prior build.
-  --skip-packages                 : Skip package building entirely and reuse the whole local package repo from the prior build.
+  --skip-packages [true|false]    : Skip package building entirely and reuse the whole local package repo from the prior build.
   --skip-published-packages [true|false] : Rebuild only packages that changed since the last build, reusing unchanged packages from the prior build (default: true).
   --package-jobs N                : Build up to N derivative packages concurrently. Default: 1.
-  --skip-prepare-build-machine    : Skip build-steps.d/*_prepare-build-machine. Only safe when the build machine was already prepared by an earlier run in the same session.
-  --skip-cowbuilder-setup         : Skip build-steps.d/*_cowbuilder-setup. Only safe when the cowbuilder chroot was already created by an earlier run in the same session.
-  --reproducible-dist-build-version : DANGEROUS, DO NOT USE. Drops the '-<n>-g<commit>' version suffix on builds from untagged commits. This will result in the built image carrying a misleading version number! Only useful for AI agents, for reproducing CI-built images outside of CI. Humans should tolerate the version suffix or create a release tag.
-  --reuse-cowbuilder-base         : Reuse an already-present cowbuilder base chroot instead of rebuilding it, if one exists.
-  --skip-local-dependencies       : Skip build-steps.d/*_local-dependencies. Only safe when the local dependencies were already installed by an earlier run in the same session.
+  --skip-prepare-build-machine [true|false] : Skip build-steps.d/*_prepare-build-machine. Only safe when the build machine was already prepared by an earlier run in the same session.
+  --skip-cowbuilder-setup [true|false] : Skip build-steps.d/*_cowbuilder-setup. Only safe when the cowbuilder chroot was already created by an earlier run in the same session.
+  --reproducible-dist-build-version [true|false] : DANGEROUS, DO NOT USE. Drops the '-<n>-g<commit>' version suffix on builds from untagged commits. This will result in the built image carrying a misleading version number! Only useful for AI agents, for reproducing CI-built images outside of CI. Humans should tolerate the version suffix or create a release tag.
+  --reuse-cowbuilder-base [true|false] : Reuse an already-present cowbuilder base chroot instead of rebuilding it, if one exists.
+  --skip-local-dependencies [true|false] : Skip build-steps.d/*_local-dependencies. Only safe when the local dependencies were already installed by an earlier run in the same session.
   --base-image-role <create|consume> : Creates or reuses a shared base image for building multiple images quicker. Mainly useful for building release images.
   --retry-max [attempts]          : Set maximum retry attempts. (default: 2)
   --retry-wait [seconds]          : Set wait time between retry attempts.
@@ -227,7 +227,7 @@ Advanced Options:
   --arch [architecture]           : Set architecture (pick one of the following)
     ${architecture_all_list[*]}
     (Note: amd64 also works with most Intel CPUs.)
-  --debug                         : Does not disable verbose/debug (xtrace) during help-steps pre, variables and parse-cmd.
+  --debug [true|false]            : Does not disable verbose/debug (xtrace) during help-steps pre, variables and parse-cmd.
   --dry-run [true|false]          : Does not actually build real images. Just an empty text file. Useful for debugging dm-prepare-release script.
   --unsupported-os [true|false]   : Skip the build-host operating system / codename sanity check. NOT for release builds; for dev / AI / CI smoke tests on non-Debian hosts only.
 
@@ -501,12 +501,28 @@ dist_build_one_parse_cmd() {
                ;;
            ## TODO
            --testing-frozen-sources)
-               export dist_build_sources_list_primary="build_sources/debian_testing_frozen.sources"
-               shift
+               if [ "${2:-}" = "true" ]; then
+                  export dist_build_sources_list_primary="build_sources/debian_testing_frozen.sources"
+               elif [ "${2:-}" = "false" ]; then
+                  true "${cyan}INFO: --testing-frozen-sources false: using default sources.${reset}"
+               else
+                  printf '%s\n' "${red}${bold}ERROR: supported options for --testing-frozen-sources are 'true' or 'false'.${reset}"
+                  exit 1
+               fi
+               shift 2
                ;;
            --debug)
-               ## Implemented in help-steps/pre. Cannot be implemented here, because it runs too late.
-               shift
+               ## The xtrace effect is implemented in help-steps/pre (parse-cmd runs
+               ## too late); the value is validated here for a consistent CLI.
+               if [ "${2:-}" = "true" ]; then
+                  true "${cyan}INFO: --debug true: verbose/debug (xtrace) output kept.${reset}"
+               elif [ "${2:-}" = "false" ]; then
+                  true "${cyan}INFO: --debug false: verbose/debug (xtrace) output disabled.${reset}"
+               else
+                  printf '%s\n' "${red}${bold}ERROR: supported options for --debug are 'true' or 'false'.${reset}"
+                  exit 1
+               fi
+               shift 2
                ;;
            --arch)
                if [ "${2:-}" = "" ]; then
@@ -654,9 +670,16 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
            --skip-packages)
-               export dist_build_skip_packages="true"
-               true "${cyan}INFO: --skip-packages: reusing the existing local package repo.${reset}"
-               shift
+               if [ "${2:-}" = "true" ]; then
+                  export dist_build_skip_packages="true"
+                  true "${cyan}INFO: --skip-packages: reusing the existing local package repo.${reset}"
+               elif [ "${2:-}" = "false" ]; then
+                  export dist_build_skip_packages="false"
+               else
+                  printf '%s\n' "${red}${bold}ERROR: supported options for --skip-packages are 'true' or 'false'.${reset}"
+                  exit 1
+               fi
+               shift 2
                ;;
            --skip-published-packages)
                if [ "${2:-}" = "true" ]; then
@@ -668,6 +691,7 @@ dist_build_one_parse_cmd() {
                   printf '%s\n' "${red}${bold}ERROR: supported options for --skip-published-packages are 'true' or 'false'.${reset}"
                   exit 1
                fi
+               shift 2
                ;;
            --package-jobs)
                export dist_build_package_jobs="${2:-}"
@@ -679,25 +703,53 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
            --skip-prepare-build-machine)
-               export dist_build_skip_prepare_build_machine="true"
-               true "${cyan}INFO: --skip-prepare-build-machine: not preparing build machine.${reset}"
-               shift
+               if [ "${2:-}" = "true" ]; then
+                  export dist_build_skip_prepare_build_machine="true"
+                  true "${cyan}INFO: --skip-prepare-build-machine: not preparing build machine.${reset}"
+               elif [ "${2:-}" = "false" ]; then
+                  export dist_build_skip_prepare_build_machine="false"
+               else
+                  printf '%s\n' "${red}${bold}ERROR: supported options for --skip-prepare-build-machine are 'true' or 'false'.${reset}"
+                  exit 1
+               fi
+               shift 2
                ;;
            --skip-cowbuilder-setup)
-               export dist_build_skip_cowbuilder_setup="true"
-               true "${cyan}INFO: --skip-cowbuilder-setup: not building a new cowbuilder chroot.${reset}"
-               shift
+               if [ "${2:-}" = "true" ]; then
+                  export dist_build_skip_cowbuilder_setup="true"
+                  true "${cyan}INFO: --skip-cowbuilder-setup: not building a new cowbuilder chroot.${reset}"
+               elif [ "${2:-}" = "false" ]; then
+                  export dist_build_skip_cowbuilder_setup="false"
+               else
+                  printf '%s\n' "${red}${bold}ERROR: supported options for --skip-cowbuilder-setup are 'true' or 'false'.${reset}"
+                  exit 1
+               fi
+               shift 2
                ;;
            --reproducible-dist-build-version)
                error_dangerous_option_maybe '--reproducible-dist-build-version'
-               export dist_build_version_reproducible="true"
-               true "${cyan}INFO: --reproducible-dist-build-version: version will be normalized to the nearest tag.${reset}"
-               shift
+               if [ "${2:-}" = "true" ]; then
+                  export dist_build_version_reproducible="true"
+                  true "${cyan}INFO: --reproducible-dist-build-version: version will be normalized to the nearest tag.${reset}"
+               elif [ "${2:-}" = "false" ]; then
+                  export dist_build_version_reproducible="false"
+               else
+                  printf '%s\n' "${red}${bold}ERROR: supported options for --reproducible-dist-build-version are 'true' or 'false'.${reset}"
+                  exit 1
+               fi
+               shift 2
                ;;
            --reuse-cowbuilder-base)
-               export dist_build_reuse_cowbuilder_base="true"
-               true "${cyan}INFO: --reuse-cowbuilder-base: reusing an existing cowbuilder base if present.${reset}"
-               shift
+               if [ "${2:-}" = "true" ]; then
+                  export dist_build_reuse_cowbuilder_base="true"
+                  true "${cyan}INFO: --reuse-cowbuilder-base: reusing an existing cowbuilder base if present.${reset}"
+               elif [ "${2:-}" = "false" ]; then
+                  export dist_build_reuse_cowbuilder_base="false"
+               else
+                  printf '%s\n' "${red}${bold}ERROR: supported options for --reuse-cowbuilder-base are 'true' or 'false'.${reset}"
+                  exit 1
+               fi
+               shift 2
                ;;
            --base-image-role)
                case "${2:-}" in
@@ -713,9 +765,16 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
            --skip-local-dependencies)
-               export dist_build_skip_local_dependencies="true"
-               true "${cyan}INFO: --skip-local-dependencies: reusing already installed local dependencies.${reset}"
-               shift
+               if [ "${2:-}" = "true" ]; then
+                  export dist_build_skip_local_dependencies="true"
+                  true "${cyan}INFO: --skip-local-dependencies: reusing already installed local dependencies.${reset}"
+               elif [ "${2:-}" = "false" ]; then
+                  export dist_build_skip_local_dependencies="false"
+               else
+                  printf '%s\n' "${red}${bold}ERROR: supported options for --skip-local-dependencies are 'true' or 'false'.${reset}"
+                  exit 1
+               fi
+               shift 2
                ;;
            --sanity-tests)
                if [ "${2:-}" = "true" ]; then
