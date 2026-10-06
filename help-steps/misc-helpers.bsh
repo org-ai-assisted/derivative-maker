@@ -115,20 +115,17 @@ value_charset_ok() {
 }
 
 unmount_if_mounted() {
-   ## Unmount a single path if it is a mountpoint. No-op when the path does not
-   ## exist or is not a mountpoint (callers pass paths that may or may not be
+   ## Unmount a single path if it is a mountpoint. No-op when the path is not a
+   ## mountpoint or does not exist (callers pass paths that may or may not be
    ## mounted: bind mounts never set up, an already-unmounted CHROOT_FOLDER). A
-   ## genuine mountpoint(1) error (bad invocation, system error) is PROPAGATED,
-   ## not swallowed as "not mounted", so a caller never proceeds to delete across
-   ## a mount whose state could not be determined.
+   ## genuine mountpoint(1) error is PROPAGATED, never swallowed as "not mounted",
+   ## so a caller never proceeds to delete across a mount whose state could not be
+   ## determined.
    ##
    ## mountpoint(1) exit codes: 0 = is a mountpoint, 32 = not a mountpoint, other
-   ## = error.
-   local unmount_if_mounted_rc
-   ## A missing target is nothing to unmount; distinguishes a benign absent path
-   ## from a real mountpoint(1) error, which shares exit code 1.
-   ${SUDO_TO_ROOT} test -e "$1" || return 0
-   unmount_if_mounted_rc=0
+   ## (1/...) = error OR a nonexistent path. Query mountpoint FIRST so a mounted
+   ## path is always unmounted even if a separate existence check would glitch.
+   local unmount_if_mounted_rc=0
    ${SUDO_TO_ROOT} mountpoint --quiet -- "$1" || unmount_if_mounted_rc="$?"
    case "${unmount_if_mounted_rc}" in
       0)
@@ -138,6 +135,13 @@ unmount_if_mounted() {
          return 0
          ;;
       *)
+         ## mountpoint(1) could not decide: a CONFIRMED-nonexistent path is nothing
+         ## to unmount, but anything else (an existing path mountpoint errored on, or
+         ## an existence check that itself failed) PROPAGATES -- fail closed, so a
+         ## possibly-live mount is never silently skipped.
+         if ${SUDO_TO_ROOT} test ! -e "$1"; then
+            return 0
+         fi
          return "${unmount_if_mounted_rc}"
          ;;
    esac
