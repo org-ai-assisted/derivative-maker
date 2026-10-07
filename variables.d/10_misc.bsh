@@ -152,6 +152,14 @@ command -v "${git_bin}" >/dev/null
 default_if_empty DEB_INSTALL_FOLDER "mnt/initialdeb"
 export DEB_INSTALL_FOLDER
 
+## Sound defaults for help-steps/retry-run's retry_run (transient apt-get / curl
+## retries). retry_run falls back to the same values inside the cowbuilder chroot
+## (where this file is not sourced); a per-call --tries / --delay still overrides.
+default_if_empty retry_run_default_tries "4"
+export retry_run_default_tries
+default_if_empty retry_run_default_delay "15"
+export retry_run_default_delay
+
 [ -n "${dist_build_sources_clearnet_or_onion:-}" ] || dist_build_sources_clearnet_or_onion="clearnet"
 
 ## Help update-torbrowser and other software find the Tor server if using
