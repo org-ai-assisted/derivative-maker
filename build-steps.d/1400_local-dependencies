@@ -36,6 +36,8 @@ if [ "${dist_build_skip_local_dependencies:-}" = "true" ]; then
 fi
 
 update_apt_database() {
+   # shellcheck disable=SC2086
+   retry_run -- \
    ${SUDO_TO_ROOT} \
       apt-get \
          "${DIST_APTGETOPT[@]}" \

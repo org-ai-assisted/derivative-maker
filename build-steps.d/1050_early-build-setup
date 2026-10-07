@@ -56,12 +56,15 @@ install_required_packages() {
    #-o Dir::Etc::sourceparts="-" \
    ## Because dist_build_sources_list_primary requires approx.
 
+   # shellcheck disable=SC2086
+   retry_run -- \
    ${SUDO_TO_ROOT} \
       apt-get \
          "${DIST_APTGETOPT_WITHOUT_APT_CACHE[@]}" \
          update
 
    # shellcheck disable=SC2086
+   retry_run -- \
    ${SUDO_TO_ROOT} \
       apt-get \
          "${DIST_APTGETOPT_WITHOUT_APT_CACHE[@]}" \
