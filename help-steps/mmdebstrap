@@ -264,12 +264,9 @@ fi
 ## This is because otherwise 99mmdebstrap results in not installing 'Recommends:' packages, which
 ## are actually a dependency for a fully functional ISO with functional login.
 
-## NOT wrapped in retry_run (unlike the apt-get fetches elsewhere): mmdebstrap
-## refuses a non-empty target, so a retry would need the partial rootfs cleared
-## first. BUILDPLACE is either a grml mount point or the cowbuilder base, and a
-## failed bootstrap can leave nested bind-mounts (proc/sys/dev) inside it, so a
-## naive 'rm -rf BUILDPLACE' before retry is unsafe. A sound retry must go
-## through mmdebstrap/grml's own mount-cleanup; deferred until that exists.
+## TODO: Create a dedicated retry mechanism for this that will, if mmdebstrap
+## fails, unmount any submounts under ${BUILDPLACE}, recursively delete
+## ${BUILDPLACE}, and then retry mmdebstrap.
 # shellcheck disable=SC2016
 mmdebstrap \
    --verbose \

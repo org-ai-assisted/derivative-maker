@@ -15,31 +15,55 @@ shopt -s inherit_errexit
 shopt -s shift_verbose
 export LC_ALL=C
 
-printf -v inject_arch '%q' "${ARCH}"
-printf -v inject_flavor '%q' "${FLAVOR}"
-printf -v inject_multi_target_list '%q' "${MULTI_TARGET_LIST}"
-printf -v inject_freshness '%q' "${FRESHNESS}"
-printf -v inject_cowbase_reuse '%q' "${COWBASE_REUSE}"
+printf -v inject_arch '%q' "${ARCH:-}"
+printf -v inject_flavor '%q' "${FLAVOR:-}"
+printf -v inject_multi_target_list '%q' "${MULTI_TARGET_LIST:-}"
+printf -v inject_freshness '%q' "${FRESHNESS:-}"
+printf -v inject_cowbase_reuse '%q' "${COWBASE_REUSE:-}"
+printf -v inject_pkg_jobs '%q' "${PKG_JOBS:-}"
 
 ## No single quotes around injected variables by design. printf '%q' escapes
-## all characters the shell might interpret specially, including spaces.
-
+## all characters the shell might interpret specially, including spaces, and
+## emits two back-to-back single quotes for an empty string.
+##
 ## '--smbios-reader true' below: this lane's images are the only ones
 ## that need the GRUB SMBIOS cmdline reader, because dm-smbios-reader-qemu
 ## selects the session and the serial console through it. It is default OFF,
 ## so a released image carries no reader -- without this flag every boot leg
 ## would time out with a 0-byte serial log rather than fail loudly.
+##
+## dist_build_unlock_dangerous_options=true: kicksecure-ci-tiny-do-not-use
+## is a DANGEROUS flavor (parse-cmd error_dangerous_option_maybe) -- CI
+## legitimately uses this minimal CI-only flavor, so unlock it here.
 
-./docker/derivative-maker-docker-run -- \
-  bash -c "export dist_build_sign_and_tag=true \\
-    && export dist_build_unlock_dangerous_options=true \\
-    && ./help-steps/signing-key-create \\
-    && ./help-steps/sign-and-tag \\
-    && env \\
-      dist_build_target_arch=${inject_arch} \\
-      flavors_list=${inject_flavor} \\
-      dist_build_multi_target_list=${inject_multi_target_list} \\
-      ./help-steps/dm-build-official \\
-        --freshness ${inject_freshness} \\
-        --smbios-reader true \\
-        --reuse-cowbuilder-base ${inject_cowbase_reuse}"
+if [ "${REPRODUCIBLE_BUILD_TEST:-}" = 'true' ]; then
+  ./docker/derivative-maker-docker-run -- \
+    bash -c "export dist_build_version=\"\$(git describe --always --abbrev=1000000000 --exclude '*_*_*')\" \\
+      && export dist_build_sign_and_tag=true \\
+      && export dist_build_unlock_dangerous_options=true \\
+      && export dist_build_source_release_flavor=${inject_flavor} \\
+      && ./help-steps/signing-key-create \\
+      && ./help-steps/sign-and-tag \\
+      && env \\
+        dist_build_target_arch=${inject_arch} \\
+        flavors_list=${inject_flavor} \\
+        dist_build_multi_target_list=${inject_multi_target_list} \\
+        ./help-steps/dm-build-official \\
+          --freshness ${inject_freshness} \\
+          --package-jobs ${inject_pkg_jobs} \\
+          --reuse-cowbuilder-base ${inject_cowbase_reuse}"
+else
+  ./docker/derivative-maker-docker-run -- \
+    bash -c "export dist_build_sign_and_tag=true \\
+      && export dist_build_unlock_dangerous_options=true \\
+      && ./help-steps/signing-key-create \\
+      && ./help-steps/sign-and-tag \\
+      && env \\
+        dist_build_target_arch=${inject_arch} \\
+        flavors_list=${inject_flavor} \\
+        dist_build_multi_target_list=${inject_multi_target_list} \\
+        ./help-steps/dm-build-official \\
+          --freshness ${inject_freshness} \\
+          --smbios-reader true \\
+          --reuse-cowbuilder-base ${inject_cowbase_reuse}"
+fi

@@ -3,38 +3,30 @@
 ## Copyright (C) 2012 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
 
-## errexit on the shebang (direct run only; ignored when sourced) so a failed
-## 'source' below aborts before main() sets the full strict block.
-
-## Stage one of preparing the build machine: the minimal setup that must exist
-## BEFORE the sanity tests (build-steps.d/1100_sanity-tests) can run. Sorts
-## before 1100 so the top-level dispatcher runs it first. The full build-machine
-## preparation lives in build-steps.d/1200_prepare-build-machine, which runs
-## AFTER sanity passes. For now the only job here is installing the early build
-## dependencies the sanity tests themselves need (mount-test: kpartx/parted) and
-## 1200 needs (approx); the step name is an umbrella for later pre-sanity setup.
+## Early setup steps that must run before sanity checks. Note that this script
+## must not source 'pre' or 'variables', and must not depend on early
+## dependencies.
 
 ## style-ok: allow-echo -- the only 'echo' occurrences are inside strings.
 
-## Source-able: a dist-ai unit test sources this file to assert the functions
-## exist without running the build step. was_executed gates the auto-run; the
-## build-env setup (pre / variables) lives in main(), not at source time. Self-
-## locate the in-tree submodule from this file's own path (as help-steps/pre
-## does), so it resolves whether executed as a build step or sourced by a test.
+## Unconditionally set on purpose.
+DM_MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
 # shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/check_runtime.bsh
-source "$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )/../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/check_runtime.bsh" || true
+source "${DM_MYDIR}/../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/check_runtime.bsh" || true
 if ! declare -F was_executed >/dev/null; then
    printf '%s\n' "$0: ERROR: cannot source check_runtime.bsh!" >&2
    exit 1
 fi
 
+## Doesn't need an exit guard since we now know helper-scripts exists.
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/package_installed_check.sh
+source "${DM_MYDIR}/../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/package_installed_check.sh"
+
 install_required_packages() {
    local required_package_item all_present="true"
 
-   ## Skip the apt-get round-trip when every early dependency is already
-   ## installed: a prepared build machine then costs no apt-get update (no
-   ## network, no apt lock). 'pkg_installed' (helper-scripts) is the single
-   ## blessed installed-check; do not hand-roll dpkg-query here.
+   ## Skip trying to install the dependencies if they're all installed.
    # shellcheck disable=SC2086
    for required_package_item in ${dist_build_early_dependencies} ; do
       if ! pkg_installed "${required_package_item}" ; then
@@ -44,7 +36,7 @@ install_required_packages() {
       fi
    done
    if [ "${all_present}" = "true" ]; then
-      true "INFO: all early build dependencies already installed; skipping apt-get update + install."
+      true "INFO: all early build dependencies already installed."
       return 0
    fi
 
@@ -87,32 +79,12 @@ main() {
 
    true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
-   local MYDIR
-   MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-   cd "${MYDIR}"
+   cd "${DM_MYDIR}"
    cd ..
-   cd help-steps
-   source pre
-   source variables
-   cd "${MYDIR}"
-   cd ..
-   # shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/package_installed_check.sh
-   source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/package_installed_check.sh
 
-   ## Deliberate: the install runs before 1100's read-only machine gates
-   ## (check-sudo / check-dpkg / check-operating-system-version). mount-test in
-   ## 1100 needs these tools, so they must exist before 1100 runs. The cost is
-   ## that on a genuinely fresh host a broken-dpkg / unsupported-OS failure
-   ## surfaces as an apt error here rather than 1100's tailored message; the
-   ## pkg_installed skip means apt runs ONLY when a dep is actually missing, so a
-   ## prepared host hits 1100's gates first with no apt side effect.
-   install_required_packages "$@"
-
-   true
+   install_required_packages
 }
 
-## Auto-run only when executed as a build step; a unit test sources this file to
-## assert the functions exist, so it must NOT run main().
 if was_executed "${BASH_SOURCE[0]}"; then
    main "$@"
 fi
