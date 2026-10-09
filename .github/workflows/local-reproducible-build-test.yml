@@ -238,28 +238,24 @@ jobs:
           CI: "true"
           ARCH: ${{ env.REPRO_ARCH }}
           FLAVOR: ${{ env.REPRO_FLAVOR }}
-          MULTI: ${{ env.REPRO_MULTI_TARGET_LIST }}
+          MULTI_TARGET_LIST: ${{ env.REPRO_MULTI_TARGET_LIST }}
           FRESHNESS: frozen
           PKG_JOBS: ${{ env.REPRO_PACKAGE_JOBS }}
           ## Reusing a base the cache never restored would hand
           ## 1300_cowbuilder-setup a stale or absent tree, so the flag is tied to
           ## BASE_CACHE rather than set unconditionally.
           COWBASE_REUSE: ${{ env.BASE_CACHE == 'true' && 'true' || 'false' }}
+          REPRODUCIBLE_BUILD_TEST: "true"
         ## The memory sampler runs INSIDE this step, backgrounded, so its readings
         ## interleave into THIS step's log. A later step cannot help: when the runner
         ## dies, every subsequent step -- including 'if: failure()' and github's own
         ## post-steps -- is recorded as never having run, so the only evidence that
         ## survives is whatever already reached the log.
-        ## style-ok: R-101 -- pre-existing inline 'bash -c' splice of runner-set
-        ## values (safe); moving the body to a ci/ script is tracked/undecided: #89.
         run: |
           ./ci/memory-sampler 30 &
           memory_sampler_pid="$!"
           trap 'kill "${memory_sampler_pid}" 2>/dev/null || true' EXIT
-          ## dist_build_unlock_dangerous_options=true: kicksecure-ci-tiny-do-not-use
-          ## is a DANGEROUS flavor (parse-cmd error_dangerous_option_maybe) -- CI
-          ## legitimately uses this minimal CI-only flavor, so unlock it here.
-          ./docker/derivative-maker-docker-run -- bash -c "export dist_build_version=\"\$(git describe --always --abbrev=1000000000 --exclude '*_*_*')\" && export dist_build_sign_and_tag=true && export dist_build_unlock_dangerous_options=true && export dist_build_source_release_flavor='${FLAVOR}' && ./help-steps/signing-key-create && ./help-steps/sign-and-tag && env dist_build_target_arch='${ARCH}' flavors_list='${FLAVOR}' dist_build_multi_target_list='${MULTI}' ./help-steps/dm-build-official --freshness '${FRESHNESS}' --package-jobs '${PKG_JOBS}' --reuse-cowbuilder-base ${COWBASE_REUSE}"
+          ./ci/run-build-in-docker
 
       ## Runs only when the build FAILED but the runner survived -- e.g. a
       ## container OOM-killed inside an otherwise healthy job, where docker's

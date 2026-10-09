@@ -32,10 +32,6 @@
 ## Returns CMD's exit code (0 on eventual success), so callers handle failure
 ## exactly as they would the bare command.
 retry_run() {
-   ## Sound defaults come from variables.d (retry_run_default_tries /
-   ## retry_run_default_delay) on the host; the ':-' fallback keeps the SAME
-   ## defaults inside the cowbuilder chroot, where variables.d is not sourced.
-   ## --tries / --delay below still override per call.
    local retry_run_tries="${retry_run_default_tries:-4}" retry_run_delay="${retry_run_default_delay:-15}"
    while [ "$#" -gt 0 ]; do
       case "$1" in

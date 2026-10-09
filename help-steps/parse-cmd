@@ -413,8 +413,6 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
            --vmram)
-               ## Check the value BEFORE 'shift 2': a trailing bare flag otherwise
-               ## dies on a raw 'shift count out of range' instead of this message.
                if [ -z "${2:-}" ]; then
                   printf '%s\n' "${red}${bold}ERROR: You forgot to specify how much MB to use for --vmram.${reset}"
                   exit 1
@@ -495,12 +493,11 @@ dist_build_one_parse_cmd() {
                fi
                shift 2
                ;;
-           ## TODO
            --testing-frozen-sources)
                if [ "${2:-}" = "true" ]; then
-                  export dist_build_sources_list_primary="build_sources/debian_testing_frozen.sources"
+                  export dist_build_use_frozen_testing_sources='true'
                elif [ "${2:-}" = "false" ]; then
-                  true "${cyan}INFO: --testing-frozen-sources false: using default sources.${reset}"
+                  export dist_build_use_frozen_testing_sources='false'
                else
                   printf '%s\n' "${red}${bold}ERROR: supported options for --testing-frozen-sources are 'true' or 'false'.${reset}"
                   exit 1
@@ -508,10 +505,9 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
            --debug)
-               ## The xtrace effect is implemented in help-steps/pre (parse-cmd runs
-               ## too late); the value is validated here for a consistent CLI.
+               ## Parsed early by help-steps/pre, just validate it here.
                if [ "${2:-}" = "true" ]; then
-                  true "${cyan}INFO: --debug true: verbose/debug (xtrace) output kept.${reset}"
+                  true "${cyan}INFO: --debug true: verbose/debug (xtrace) output enabled.${reset}"
                elif [ "${2:-}" = "false" ]; then
                   true "${cyan}INFO: --debug false: verbose/debug (xtrace) output disabled.${reset}"
                else
@@ -548,12 +544,6 @@ dist_build_one_parse_cmd() {
                true "${cyan}openpgp_cert_file_user set to ${openpgp_cert_file_user}.${reset}"
                shift 2
                ;;
-           ## --kernel / --headers / --initramfs contract: 'none' is the exclusive
-           ## sentinel (build no kernel / header / initramfs packages), honored when
-           ## it is the final/sole value. Repeated real packages accumulate. Mixing
-           ## 'none' with a real package in one invocation is unsupported user error
-           ## (e.g. '--kernel none --kernel linux-image-amd64' is not a coherent
-           ## request and its result is undefined).
            --initramfs)
                if [ "${2:-}" = "" ]; then
                   printf '%s\n' "${red}${bold}ERROR: --initramfs must not be empty.${reset}"
@@ -652,11 +642,6 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
            --only-packages)
-               ## Guard a MISSING value (trailing bare flag), which would otherwise
-               ## die on a raw 'shift count out of range' under errexit. An EXPLICIT
-               ## empty value ('--only-packages ""') is NOT rejected: downstream
-               ## treats empty as "clear the list / default behavior", so the test is
-               ## on the argument COUNT, not on emptiness.
                if [ "$#" -lt 2 ]; then
                   printf '%s\n' "${red}${bold}ERROR: --only-packages requires a package list.${reset}"
                   exit 1
@@ -785,10 +770,6 @@ dist_build_one_parse_cmd() {
                fi
                shift 2
                ;;
-           ## For the flags below, guard a MISSING value (trailing bare flag ->
-           ## 'shift count out of range' under errexit) via the argument COUNT, NOT
-           ## emptiness: an explicit empty value is meaningful downstream (clear /
-           ## fall back to the default / skip the hook), so it must be accepted.
            --file-system)
                if [ "$#" -lt 2 ]; then
                   printf '%s\n' "${red}${bold}ERROR: --file-system requires a filesystem type.${reset}"
@@ -1035,8 +1016,6 @@ dist_build_one_parse_cmd() {
                shift 2
                ;;
             -t|--tag)
-               ## Guard a MISSING value (trailing bare flag -> 'shift count out of
-               ## range' under errexit); an explicit empty value is left to the caller.
                if [ "$#" -lt 2 ]; then
                   printf '%s\n' "${red}${bold}ERROR: -t/--tag requires a tag.${reset}"
                   exit 1
@@ -1287,6 +1266,10 @@ Build '--target iso' with a supported arch, or choose a different '--target'.${r
          export build_dry_run
          true "${BASH_SOURCE[0]} INFO: CI='${CI:-}', cross-build of dist_build_flavor='${dist_build_flavor:-}', therefore setting: build_dry_run='${build_dry_run:-}'"
       fi
+   fi
+
+   if [ "${dist_build_use_frozen_testing_sources:-}" = 'true' ]; then
+      export dist_build_sources_list_primary="build_sources/debian_testing_frozen.sources"
    fi
 }
 
