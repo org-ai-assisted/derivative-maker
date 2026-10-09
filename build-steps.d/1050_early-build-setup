@@ -23,6 +23,13 @@ fi
 # shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/package_installed_check.sh
 source "${DM_MYDIR}/../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/package_installed_check.sh"
 
+## The 'variables' aggregator must not be sourced this early (see above), but the
+## early-dependency LIST is needed here to install it. Source only that single
+## leaf fragment -- one source of truth, no duplicated package list, and no
+## dependency on the full early-variables environment.
+# shellcheck source=../variables.d/60_dependencies.bsh
+source "${DM_MYDIR}/../variables.d/60_dependencies.bsh"
+
 install_required_packages() {
    local required_package_item all_present="true"
 
