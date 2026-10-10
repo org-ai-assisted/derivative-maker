@@ -30,6 +30,16 @@ source "${DM_MYDIR}/../packages/kicksecure/helper-scripts/usr/libexec/helper-scr
 # shellcheck source=../variables.d/60_dependencies.bsh
 source "${DM_MYDIR}/../variables.d/60_dependencies.bsh"
 
+## Without 'pre' there is no error handler, so define the minimal one the
+## standalone retry_run library needs (same as pbuilder-chroot-script-main).
+error() {
+   printf '%s\n' "$0: ERROR: $*" >&2
+   exit 1
+}
+
+# shellcheck source=../help-steps/retry-run
+source "${DM_MYDIR}/../help-steps/retry-run"
+
 install_required_packages() {
    local required_package_item all_present="true"
 
@@ -54,20 +64,27 @@ install_required_packages() {
    #-o Dir::Etc::sourcelist="$dist_build_sources_list_primary" \
    #-o Dir::Etc::sourceparts="-" \
    ## Because dist_build_sources_list_primary requires approx.
+   ##
+   ## Only the minimal apt options, since 'variables' (DIST_APTGETOPT_*,
+   ## SUDO_TO_ROOT, apt_unattended_opts) is not sourced here:
+   ## - Error-Mode=any: a failed index fetch is an error, not a stale success.
+   ## - --force-confold: keep the build host administrator's config files.
+   ## - DEBIAN_FRONTEND via env: sudo resets the environment.
+   local apt_options=( -o APT::Update::Error-Mode=any )
 
-   # shellcheck disable=SC2086
    retry_run -- \
-   ${SUDO_TO_ROOT} \
+   sudo --non-interactive -- \
       apt-get \
-         "${DIST_APTGETOPT_WITHOUT_APT_CACHE[@]}" \
+         "${apt_options[@]}" \
          update
 
    # shellcheck disable=SC2086
    retry_run -- \
-   ${SUDO_TO_ROOT} \
+   sudo --non-interactive -- \
+      env DEBIAN_FRONTEND=noninteractive \
       apt-get \
-         "${DIST_APTGETOPT_WITHOUT_APT_CACHE[@]}" \
-         ${apt_unattended_opts} \
+         "${apt_options[@]}" \
+         --option Dpkg::Options=--force-confold \
          --no-install-recommends \
          --yes \
          install \
