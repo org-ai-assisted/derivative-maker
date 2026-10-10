@@ -68,23 +68,28 @@ install_required_packages() {
    ## Only the minimal apt options, since 'variables' (DIST_APTGETOPT_*,
    ## SUDO_TO_ROOT, apt_unattended_opts) is not sourced here:
    ## - Error-Mode=any: a failed index fetch is an error, not a stale success.
-   ## - --force-confold: keep the build host administrator's config files.
-   ## - DEBIAN_FRONTEND via env: sudo resets the environment.
+   ## - --force-confold: keep the build host administrator's config files. List
+   ##   form 'Dpkg::Options::=': a scalar 'Dpkg::Options=' is never passed to dpkg.
+   ## - sudo resets the environment: keep the proxy variables (as SUDO_TO_ROOT
+   ##   does) and set DEBIAN_FRONTEND via env.
    local apt_options=( -o APT::Update::Error-Mode=any )
+   ## The commas are sudo's list syntax, one argument.
+   # shellcheck disable=SC2054
+   local sudo_command=( sudo --non-interactive --preserve-env=http_proxy,https_proxy -- )
 
    retry_run -- \
-   sudo --non-interactive -- \
+   "${sudo_command[@]}" \
       apt-get \
          "${apt_options[@]}" \
          update
 
    # shellcheck disable=SC2086
    retry_run -- \
-   sudo --non-interactive -- \
+   "${sudo_command[@]}" \
       env DEBIAN_FRONTEND=noninteractive \
       apt-get \
          "${apt_options[@]}" \
-         --option Dpkg::Options=--force-confold \
+         -o Dpkg::Options::=--force-confold \
          --no-install-recommends \
          --yes \
          install \
