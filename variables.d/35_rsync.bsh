@@ -8,7 +8,14 @@
 ## style-ok: no-strict -- sourced fragment.
 
 if [ -z "${rsync_cmd:-}" ]; then
-   if [ "${build_dry_run:-}" = "true" ]; then
+   if [ "${build_dry_run:-}" = "true" ] || [ "${dist_build_simulate_upload:-}" = "true" ]; then
+      ## Neutralize the transfer command while the WHOLE upload path still runs.
+      ## - build_dry_run: a broad dummy build (empty-text images, plus --dry-run on
+      ##   rsync_opts below).
+      ## - dist_build_simulate_upload: a real image build whose upload step is
+      ##   exercised end-to-end (file-list build, target derivation, dm-prepare-release)
+      ##   but transfers nothing. A credential-less test build would otherwise retry
+      ##   rsync with linear backoff for ~7h.
       ## Ensure dm-prepare-release doesn't upload mock artifacts.
       rsync_cmd="echo simulate-only rsync"
    else

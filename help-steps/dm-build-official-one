@@ -346,13 +346,6 @@ fi
 # fi
 
 ## Uploading.
-## A native test build (dm-image-build) has no release-server credentials, and a failed
-## dm-upload-images connection retries with linear backoff for ~7h -- so a test build sets
-## dist_build_skip_image_upload=true to skip the upload. The signed image is already built;
-## only the upload-to-release-server step is skipped.
-if [ "${dist_build_skip_image_upload:-}" = "true" ]; then
-  true "INFO: dist_build_skip_image_upload=true: skipping image upload to the release server."
-else
 for flavor_item in "${flavors_list[@]}"; do
   if printf '%s\n' "${flavor_item}" | grep -- "gateway" &>/dev/null; then
     ## Not needed for gateway due to unified images.
@@ -375,6 +368,5 @@ for flavor_item in "${flavors_list[@]}"; do
     true "INFO: dist_build_multi_target_list empty: no multi-target image upload for ${flavor_item}."
   fi
 done
-fi
 
 true "$0: END"
