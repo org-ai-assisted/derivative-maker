@@ -245,8 +245,14 @@ if [ "${CI:-}" = "true" ]; then
   ## build output to docker stdout (live CI logs). Drop --interactive: it
   ## needs a real host TTY. --env CI=true tells the container it is headless.
   docker_run_opts+=( --tty --env 'CI=true' )
-else
+elif [ -t 0 ]; then
   docker_run_opts+=( --interactive --tty )
+else
+  ## Headless but NOT CI (e.g. a systemd transient unit driving a local build): stdin is not a
+  ## TTY, so --interactive fails "the input device is not a TTY" just as in CI. --tty alone still
+  ## allocates a pty for streamed output. This lets a headless non-CI build run without forcing
+  ## CI=true (which would also pull in the CI-only derivative-update / dry-run / arm64 defaults).
+  docker_run_opts+=( --tty )
 fi
 
 ## Forward the build slot.
