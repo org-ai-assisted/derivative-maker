@@ -138,10 +138,19 @@ args=()
 ## Cleanup callbacks registered via 'exception_handler_register_cleanup'.
 exception_handler_cleanup_functions=()
 
-## Wrapper that runs a command as the init process of a private PID
-## namespace. When the command exits, the kernel SIGKILLs every process
-## still alive in the namespace.
-[ -v UNSHARE_PID_NS ] || UNSHARE_PID_NS="unshare --pid --fork --kill-child --"
+## Wrapper that runs a command as the init process of a private PID + mount
+## namespace. When the command exits, the kernel SIGKILLs every process still
+## alive in the namespace.
+##
+## --mount --propagation private isolates the build's transient mounts (grml
+## loop-partition mounts, cowbuilder/debootstrap binds, VM image mounts). Without
+## it those mounts land in the host mount namespace with shared propagation, so a
+## concurrently-starting `unshare`/bwrap peer (e.g. an AI-review sandbox) clones
+## the host mount table and PINS the loop-partition mount in its own namespace --
+## the build's end-of-image `kpartx -d` then fails ("device busy") and aborts.
+## Private propagation keeps build mounts invisible to such peers; CAP_SYS_ADMIN
+## is present because every call site prefixes ${SUDO_TO_ROOT}.
+[ -v UNSHARE_PID_NS ] || UNSHARE_PID_NS="unshare --pid --fork --kill-child --mount --propagation private --"
 export UNSHARE_PID_NS
 
 ## output_cmd_set is sourced from helper-scripts (xtrace.bsh) at the
