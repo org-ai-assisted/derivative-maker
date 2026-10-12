@@ -48,6 +48,10 @@ Options:
                            the 'Persistent' boot submenu. Defaults to 'persistence'.
   --persistence-uuid <u>   pin the persistent overlay to a filesystem UUID instead of the
                            label (overrides --persistence-label in the boot entries).
+  --persistence-luks-uuid <u>
+                           LUKS header UUID baked into the persistent entry so a LUKS
+                           persistence disk auto-unlocks (must match persistence-setup's
+                           --luks-uuid). Empty omits it (plaintext-only build).
   --dist-pretty <name>     product name shown in the splash.
   --dist-version <ver>     product version shown in the splash.
   --iso-pkg-repo           directory to embed in the ISO to provide a package
@@ -101,6 +105,12 @@ arch=""
 volume_label="DM_LIVE"
 persistence_label="persistence"
 persistence_uuid=""
+## Deterministic LUKS header UUID a LUKS persistence disk is formatted with by
+## 'persistence-setup' (keep in sync with its --luks-uuid default). Baking it into
+## the one persistent entry lets a single entry auto-handle BOTH a LUKS disk (crypt
+## unlocks exactly this UUID) and a plaintext disk (found by LABEL). Empty omits it
+## (plaintext-only build; LUKS would then need a manual rd.luks.uuid GRUB edit).
+persistence_luks_uuid="40e273d7-4e63-4459-b16f-ba3df4374905"
 grub_config_dir=""
 dist_pretty=""
 dist_version=""
@@ -140,6 +150,11 @@ while [ "$#" -gt 0 ] ; do
       --persistence-uuid)
          [ "$#" -ge 2 ] || error "--persistence-uuid requires a value"
          persistence_uuid="$2"
+         shift 2
+         ;;
+      --persistence-luks-uuid)
+         [ "$#" -ge 2 ] || error "--persistence-luks-uuid requires a value"
+         persistence_luks_uuid="$2"
          shift 2
          ;;
       --grub-config-dir)
@@ -216,6 +231,9 @@ if ! [[ "${persistence_label}" =~ ^[A-Za-z0-9._-]+$ ]]; then
 fi
 if [ -n "${persistence_uuid}" ] && ! [[ "${persistence_uuid}" =~ ^[A-Za-z0-9-]+$ ]]; then
    error "--persistence-uuid must match [A-Za-z0-9-]+, got '${persistence_uuid}'"
+fi
+if [ -n "${persistence_luks_uuid}" ] && ! [[ "${persistence_luks_uuid}" =~ ^[A-Fa-f0-9-]+$ ]]; then
+   error "--persistence-luks-uuid must be a UUID ([A-Fa-f0-9-]+), got '${persistence_luks_uuid}'"
 fi
 
 ## The contents of grub_config_dir will be used as part of building the ISO's
@@ -556,18 +574,21 @@ fi
 ## workdir /live/ovlwork, both pre-created by the opt-in 'persistence-setup' helper)
 ## on the disk identified by LABEL (default 'persistence') or a pinned UUID.
 ##
-## A PLAINTEXT persistence disk engages automatically. A LUKS persistence disk needs
-## its header unlocked first; we deliberately do NOT bake 'rd.auto' here. On a security
-## distro rd.auto would prompt for and unlock EVERY LUKS device present (including the
-## user's internal encrypted install), auto-assemble LVM/MD, and race this overlay
-## mount. Instead the user adds 'rd.luks.uuid=<header-uuid>' to this entry once (GRUB
-## 'e'); persistence-setup prints the exact line. --add crypt (above) ships the unlock
-## tooling. No persistence volume present -> dmsquash-live silently falls back to an
-## amnesic RAM overlay (systemcheck warns about this at login).
+## One entry auto-handles both disk types. The baked rd.luks.uuid targets ONLY the
+## deterministic persistence-disk LUKS header (persistence-setup formats it with that
+## UUID): a LUKS disk unlocks (passphrase prompt in initramfs) and its decrypted
+## LABEL=persistence is then found; a PLAINTEXT disk has no such LUKS device and is
+## found directly by LABEL. We deliberately do NOT use 'rd.auto' (it would unlock
+## EVERY LUKS device and assemble LVM/MD on a security distro). --add crypt (above)
+## ships the unlock tooling. No persistence volume present -> dmsquash-live silently
+## falls back to an amnesic RAM overlay (systemcheck warns about this at login).
 if [ -n "${persistence_uuid}" ] ; then
    persistence_cmdline="rd.live.overlay=UUID=${persistence_uuid}:/live/overlay"
 else
    persistence_cmdline="rd.live.overlay=LABEL=${persistence_label}:/live/overlay"
+fi
+if [ -n "${persistence_luks_uuid}" ] ; then
+   persistence_cmdline="rd.luks.uuid=${persistence_luks_uuid} ${persistence_cmdline}"
 fi
 
 ## Install template GRUB config files.
