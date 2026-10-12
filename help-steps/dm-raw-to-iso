@@ -206,6 +206,18 @@ if ! [[ "${arch}" =~ ^(amd64|arm64|armhf)$ ]]; then
    error "unsupported --arch '${arch}' (see --help)"
 fi
 
+## The persistence label/uuid are interpolated into the kernel command line and
+## the GRUB @APPEND_PERSISTENCE@ substitution. Restrict to characters that cannot
+## split the command line (space), be misread as dracut's device:path separator
+## (colon), collide with a template placeholder (@), or be treated as the matched
+## text in the bash '${//}' replacement (&). The default 'persistence' is allowed.
+if ! [[ "${persistence_label}" =~ ^[A-Za-z0-9._-]+$ ]]; then
+   error "--persistence-label must match [A-Za-z0-9._-]+, got '${persistence_label}'"
+fi
+if [ -n "${persistence_uuid}" ] && ! [[ "${persistence_uuid}" =~ ^[A-Za-z0-9-]+$ ]]; then
+   error "--persistence-uuid must match [A-Za-z0-9-]+, got '${persistence_uuid}'"
+fi
+
 ## The contents of grub_config_dir will be used as part of building the ISO's
 ## /boot/grub.
 [ -n "${grub_config_dir}" ] || error "--grub-config-dir is required (see --help)"
@@ -403,6 +415,12 @@ chroot "${rootfs_dir}" sh -c 'command -v dracut >/dev/null 2>&1' \
    || error "the rootfs lacks the dracut 'dmsquash-live' module"
 [ -d "${rootfs_dir}/usr/lib/dracut/modules.d/90crypt" ] \
    || error "the rootfs lacks the dracut 'crypt' module"
+## '--add crypt' silently SKIPS the module if its check() fails, and 90crypt's
+## check() requires systemd-cryptsetup or cryptsetup in the rootfs. Verify the
+## binary so a LUKS persistence disk can actually be unlocked; otherwise the crypt
+## module would be absent and a LUKS persistent boot would silently go amnesic.
+chroot "${rootfs_dir}" sh -c 'command -v systemd-cryptsetup >/dev/null 2>&1 || command -v cryptsetup >/dev/null 2>&1' \
+   || error "the rootfs lacks 'systemd-cryptsetup'/'cryptsetup'; dracut would skip '--add crypt'"
 
 ## Build the initramfs. --no-hostonly enhances portability. dmsquash-live
 ## handles critical live ISO features like the root overlay and integrity
@@ -537,16 +555,19 @@ fi
 ## dmsquash-live mounts a full-root rw overlay (upperdir /live/overlay + sibling
 ## workdir /live/ovlwork, both pre-created by the opt-in 'persistence-setup' helper)
 ## on the disk identified by LABEL (default 'persistence') or a pinned UUID.
-## rd.auto makes the initramfs auto-unlock a LUKS persistence disk (passphrase prompt)
-## so its decrypted LABEL resolves before the overlay mount; --add crypt (above) ships
-## the unlock tooling. Without rd.auto, dracut unlocks a LUKS device only when given its
-## header rd.luks.uuid, which a read-only /boot cannot carry per-user. No persistence
-## volume present -> dmsquash-live silently falls back to an amnesic RAM overlay
-## (systemcheck warns about this at login).
+##
+## A PLAINTEXT persistence disk engages automatically. A LUKS persistence disk needs
+## its header unlocked first; we deliberately do NOT bake 'rd.auto' here. On a security
+## distro rd.auto would prompt for and unlock EVERY LUKS device present (including the
+## user's internal encrypted install), auto-assemble LVM/MD, and race this overlay
+## mount. Instead the user adds 'rd.luks.uuid=<header-uuid>' to this entry once (GRUB
+## 'e'); persistence-setup prints the exact line. --add crypt (above) ships the unlock
+## tooling. No persistence volume present -> dmsquash-live silently falls back to an
+## amnesic RAM overlay (systemcheck warns about this at login).
 if [ -n "${persistence_uuid}" ] ; then
-   persistence_cmdline="rd.auto rd.live.overlay=UUID=${persistence_uuid}:/live/overlay"
+   persistence_cmdline="rd.live.overlay=UUID=${persistence_uuid}:/live/overlay"
 else
-   persistence_cmdline="rd.auto rd.live.overlay=LABEL=${persistence_label}:/live/overlay"
+   persistence_cmdline="rd.live.overlay=LABEL=${persistence_label}:/live/overlay"
 fi
 
 ## Install template GRUB config files.
