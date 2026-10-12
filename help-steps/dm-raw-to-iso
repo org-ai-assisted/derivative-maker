@@ -232,8 +232,8 @@ fi
 if [ -n "${persistence_uuid}" ] && ! [[ "${persistence_uuid}" =~ ^[A-Za-z0-9-]+$ ]]; then
    error "--persistence-uuid must match [A-Za-z0-9-]+, got '${persistence_uuid}'"
 fi
-if [ -n "${persistence_luks_uuid}" ] && ! [[ "${persistence_luks_uuid}" =~ ^[A-Fa-f0-9-]+$ ]]; then
-   error "--persistence-luks-uuid must be a UUID ([A-Fa-f0-9-]+), got '${persistence_luks_uuid}'"
+if [ -n "${persistence_luks_uuid}" ] && ! [[ "${persistence_luks_uuid}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+   error "--persistence-luks-uuid must be a canonical UUID (8-4-4-4-12 hex), got '${persistence_luks_uuid}'"
 fi
 
 ## The contents of grub_config_dir will be used as part of building the ISO's
