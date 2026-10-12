@@ -433,12 +433,13 @@ chroot "${rootfs_dir}" sh -c 'command -v dracut >/dev/null 2>&1' \
    || error "the rootfs lacks the dracut 'dmsquash-live' module"
 [ -d "${rootfs_dir}/usr/lib/dracut/modules.d/90crypt" ] \
    || error "the rootfs lacks the dracut 'crypt' module"
-## '--add crypt' silently SKIPS the module if its check() fails, and 90crypt's
-## check() requires systemd-cryptsetup or cryptsetup in the rootfs. Verify the
-## binary so a LUKS persistence disk can actually be unlocked; otherwise the crypt
-## module would be absent and a LUKS persistent boot would silently go amnesic.
-chroot "${rootfs_dir}" sh -c 'command -v systemd-cryptsetup >/dev/null 2>&1 || command -v cryptsetup >/dev/null 2>&1' \
-   || error "the rootfs lacks 'systemd-cryptsetup'/'cryptsetup'; dracut would skip '--add crypt'"
+## The initramfs is systemd-based, so a LUKS persistence disk is unlocked by
+## /usr/lib/systemd/systemd-cryptsetup (dracut's systemd-cryptsetup module), NOT by
+## the 'cryptsetup' binary (90crypt only copies that when the systemd module is
+## absent). Verify the systemd unlocker is present so a LUKS persistent boot can
+## actually unlock; otherwise it would silently fall back to an amnesic RAM overlay.
+[ -x "${rootfs_dir}/usr/lib/systemd/systemd-cryptsetup" ] \
+   || error "the rootfs lacks '/usr/lib/systemd/systemd-cryptsetup'; a LUKS persistence disk could not be unlocked (install the systemd-cryptsetup package)"
 
 ## Build the initramfs. --no-hostonly enhances portability. dmsquash-live
 ## handles critical live ISO features like the root overlay and integrity
