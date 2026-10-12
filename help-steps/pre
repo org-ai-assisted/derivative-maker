@@ -566,7 +566,10 @@ root_check() {
          return 0
       fi
       "${output_cmd[@]}" "${red}${bold}ERROR: This must NOT be run as root (sudo)!${reset}"
-      "${output_cmd[@]}" "${red}${bold}       Export 'dist_build_allow_root=true' to override (CI / container use only).${reset}"
+      "${output_cmd[@]}" "${red}${bold}       From a root context (durable job / fresh VPS) drop to a build user with:${reset}"
+      "${output_cmd[@]}" "${red}${bold}         help-steps/run-as-user -- <builduser> ./derivative-maker ...${reset}"
+      "${output_cmd[@]}" "${red}${bold}       It sets user_name so HOME resolves to the build user; 'sudo -iu' leaves HOME=/home/root and breaks signing-key-create.${reset}"
+      "${output_cmd[@]}" "${red}${bold}       Build as a non-root user and let dm escalate via its own sudo; do NOT run the build as root.${reset}"
       exit 1
    fi
    true "INFO: Script running as non-root, ok."
