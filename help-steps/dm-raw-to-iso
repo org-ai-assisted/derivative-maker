@@ -570,26 +570,37 @@ if [ "${smbios_reader}" = "true" ] ; then
    iso_cmdline="${iso_cmdline} \${dm_smbios_extra}"
 fi
 
-## Overlay cmdline for the opt-in 'Persistent' boot submenu (@APPEND_PERSISTENCE@).
-## dmsquash-live mounts a full-root rw overlay (upperdir /live/overlay + sibling
-## workdir /live/ovlwork, both pre-created by the opt-in 'persistence-setup' helper)
-## on the disk identified by LABEL (default 'persistence') or a pinned UUID.
+## Overlay cmdlines for the opt-in 'Persistent' boot submenu. dmsquash-live mounts a
+## full-root rw overlay (upperdir /live/overlay + sibling workdir /live/ovlwork, both
+## pre-created by the opt-in 'persistence-setup' helper) on the disk identified by
+## LABEL (default 'persistence') or a pinned UUID.
 ##
-## One entry auto-handles both disk types. The baked rd.luks.uuid targets ONLY the
-## deterministic persistence-disk LUKS header (persistence-setup formats it with that
-## UUID): a LUKS disk unlocks (passphrase prompt in initramfs) and its decrypted
-## LABEL=persistence is then found; a PLAINTEXT disk has no such LUKS device and is
-## found directly by LABEL. We deliberately do NOT use 'rd.auto' (it would unlock
-## EVERY LUKS device and assemble LVM/MD on a security distro). --add crypt (above)
-## ships the unlock tooling. No persistence volume present -> dmsquash-live silently
-## falls back to an amnesic RAM overlay (systemcheck warns about this at login).
+## TWO placeholders feed TWO submenus, because a baked rd.luks.uuid for an ABSENT
+## device drops dracut to EMERGENCY (confirmed by boot test) -- which would break
+## both plaintext persistence and the no-disk amnesic fallback:
+##   @APPEND_PERSISTENCE@       PLAINTEXT entries: overlay by LABEL/UUID, NO
+##                              rd.luks.uuid. A plaintext disk is found by label; no
+##                              disk -> dmsquash falls back to an amnesic RAM overlay
+##                              (systemcheck warns at login). Never emergencies.
+##   @APPEND_PERSISTENCE_LUKS@  ENCRYPTED entries: additionally bake rd.luks.uuid for
+##                              the deterministic persistence-disk LUKS header
+##                              (persistence-setup formats it with that UUID) so a
+##                              LUKS disk auto-unlocks (passphrase prompt), no typing.
+##                              We deliberately do NOT use 'rd.auto' (it would unlock
+##                              EVERY LUKS device + assemble LVM/MD on a security
+##                              distro). Booting this entry WITHOUT its disk
+##                              emergencies -- a clear user error; use a plaintext or
+##                              top-level amnesic entry instead. --add crypt (above)
+##                              ships the unlock tooling.
 if [ -n "${persistence_uuid}" ] ; then
    persistence_cmdline="rd.live.overlay=UUID=${persistence_uuid}:/live/overlay"
 else
    persistence_cmdline="rd.live.overlay=LABEL=${persistence_label}:/live/overlay"
 fi
 if [ -n "${persistence_luks_uuid}" ] ; then
-   persistence_cmdline="rd.luks.uuid=${persistence_luks_uuid} ${persistence_cmdline}"
+   persistence_luks_cmdline="rd.luks.uuid=${persistence_luks_uuid} ${persistence_cmdline}"
+else
+   persistence_luks_cmdline="${persistence_cmdline}"
 fi
 
 ## Install template GRUB config files.
@@ -639,6 +650,7 @@ while IFS= read -r -d '' cfg_file ; do
    cfg_content="$(cat -- "${cfg_file}"; printf '%s\n' 'x')"
    cfg_content="${cfg_content%x}"
    cfg_content="${cfg_content//@APPEND_LIVE@/${iso_cmdline}}"
+   cfg_content="${cfg_content//@APPEND_PERSISTENCE_LUKS@/${persistence_luks_cmdline}}"
    cfg_content="${cfg_content//@APPEND_PERSISTENCE@/${persistence_cmdline}}"
    cfg_content="${cfg_content//@TIMEOUT@/${grub_timeout}}"
    printf '%s' "${cfg_content}" > "${cfg_file}"
