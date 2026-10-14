@@ -3,6 +3,9 @@
 ## Copyright (C) 2012 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
 
+## style-ok: no-strict -- 'pre' intentionally disables errexit, it must not be
+## turned back on.
+
 ## Intentional, throughout this file: a leading '$' on variables already in
 ## arithmetic context (e.g. $(( ${x} + 1 ))) is a harmless style choice.
 # shellcheck disable=SC2004
@@ -10,7 +13,7 @@
 # shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/check_runtime.bsh
 
 #set -x
-set -o errexit
+#set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
@@ -225,7 +228,7 @@ Advanced Options:
     (Note: amd64 also works with most Intel CPUs.)
   --debug [true|false]            : Does not disable verbose/debug (xtrace) during help-steps pre, variables and parse-cmd.
   --dry-run [true|false]          : Does not actually build real images. Just an empty text file. Useful for debugging dm-prepare-release script.
-  --simulate-upload [true|false]  : Build real images and run the FULL upload path (file-list build, target derivation, dm-prepare-release) but transfer nothing (rsync becomes a no-op). For credential-less test builds. Distinct from --dry-run, which builds dummy images.
+  --simulate-upload [true|false]  : Run through the entire image upload process except for the upload itself.
   --unsupported-os [true|false]   : Skip the build-host operating system / codename sanity check. NOT for release builds; for dev / AI / CI smoke tests on non-Debian hosts only.
 
 For VMs only:
@@ -984,10 +987,10 @@ dist_build_one_parse_cmd() {
            --simulate-upload)
                if [ "${2:-}" = "false" ]; then
                   dist_build_simulate_upload="false"
-                  true "${cyan}INFO: ${under}not${eunder} --simulate-upload${reset}"
+                  true "${cyan}INFO: ${under}not${eunder} simulating upload.${reset}"
                elif [ "${2:-}" = "true" ]; then
                   dist_build_simulate_upload="true"
-                  true "${cyan}INFO: ${under}--simulate-upload${eunder}: upload path runs, transfer is a no-op.${reset}"
+                  true "${cyan}INFO: ${under}Will${eunder} simulate upload.${reset}"
                else
                   printf '%s\n' "${red}${bold}ERROR: supported options for --simulate-upload are 'true' or 'false'.${reset}"
                   exit 1

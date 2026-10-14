@@ -141,18 +141,6 @@ exception_handler_cleanup_functions=()
 ## Wrapper that runs a command as the init process of a private PID + mount
 ## namespace. When the command exits, the kernel SIGKILLs every process still
 ## alive in the namespace.
-##
-## --mount --propagation slave isolates the build's transient mounts (grml
-## loop-partition mounts, cowbuilder/debootstrap binds, VM image mounts). Without
-## it those mounts land in the host mount namespace with shared propagation, so a
-## concurrently-starting `unshare`/bwrap peer (e.g. an AI-review sandbox) clones
-## the host mount table and PINS the loop-partition mount in its own namespace --
-## the build's end-of-image `kpartx -d` then fails ("device busy") and aborts.
-## SLAVE (not private): the build's OWN mounts do not propagate OUT to the host
-## (so no peer can pin them), yet host unmount events still propagate IN -- so an
-## admin unmounting a pre-existing host fs during the long build is not blocked by
-## a busy copy held in the namespace. CAP_SYS_ADMIN is present because every call
-## site prefixes ${SUDO_TO_ROOT}.
 [ -v UNSHARE_PID_NS ] || UNSHARE_PID_NS="unshare --pid --fork --kill-child --mount --propagation slave --"
 export UNSHARE_PID_NS
 
@@ -283,7 +271,11 @@ ${cyan}${bold}############################################################${rese
          "${output_cmd[@]}" "INFO: using non-interactive error handler."
          break
       else
-         if [ -t "0" ] && [ -t "1" ]; then
+         ## Only stdin must be connected to a terminal for the interactive
+         ## error handler to be functional. Devs may tee log output to a file
+         ## during an interactive build, so testing if stdout is connected to
+         ## a terminal breaks things.
+         if [ -t "0" ]; then
             "${output_cmd[@]}" "INFO: stdin and stdout connected to terminal, using interactive error handler."
             "${output_cmd[@]}" "\
 ${red}${bold}ERROR: An issue in ${under}$0${eunder} has been detected!${reset}

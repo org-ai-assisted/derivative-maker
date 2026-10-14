@@ -1,0 +1,11 @@
+#!/bin/bash -e
+
+## Copyright (C) 2012 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## See the file COPYING for copying conditions.
+
+## style-ok: no-strict -- sourced fragment.
+
+## The list of early dependencies cannot be stored in variables.d as it is
+## needed by *_early-build-setup, which cannot source 'variables'. Provide it
+## in a minimal helper that can be sourced by scripts that need it.
+dist_build_early_dependencies="git time curl approx lsb-release fakeroot fasttrack-archive-keyring safe-rm gpg-sq kmod qemu-utils kpartx parted"

@@ -7,8 +7,7 @@
 
 ## style-ok: no-strict -- sourced fragment.
 
-## Dependencies for sanity tests and build system setup.
-dist_build_early_dependencies="git time curl approx lsb-release fakeroot fasttrack-archive-keyring safe-rm gpg-sq kmod qemu-utils kpartx parted"
+source "${source_code_folder_dist}"/help-steps/set-early-dependencies
 
 #dist_build_script_build_dependency_debian_backports+=" currently-none "
 
