@@ -435,8 +435,8 @@ create_derivative_distribution_debian_packages() {
                ;;
          esac
          ## Fast local iteration (opt-in): skip a package whose source is unchanged
-         ## since its last build AND whose built .deb is still present in the local
-         ## package output. A reverted/cleared pool forces a rebuild.
+         ## since its last build and whose built .deb is still present in the local
+         ## package output.
          if [ "${dist_build_skip_published_packages:-}" = "true" ] \
             && ! dm_package_needs_rebuild "${item}" "${dist_build_apt_codename}"; then
             true "${cyan}INFO: Skipping up-to-date package ${base_name} (source unchanged and artifact present).${reset}"
