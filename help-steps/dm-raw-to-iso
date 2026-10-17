@@ -22,8 +22,10 @@ shopt -s inherit_errexit
 shopt -s shift_verbose
 export LC_ALL=C
 
-## style-ok: no-has -- standalone build-host tool; intentionally does not depend
-## on helper-scripts/has.bsh. Uses 'command -v' for optional/required build tools.
+## style-ok: no-has -- standalone build-host tool.
+##
+## TODO: But it doesn't have to be so standalone it can't use helper-scripts,
+## does it?
 
 me="${BASH_SOURCE[0]##*/}"
 MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
@@ -44,14 +46,13 @@ Options:
   --arch <a>               target architecture: amd64|arm64|armhf. Defaults to host
                            architecture.
   --label <volid>          ISO volume label. Defaults to 'DM_LIVE'.
-  --persistence-label <l>  filesystem LABEL of the opt-in persistent overlay disk, used by
-                           the 'Persistent' boot submenu. Defaults to 'persistence'.
-  --persistence-uuid <u>   pin the persistent overlay to a filesystem UUID instead of the
-                           label (overrides --persistence-label in the boot entries).
+  --persistence-label <l>  filesystem label for an opt-in persistent overlay disk.
+                           Defaults to 'persistence'.
+  --persistence-uuid <u>   filesystem UUID for an opt-in persistent overlay disk.
+                           Overrides --persistence-label.
   --persistence-luks-uuid <u>
-                           LUKS header UUID baked into the persistent entry so a LUKS
-                           persistence disk auto-unlocks (must match persistence-setup's
-                           --luks-uuid). Empty omits it (plaintext-only build).
+                           LUKS header UUID for an opt-in persistent overlay disk.
+                           Defaults to a well-known value.
   --dist-pretty <name>     product name shown in the splash.
   --dist-version <ver>     product version shown in the splash.
   --iso-pkg-repo           directory to embed in the ISO to provide a package
@@ -85,7 +86,7 @@ require_cmd() {
 require_file() {
    local f
    for f in "$@" ; do
-      if [ ! -e "${f}" ] ; then
+      if [ ! -e "${f}" ]; then
          error "required file not found: '${f}'. Install the Debian package that ships it."
       fi
    done
@@ -105,11 +106,7 @@ arch=""
 volume_label="DM_LIVE"
 persistence_label="persistence"
 persistence_uuid=""
-## Deterministic LUKS header UUID a LUKS persistence disk is formatted with by
-## 'persistence-setup' (keep in sync with its --luks-uuid default). Baking it into
-## the one persistent entry lets a single entry auto-handle BOTH a LUKS disk (crypt
-## unlocks exactly this UUID) and a plaintext disk (found by LABEL). Empty omits it
-## (plaintext-only build; LUKS would then need a manual rd.luks.uuid GRUB edit).
+## REMINDER: Keep this UUID in sync with live-config-dist's persistence-setup!
 persistence_luks_uuid="40e273d7-4e63-4459-b16f-ba3df4374905"
 grub_config_dir=""
 dist_pretty=""
@@ -120,7 +117,7 @@ smbios_reader="false"
 source_date_epoch="${SOURCE_DATE_EPOCH:-}"
 keep_workdir="false"
 
-while [ "$#" -gt 0 ] ; do
+while [ "$#" -gt 0 ]; do
    case "$1" in
       --raw)
          [ "$#" -ge 2 ] || error "--raw requires a value"
@@ -221,19 +218,16 @@ if ! [[ "${arch}" =~ ^(amd64|arm64|armhf)$ ]]; then
    error "unsupported --arch '${arch}' (see --help)"
 fi
 
-## The persistence label/uuid are interpolated into the kernel command line and
-## the GRUB @APPEND_PERSISTENCE@ substitution. Restrict to characters that cannot
-## split the command line (space), be misread as dracut's device:path separator
-## (colon), collide with a template placeholder (@), or be treated as the matched
-## text in the bash '${//}' replacement (&). The default 'persistence' is allowed.
+## ${persistence_label} must be safe to interpolate directly into a GRUB config
+## file.
 if ! [[ "${persistence_label}" =~ ^[A-Za-z0-9._-]+$ ]]; then
    error "--persistence-label must match [A-Za-z0-9._-]+, got '${persistence_label}'"
 fi
-if [ -n "${persistence_uuid}" ] && ! [[ "${persistence_uuid}" =~ ^[A-Za-z0-9-]+$ ]]; then
-   error "--persistence-uuid must match [A-Za-z0-9-]+, got '${persistence_uuid}'"
+if [ -n "${persistence_uuid}" ] && ! [[ "${persistence_uuid}" =~ ^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$ ]]; then
+   error "--persistence-uuid must be a canonical UUID, got '${persistence_uuid}'"
 fi
-if [ -n "${persistence_luks_uuid}" ] && ! [[ "${persistence_luks_uuid}" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
-   error "--persistence-luks-uuid must be a canonical UUID (8-4-4-4-12 hex), got '${persistence_luks_uuid}'"
+if [ -n "${persistence_luks_uuid}" ] && ! [[ "${persistence_luks_uuid}" =~ ^[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}$ ]]; then
+   error "--persistence-luks-uuid must be a canonical UUID, got '${persistence_luks_uuid}'"
 fi
 
 ## The contents of grub_config_dir will be used as part of building the ISO's
@@ -291,7 +285,7 @@ cleanup() {
       ## imminent.
       umount -- "${m}" 2>/dev/null || true
    done
-   if [ -n "${kpartx_image}" ] ; then
+   if [ -n "${kpartx_image}" ]; then
       kpartx -d -s -v -- "${kpartx_image}" 2>/dev/null || true
    fi
    if [ "${keep_workdir}" = "true" ]; then
@@ -349,7 +343,7 @@ kpartx_image=""
 
 ## Ensure mandatory bootloader files are present. Note that some of the EFI
 ## bootloader files may not be mandatory, so we don't look for those here.
-if [ "${enable_bios_boot}" = "true" ] ; then
+if [ "${enable_bios_boot}" = "true" ]; then
    require_file "${rootfs_dir}/usr/lib/grub/i386-pc/cdboot.img" \
       "${rootfs_dir}/usr/lib/grub/i386-pc/boot_hybrid.img" \
       "${rootfs_dir}/usr/lib/grub/i386-pc/normal.mod"
@@ -371,7 +365,7 @@ dpkg-query --admindir="${rootfs_dir}/var/lib/dpkg" --show > "${binary_dir}/live/
 ## keyboard layout submenu.
 kb_layout_rc=0
 kb_layout_submenu="$(chroot "${rootfs_dir}" /etc/grub.d/44_kb_layout)" || kb_layout_rc=$?
-if [ "${kb_layout_rc}" -ne 0 ] ; then
+if [ "${kb_layout_rc}" -ne 0 ]; then
    error "Failed to build the keyboard layout submenu (exit '${kb_layout_rc}')"
 fi
 mkdir -p -- "${binary_dir}/boot/grub/kb_layouts"
@@ -401,16 +395,16 @@ rootfs_kernel_hardening="${rootfs_kernel_hardening#"${rootfs_kernel_hardening%%[
 rootfs_kernel_hardening="${rootfs_kernel_hardening%"${rootfs_kernel_hardening##*[![:space:]]}"}"
 
 ## Fail closed if no hardening vars were found.
-if [ -z "${rootfs_kernel_hardening}" ] ; then
+if [ -z "${rootfs_kernel_hardening}" ]; then
    error "no kernel-hardening parameters found in '${rootfs_dir}/boot/grub/grub.cfg'"
 fi
 
 ## Neutralize /etc/fstab and /etc/crypttab. We will add root mount information
 ## to the kernel command line later.
-if [ -f "${rootfs_dir}/etc/fstab" ] ; then
+if [ -f "${rootfs_dir}/etc/fstab" ]; then
    printf '%s\n' '# emptied by dm-raw-to-iso' > "${rootfs_dir}/etc/fstab"
 fi
-if [ -f "${rootfs_dir}/etc/crypttab" ] ; then
+if [ -f "${rootfs_dir}/etc/crypttab" ]; then
    printf '%s\n' '# emptied by dm-raw-to-iso' > "${rootfs_dir}/etc/crypttab"
 fi
 
@@ -422,7 +416,7 @@ printf '%s\n' "${me}: building dracut-live initramfs for kernel '${kernel_ver}'"
 
 ## One of the kernel "images" we find here may be a symlink. Refuse it, as it
 ## will become dangling after being placed on the ISO.
-if [ -L "${rootfs_dir}/boot/${kernel_img}" ] ; then
+if [ -L "${rootfs_dir}/boot/${kernel_img}" ]; then
    error "kernel '/boot/${kernel_img}' is a symlink"
 fi
 
@@ -433,19 +427,13 @@ chroot "${rootfs_dir}" sh -c 'command -v dracut >/dev/null 2>&1' \
    || error "the rootfs lacks the dracut 'dmsquash-live' module"
 [ -d "${rootfs_dir}/usr/lib/dracut/modules.d/90crypt" ] \
    || error "the rootfs lacks the dracut 'crypt' module"
-## The initramfs is systemd-based, so a LUKS persistence disk is unlocked by
-## /usr/lib/systemd/systemd-cryptsetup (dracut's systemd-cryptsetup module), NOT by
-## the 'cryptsetup' binary (90crypt only copies that when the systemd module is
-## absent). Verify the systemd unlocker is present so a LUKS persistent boot can
-## actually unlock; otherwise it would silently fall back to an amnesic RAM overlay.
 [ -x "${rootfs_dir}/usr/lib/systemd/systemd-cryptsetup" ] \
-   || error "the rootfs lacks '/usr/lib/systemd/systemd-cryptsetup'; a LUKS persistence disk could not be unlocked (install the systemd-cryptsetup package)"
+   || error "the rootfs lacks '/usr/lib/systemd/systemd-cryptsetup'"
 
 ## Build the initramfs. --no-hostonly enhances portability. dmsquash-live
 ## handles critical live ISO features like the root overlay and integrity
 ## checks. crypt enables LUKS unlock in the initramfs so an optional encrypted
-## persistent overlay disk (opt-in persistence-setup) can be unlocked before the
-## overlay mount.
+## persistent overlay disk can be unlocked before the overlay mount.
 chroot "${rootfs_dir}" env TMPDIR=/tmp dracut --no-hostonly --add dmsquash-live --add crypt --force --reproducible /boot/initrd.img-live "${kernel_ver}"
 
 ## Install the kernel and initramfs into the ISO binary area.
@@ -478,7 +466,7 @@ mksquashfs "${rootfs_dir}" "${binary_dir}/live/filesystem.squashfs" \
 printf '%s\n' "Derivative ISO; label=${volume_label}; arch=${arch}" > "${binary_dir}/.disk/info"
 
 ## Install BIOS GRUB components.
-if [ "${enable_bios_boot}" = "true" ] ; then
+if [ "${enable_bios_boot}" = "true" ]; then
    printf '%s\n' "${me}: installing BIOS GRUB components" >&2
    mkdir -p -- "${binary_dir}/boot/grub/i386-pc"
    ## Include all runtime modules, they all can be useful in some situations.
@@ -508,13 +496,13 @@ for efi_platform_pair in "${efi_platform_pair_list[@]}" ; do
    signed_shim_file="${rootfs_dir}/usr/lib/shim/shim${efi_arch}.efi.signed"
    signed_mokmanager_file="${rootfs_dir}/usr/lib/shim/mm${efi_arch}.efi.signed"
 
-   if [ -r "${signed_grub_file}" ] && [ -r "${signed_shim_file}" ] ; then
+   if [ -r "${signed_grub_file}" ] && [ -r "${signed_shim_file}" ]; then
       cp -a --dereference -- "${signed_shim_file}" "${esp_stage_dir}/EFI/boot/boot${efi_arch}.efi"
       cp -a -- "${signed_grub_file}" "${esp_stage_dir}/EFI/boot/grub${efi_arch}.efi"
-      if [ -r "${signed_mokmanager_file}" ] ; then
+      if [ -r "${signed_mokmanager_file}" ]; then
          cp -a -- "${signed_mokmanager_file}" "${esp_stage_dir}/EFI/boot/mm${efi_arch}.efi"
       fi
-   elif [ "${efi_platform_pair}" = "${efi_platform_pair_list[0]}" ] ; then
+   elif [ "${efi_platform_pair}" = "${efi_platform_pair_list[0]}" ]; then
       error "missing signed EFI dependency for the supported EFI arch '${efi_arch}' in the image (need '${signed_shim_file}' and '${signed_grub_file}')"
    else
       printf '%s\n' "${me}: NOTE: no signed shim+grub for optional EFI arch '${efi_arch}', skipping it." >&2
@@ -541,7 +529,7 @@ esp_block_count=$(( (esp_byte_count / 1024 + 55) / 32 * 32 ))
 ## Build the ESP.
 efi_img="${binary_dir}/boot/grub/efi.img"
 ## 32-bit hex volume id derived from SOURCE_DATE_EPOCH for reproducibility.
-## style-ok: R-030 -- zero-padded hex of a number; '%s' cannot express it.
+## style-ok: R-030 -- zero-padded hex of a number.
 esp_volid="$(printf '%08x' $(( SOURCE_DATE_EPOCH % 4294967296 )) )"
 mkfs.msdos -C "${efi_img}" "${esp_block_count}" -i "${esp_volid}" >/dev/null
 mmd -i "${efi_img}" ::/EFI ::/EFI/boot ::/boot ::/boot/grub
@@ -558,7 +546,7 @@ cp -a -- "${rootfs_dir}/usr/share/grub/unicode.pf2" "${binary_dir}/boot/grub/uni
 ## Prepare to assemble GRUB config.
 iso_cmdline="rd.live.overlay.overlayfs=1 splash rd.live.image root=live:CDLABEL=${volume_label} rd.live.dir=live rd.live.squashimg=filesystem.squashfs iso-scan/filename=\${iso_path}"
 grub_timeout="30"
-if [ "${serial_console}" = "true" ] ; then
+if [ "${serial_console}" = "true" ]; then
    iso_cmdline="${iso_cmdline} console=tty0 console=ttyS0,115200n8"
    ## When the serial console is enabled, boot the default entry immediately.
    grub_timeout="0"
@@ -566,38 +554,16 @@ fi
 ## Add kernel hardening before the SMBIOS reader so SMBIOS can inject console=
 ## and not be overridden.
 iso_cmdline="${iso_cmdline} ${rootfs_kernel_hardening}"
-if [ "${smbios_reader}" = "true" ] ; then
+if [ "${smbios_reader}" = "true" ]; then
    iso_cmdline="${iso_cmdline} \${dm_smbios_extra}"
 fi
 
-## Overlay cmdlines for the opt-in 'Persistent' boot submenu. dmsquash-live mounts a
-## full-root rw overlay (upperdir /live/overlay + sibling workdir /live/ovlwork, both
-## pre-created by the opt-in 'persistence-setup' helper) on the disk identified by
-## LABEL (default 'persistence') or a pinned UUID.
-##
-## TWO placeholders feed TWO submenus, because a baked rd.luks.uuid for an ABSENT
-## device drops dracut to EMERGENCY (confirmed by boot test) -- which would break
-## both plaintext persistence and the no-disk amnesic fallback:
-##   @APPEND_PERSISTENCE@       PLAINTEXT entries: overlay by LABEL/UUID, NO
-##                              rd.luks.uuid. A plaintext disk is found by label; no
-##                              disk -> dmsquash falls back to an amnesic RAM overlay
-##                              (systemcheck warns at login). Never emergencies.
-##   @APPEND_PERSISTENCE_LUKS@  ENCRYPTED entries: additionally bake rd.luks.uuid for
-##                              the deterministic persistence-disk LUKS header
-##                              (persistence-setup formats it with that UUID) so a
-##                              LUKS disk auto-unlocks (passphrase prompt), no typing.
-##                              We deliberately do NOT use 'rd.auto' (it would unlock
-##                              EVERY LUKS device + assemble LVM/MD on a security
-##                              distro). Booting this entry WITHOUT its disk
-##                              emergencies -- a clear user error; use a plaintext or
-##                              top-level amnesic entry instead. --add crypt (above)
-##                              ships the unlock tooling.
-if [ -n "${persistence_uuid}" ] ; then
+if [ -n "${persistence_uuid}" ]; then
    persistence_cmdline="rd.live.overlay=UUID=${persistence_uuid}:/live/overlay"
 else
    persistence_cmdline="rd.live.overlay=LABEL=${persistence_label}:/live/overlay"
 fi
-if [ -n "${persistence_luks_uuid}" ] ; then
+if [ -n "${persistence_luks_uuid}" ]; then
    persistence_luks_cmdline="rd.luks.uuid=${persistence_luks_uuid} ${persistence_cmdline}"
 else
    persistence_luks_cmdline="${persistence_cmdline}"
@@ -615,14 +581,14 @@ cp -- "${grub_config_dir}/live-theme/theme.txt" "${binary_dir}/boot/grub/live-th
 
 ## Append the keyboard layout submenu, sourcing the theme inside it so it
 ## matches the rest of the menu.
-if [ -n "${kb_layout_submenu}" ] ; then
+if [ -n "${kb_layout_submenu}" ]; then
    printf '%s\n' "${kb_layout_submenu}" >> "${binary_dir}/boot/grub/grub.cfg"
    sed -i "s/\(submenu 'Keyboard layout options'.*\)/\1\n  source \/boot\/grub\/theme.cfg/" \
       "${binary_dir}/boot/grub/grub.cfg"
 fi
 
 ## Tee the GRUB menu to ttyS0 if --serial-console is passed.
-if [ "${serial_console}" = "true" ] ; then
+if [ "${serial_console}" = "true" ]; then
   printf '%s\n' "
 insmod serial
 serial --unit=0 --speed=115200 --word=8 --parity=no --stop=1
@@ -630,7 +596,7 @@ terminal_output serial console" >> "${binary_dir}/boot/grub/config.cfg"
 fi
 
 ## Install the SMBIOS cmdline reader if --smbios-reader is passed.
-if [ "${smbios_reader}" = "true" ] ; then
+if [ "${smbios_reader}" = "true" ]; then
    printf '%s\n' '' >> "${binary_dir}/boot/grub/config.cfg"
    cat -- "${grub_config_dir}/smbios-reader.cfg" >> "${binary_dir}/boot/grub/config.cfg"
 fi
@@ -664,7 +630,7 @@ xorriso_opts=(
    --modification-date="$(date --utc --date="@${SOURCE_DATE_EPOCH}" +%Y%m%d%H%M%S00)"
 )
 
-if [ "${enable_bios_boot}" = "true" ] ; then
+if [ "${enable_bios_boot}" = "true" ]; then
    ## Legacy BIOS: hybrid MBR from GRUB (USB) + El Torito no-emulation core (CD).
    xorriso_opts+=(
       --grub2-boot-info
