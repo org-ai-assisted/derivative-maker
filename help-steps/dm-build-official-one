@@ -94,16 +94,19 @@ while [ "$#" -ge 1 ]; do
 done
 set -- "${forwarded_args[@]}"
 
-## '~/.ssh' (the upload credential) is needed ONLY for a real upload, i.e. an
-## explicit '--upload true'. Every other build simulates the upload (rsync mocked
-## in 'variables.d/35_rsync.bsh'), so its absence is not an error. The same
-## '$dist_build_upload' condition gates '~/.ssh' in
-## 'build-steps.d/1100_sanity-tests'
+## '~/.ssh' (the upload credential) is needed ONLY for a REAL upload. That is the
+## same condition 'variables.d/35_rsync.bsh' uses to pick real rsync: an explicit
+## '--upload true', and NOT CI / dry-run / remote-derivative-packages (all of which
+## simulate the upload, so '~/.ssh' is unused and its absence is not an error).
+## Coordinated with 'build-steps.d/1100_sanity-tests'
 ## 'check-redistributable-builds-requirements()'.
-if [ "${dist_build_upload:-}" = "true" ]; then
+if [ "${dist_build_upload:-}" = "true" ] \
+  && [ "${CI:-}" != "true" ] \
+  && [ "${build_dry_run:-}" != "true" ] \
+  && [ "${remote_derivative_packages:-}" != "true" ]; then
   run_cmd test -d ~/.ssh
 else
-  true "INFO: Skipping ~/.ssh test; upload simulated (pass '--upload true' for a real upload)."
+  true "INFO: Skipping ~/.ssh test; upload simulated (a real upload needs '--upload true' on a non-CI, non-dry-run, non-remote-packages build)."
 fi
 
 ## architecture choice

@@ -117,6 +117,13 @@ ssh_key_create() {
    if test -f "${ssh_build_private_key}" ; then
       true "INFO: ssh_build_private_key ${ssh_build_private_key} already exists. Skipping ssh build key generation, ok."
       test -r "${ssh_build_private_key}"
+      ## The public key is consumed (authorized_keys in the dist-ai upload test);
+      ## an existing private key whose '.pub' was removed must still yield it.
+      ## 'ssh-keygen -y' re-derives it from the private key, non-destructively.
+      if ! test -f "${ssh_build_public_key}" ; then
+         ssh-keygen -y -f "${ssh_build_private_key}" > "${ssh_build_public_key}"
+         chmod -- 0644 "${ssh_build_public_key}"
+      fi
       return 0
    fi
 

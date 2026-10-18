@@ -85,10 +85,12 @@ check-redistributable-builds-requirements() {
       "${HOME}/buildconfig.d"
       "${HOME}/.signify"
    )
-   ## Upload credential: required ONLY for a real upload ('--upload true'). The
-   ## default simulates the upload (rsync mocked, 'variables.d/35_rsync.bsh'), so
-   ## '~/.ssh' is not needed. Same condition as 'help-steps/dm-build-official-one'.
-   if [ "${dist_build_upload:-}" = "true" ]; then
+   ## Upload credential: required ONLY for a real upload ('--upload true'), and a
+   ## remote-derivative-packages build never uploads (opaque prebuilt, not
+   ## publishable -- 'variables.d/35_rsync.bsh' mocks rsync for it). CI and dry-run
+   ## already returned above. Same real-upload condition as '35_rsync.bsh' and
+   ## 'help-steps/dm-build-official-one'.
+   if [ "${dist_build_upload:-}" = "true" ] && [ "${build_remote_derivative_pkgs:-}" != "true" ]; then
       folder_list+=( "${HOME}/.ssh" )
    fi
    for folder_item in "${folder_list[@]}"; do
