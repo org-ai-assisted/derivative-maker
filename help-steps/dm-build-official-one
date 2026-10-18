@@ -64,6 +64,24 @@ while [ "$#" -ge 1 ]; do
       forwarded_args+=( "${1}" "${2}" )
       shift 2
       ;;
+    --upload)
+      ## Parsed here (not only in parse-cmd) because the '~/.ssh' gate below runs
+      ## before any build step sources 'help-steps/variables'. Re-forwarded so
+      ## downstream parse-cmd still sees it.
+      case "${2:-}" in
+        true|false)
+          dist_build_upload="${2}"
+          ;;
+        '')
+          error '--upload requires an argument!'
+          ;;
+        *)
+          error "--upload only accepts 'true' or 'false' as arguments!"
+          ;;
+      esac
+      forwarded_args+=( "${1}" "${2}" )
+      shift 2
+      ;;
     --show-steps)
       export TESTING_MODE=1
       shift
@@ -76,19 +94,16 @@ while [ "$#" -ge 1 ]; do
 done
 set -- "${forwarded_args[@]}"
 
-if [ "${CI:-}" = "true" ]; then
-  true "INFO: Skipping test if folder ~/.ssh exists on CI."
-elif [ "${build_dry_run:-}" = "true" ]; then
-  ## '--dry-run true' is documented (see 'help-steps/parse-cmd') as
-  ## "useful for debugging dm-prepare-release"; rsync is mocked
-  ## (see 'help-steps/variables' '$rsync_cmd' default for dry-run),
-  ## so '~/.ssh' is not used for real uploads and its absence is not
-  ## an error. Coordinated with
-  ## 'build-steps.d/1100_sanity-tests'
-  ## 'check-redistributable-builds-requirements()'.
-  true "INFO: Skipping test if folder ~/.ssh exists in dry-run mode."
-else
+## '~/.ssh' (the upload credential) is needed ONLY for a real upload, i.e. an
+## explicit '--upload true'. Every other build simulates the upload (rsync mocked
+## in 'variables.d/35_rsync.bsh'), so its absence is not an error. The same
+## '$dist_build_upload' condition gates '~/.ssh' in
+## 'build-steps.d/1100_sanity-tests'
+## 'check-redistributable-builds-requirements()'.
+if [ "${dist_build_upload:-}" = "true" ]; then
   run_cmd test -d ~/.ssh
+else
+  true "INFO: Skipping ~/.ssh test; upload simulated (pass '--upload true' for a real upload)."
 fi
 
 ## architecture choice
@@ -159,12 +174,6 @@ if [ "${dist_build_redistributable:-}" = "true" ]; then
   ## See also:
   ## https://www.kicksecure.com/wiki/Dev/nonfree
   build_args+=(--freedom false)
-fi
-
-if [ "${remote_derivative_packages:-}" = "true" ] || [ "${CI:-}" = "true" ]; then
-  ## Skip upload of debug images, and never upload from CI.
-  rsync_cmd="true simulate-only"
-  export rsync_cmd
 fi
 
 ## Several build steps allow us to pass multiple targets at once rather than

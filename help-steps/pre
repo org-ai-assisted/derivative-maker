@@ -122,11 +122,6 @@ fi
 unset dist_build_interactive_cli
 export dist_build_interactive
 
-if [ "${CI:-}" = "true" ]; then
-   true "${BASH_SOURCE[0]} INFO: CI detected."
-   [ -n "${rsync_cmd:-}" ] || rsync_cmd="echo simulate-only rsync"
-fi
-
 ## The error-handler trap functions below pass "${args[@]}" to the cleanup
 ## scripts. 'args' is normally set by parse-cmd (args=("$@") in
 ## dist_build_one_parse_cmd), but the trap can fire before parse-cmd has
