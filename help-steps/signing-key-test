@@ -57,9 +57,12 @@ main() {
    safe-rm -- "${binary_build_folder_dist}/test_sign_file.asc"
 
    ## Signify sign+verify self-test -- exercise the signify key end-to-end, like
-   ## the sq block above. Signify keys sign release files in 'dm-prepare-release'
-   ## (package 'developer-meta-files'); doing it here fails fast and lets a
-   ## password-protected key cache early, same rationale as the sq self-test.
+   ## the unconditional sq block above. Signify keys sign release files in
+   ## 'dm-prepare-release' (package 'developer-meta-files'); doing it here fails
+   ## fast (at minute 1, not deep in the release phase). Unlike sq there is no
+   ## signify agent, so this caches nothing: a password-protected key would prompt
+   ## here AND later -- the auto-generated build key and a typical automated
+   ## release key carry no passphrase, so the common path is non-interactive.
    printf '%s\n' "test" | tee -- "${binary_build_folder_dist}/test_sign_file_signify" >/dev/null
    safe-rm --force -- "${binary_build_folder_dist}/test_sign_file_signify.sig"
    chown -- "${user_name}:${user_name}" "${binary_build_folder_dist}/test_sign_file_signify"
