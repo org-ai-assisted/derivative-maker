@@ -74,7 +74,9 @@ default_if_empty signify_public_key "${signify_folder}/keyname.pub"
 ## to the production server uses the operator's own key, not this one.
 default_if_empty ssh_build_key_folder "${HOMEVAR}/.ssh"
 default_if_empty ssh_build_private_key "${ssh_build_key_folder}/id_ed25519_dm_build"
-default_if_empty ssh_build_public_key "${ssh_build_private_key}.pub"
+## NOT independently overridable: 'ssh-keygen -f <priv>' hardcodes '<priv>.pub', so
+## a divergent value would make ssh_key_create chmod a file ssh-keygen never wrote.
+ssh_build_public_key="${ssh_build_private_key}.pub"
 
 ## {{{ fallback variables for 'debchange' ('dch'), 'dpkg-buildpackage' and 'debuild'
 

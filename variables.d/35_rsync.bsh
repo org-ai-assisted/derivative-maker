@@ -8,17 +8,28 @@
 ## style-ok: no-strict -- sourced fragment.
 
 if [ -z "${rsync_cmd:-}" ]; then
-   ## Single source of truth for a REAL upload: an explicit '--upload true', and
-   ## never on CI (fail-closed: CI must not publish). Every other build (the
-   ## default, '--dry-run', remote-package builds) runs the full upload code path
-   ## with rsync mocked, so no '~/.ssh' credential is needed. The '$HOME/.ssh'
-   ## checks in 'help-steps/dm-build-official-one' and
-   ## 'build-steps.d/1100_sanity-tests' key off the SAME '$dist_build_upload'.
-   if [ "${dist_build_upload:-}" = "true" ] && [ "${CI:-}" != "true" ]; then
+   ## A real upload happens only on an explicit '--upload true'. The default and
+   ## '--upload false' simulate it (rsync mocked), exercising the full upload code
+   ## path with no credential. A pre-set '$rsync_cmd' (e.g. a hermetic
+   ## localhost-sshd test) wins here, but NOT past the fail-closed overrides below.
+   if [ "${dist_build_upload:-}" = "true" ]; then
       rsync_cmd="rsync"
    else
       rsync_cmd="echo simulate-only rsync"
    fi
+fi
+
+## Fail-closed: these modes must NEVER perform a real upload, even over a pre-set
+## '$rsync_cmd'. CI must not publish; a '--dry-run' build and a
+## '--remote-derivative-packages' build (opaque prebuilt packages, not reproducible)
+## are not publishable as official images. This is the SINGLE source of truth for
+## the real-upload decision; the '$HOME/.ssh' checks in
+## 'help-steps/dm-build-official-one' and 'build-steps.d/1100_sanity-tests' gate on
+## the SAME condition.
+if [ "${CI:-}" = "true" ] \
+   || [ "${build_dry_run:-}" = "true" ] \
+   || [ "${build_remote_derivative_pkgs:-}" = "true" ]; then
+   rsync_cmd="echo simulate-only rsync"
 fi
 
 ## TODO: hardlinks: rsync error Internal hashtable error: illegal key supplied
