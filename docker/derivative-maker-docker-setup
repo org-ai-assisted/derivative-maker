@@ -64,7 +64,7 @@ DEBIAN_FRONTEND=noninteractive \
     --no-install-recommends \
     --yes \
     sq sqv sqop sequoia-git sequoia-chameleon-gnupg gpg-agent \
-    signify-openbsd moreutils \
+    signify-openbsd openssh-client moreutils \
     dbus dbus-user-session git time curl lsb-release fakeroot \
     dpkg-dev fasttrack-archive-keyring safe-rm adduser sudo approx \
     python3 python3-yaml

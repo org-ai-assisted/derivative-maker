@@ -67,6 +67,15 @@ default_if_empty signify_folder "${HOMEVAR}/.signify"
 default_if_empty signify_private_key "${signify_folder}/keyname.sec"
 default_if_empty signify_public_key "${signify_folder}/keyname.pub"
 
+## Build ssh key: upload transport credential, auto-generated (stable,
+## no-clobber) by 'signing-key-create' 'ssh_key_create', consistent with the
+## signify/sequoia build keys. A DISTINCT filename (not the default 'id_ed25519')
+## so it never clobbers an operator's real key; a real upload ('--upload true')
+## to the production server uses the operator's own key, not this one.
+default_if_empty ssh_build_key_folder "${HOMEVAR}/.ssh"
+default_if_empty ssh_build_private_key "${ssh_build_key_folder}/id_ed25519_dm_build"
+default_if_empty ssh_build_public_key "${ssh_build_private_key}.pub"
+
 ## {{{ fallback variables for 'debchange' ('dch'), 'dpkg-buildpackage' and 'debuild'
 
 ## see: 'man debchange'

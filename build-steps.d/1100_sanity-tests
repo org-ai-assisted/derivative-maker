@@ -77,11 +77,20 @@ check-redistributable-builds-requirements() {
    ## buildconfig overrides). Their absence is a configuration error.
    ## Folder '$HOME/.local/share/sequoia/keystore' is optional because
    ## it does not exist if using Qubes 'split-gpg-2'.
+   ## Signing + operator config: always required for a real redistributable build
+   ## (not CI, not dry-run -- both returned above). Signing keys are NOT
+   ## auto-generated for redistributable builds (see 'signing_key()' in
+   ## 'build-steps.d/1200_prepare-build-machine'), so '~/.signify' must be real.
    folder_list=(
       "${HOME}/buildconfig.d"
-      "${HOME}/.ssh"
       "${HOME}/.signify"
    )
+   ## Upload credential: required ONLY for a real upload ('--upload true'). The
+   ## default simulates the upload (rsync mocked, 'variables.d/35_rsync.bsh'), so
+   ## '~/.ssh' is not needed. Same condition as 'help-steps/dm-build-official-one'.
+   if [ "${dist_build_upload:-}" = "true" ]; then
+      folder_list+=( "${HOME}/.ssh" )
+   fi
    for folder_item in "${folder_list[@]}"; do
       if [ ! -d "${folder_item}" ]; then
          error "dist_build_redistributable=true, missing required folder: ${folder_item}"

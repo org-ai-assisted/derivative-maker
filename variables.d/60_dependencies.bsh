@@ -216,6 +216,9 @@ dist_build_script_build_dependency+=" rsstail "
 
 ## for upload scripts
 dist_build_script_build_dependency+=" rsync  "
+## ssh transport for the rsync upload, and 'ssh-keygen' for signing-key-create's
+## ssh_key_create (build ssh key).
+dist_build_script_build_dependency+=" openssh-client "
 dist_build_script_build_dependency+=" stunnel4 "
 dist_build_script_build_dependency+=" socat "
 ## contains nslookup

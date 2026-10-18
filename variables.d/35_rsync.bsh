@@ -8,11 +8,16 @@
 ## style-ok: no-strict -- sourced fragment.
 
 if [ -z "${rsync_cmd:-}" ]; then
-   if [ "${build_dry_run:-}" = "true" ] || [ "${dist_build_simulate_upload:-}" = "true" ]; then
-      ## Don't upload mock or non-production artifacts.
-      rsync_cmd="echo simulate-only rsync"
-   else
+   ## Single source of truth for a REAL upload: an explicit '--upload true', and
+   ## never on CI (fail-closed: CI must not publish). Every other build (the
+   ## default, '--dry-run', remote-package builds) runs the full upload code path
+   ## with rsync mocked, so no '~/.ssh' credential is needed. The '$HOME/.ssh'
+   ## checks in 'help-steps/dm-build-official-one' and
+   ## 'build-steps.d/1100_sanity-tests' key off the SAME '$dist_build_upload'.
+   if [ "${dist_build_upload:-}" = "true" ] && [ "${CI:-}" != "true" ]; then
       rsync_cmd="rsync"
+   else
+      rsync_cmd="echo simulate-only rsync"
    fi
 fi
 

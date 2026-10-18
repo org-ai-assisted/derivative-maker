@@ -56,9 +56,25 @@ main() {
    safe-rm -- "${binary_build_folder_dist}/test_sign_file"
    safe-rm -- "${binary_build_folder_dist}/test_sign_file.asc"
 
-   ## Signify keys are used by 'dm-prepare-release' in package 'developer-meta-files'.
-   ## TODO: stub
-   test -d ~/.signify
+   ## Signify sign+verify self-test -- exercise the signify key end-to-end, like
+   ## the sq block above. Signify keys sign release files in 'dm-prepare-release'
+   ## (package 'developer-meta-files'); doing it here fails fast and lets a
+   ## password-protected key cache early, same rationale as the sq self-test.
+   printf '%s\n' "test" | tee -- "${binary_build_folder_dist}/test_sign_file_signify" >/dev/null
+   safe-rm --force -- "${binary_build_folder_dist}/test_sign_file_signify.sig"
+   chown -- "${user_name}:${user_name}" "${binary_build_folder_dist}/test_sign_file_signify"
+   signify-openbsd -S -s "${signify_private_key}" -m "${binary_build_folder_dist}/test_sign_file_signify" -x "${binary_build_folder_dist}/test_sign_file_signify.sig"
+   signify-openbsd -V -p "${signify_public_key}" -m "${binary_build_folder_dist}/test_sign_file_signify" -x "${binary_build_folder_dist}/test_sign_file_signify.sig"
+   safe-rm -- "${binary_build_folder_dist}/test_sign_file_signify"
+   safe-rm -- "${binary_build_folder_dist}/test_sign_file_signify.sig"
+
+   ## Build ssh key validity self-test. Auto-generated only on non-redistributable
+   ## builds (see 'signing-key-create' ssh_key_create); redistributable builds do
+   ## not generate it and upload with the operator's own key, so exercise only when
+   ## present. Deriving the public key proves the private key parses.
+   if test -f "${ssh_build_private_key}" ; then
+      ssh-keygen -y -f "${ssh_build_private_key}" >/dev/null
+   fi
 }
 
 main "$@"

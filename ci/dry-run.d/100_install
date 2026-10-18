@@ -25,6 +25,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 if [ "${CI:-}" != "true" ]; then
    printf '%s\n' "${BASH_SOURCE[0]}: refusing to run outside CI" >&2
@@ -38,4 +39,4 @@ apt-get install --yes --no-install-recommends \
    lsb-release procps \
    python3-yaml shellcheck file moreutils \
    cowbuilder mmdebstrap debootstrap \
-   sequoia-git sq sqop signify-openbsd safe-rm
+   sequoia-git sq sqop signify-openbsd openssh-client safe-rm

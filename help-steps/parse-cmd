@@ -228,7 +228,7 @@ Advanced Options:
     (Note: amd64 also works with most Intel CPUs.)
   --debug [true|false]            : Does not disable verbose/debug (xtrace) during help-steps pre, variables and parse-cmd.
   --dry-run [true|false]          : Does not actually build real images. Just an empty text file. Useful for debugging dm-prepare-release script.
-  --simulate-upload [true|false]  : Run through the entire image upload process except for the upload itself.
+  --upload [true|false]           : Actually upload built images to the distribution server (needs ~/.ssh). Default false: the full upload code path runs with rsync simulated, so no credentials are needed.
   --unsupported-os [true|false]   : Skip the build-host operating system / codename sanity check. NOT for release builds; for dev / AI / CI smoke tests on non-Debian hosts only.
 
 For VMs only:
@@ -984,18 +984,18 @@ dist_build_one_parse_cmd() {
                export build_dry_run
                shift 2
                ;;
-           --simulate-upload)
+           --upload)
                if [ "${2:-}" = "false" ]; then
-                  dist_build_simulate_upload="false"
-                  true "${cyan}INFO: ${under}not${eunder} simulating upload.${reset}"
+                  dist_build_upload="false"
+                  true "${cyan}INFO: ${under}not${eunder} uploading (upload simulated).${reset}"
                elif [ "${2:-}" = "true" ]; then
-                  dist_build_simulate_upload="true"
-                  true "${cyan}INFO: ${under}Will${eunder} simulate upload.${reset}"
+                  dist_build_upload="true"
+                  true "${cyan}INFO: ${under}Will${eunder} upload.${reset}"
                else
-                  printf '%s\n' "${red}${bold}ERROR: supported options for --simulate-upload are 'true' or 'false'.${reset}"
+                  printf '%s\n' "${red}${bold}ERROR: supported options for --upload are 'true' or 'false'.${reset}"
                   exit 1
                fi
-               export dist_build_simulate_upload
+               export dist_build_upload
                shift 2
                ;;
            --unsupported-os)
