@@ -20,8 +20,11 @@ dist-ai-tests:
   ## which ship in debian:trixie-slim; and e2fsprogs, which
   ## mke2fs_reimage_host_independent drives (mke2fs/e2fsck/debugfs on image files);
   ## and shellcheck, which raw_to_iso_no_unbound_var_test runs against dm-raw-to-iso
-  ## (asserting zero SC2154) -- absent, the test FATALs on a missing shellcheck.
-  apt-packages: "python3 python3-pytest python3-hypothesis procps safe-rm xz-utils strip-nondeterminism xkb-data passwd sudo lsb-release e2fsprogs shellcheck"
+  ## (asserting zero SC2154) -- absent, the test FATALs on a missing shellcheck;
+  ## and openssh-server + openssh-client + rsync, which the --e2e suite
+  ## dm-upload-images-tests-e2e needs to stand up a throwaway localhost sshd and drive
+  ## the real dm-upload-images rsync-over-ssh upload path (it FATALs on any missing).
+  apt-packages: "python3 python3-pytest python3-hypothesis procps safe-rm xz-utils strip-nondeterminism xkb-data passwd sudo lsb-release e2fsprogs shellcheck openssh-server openssh-client rsync"
 
   ## dm-help-steps suites drive helper-scripts: raw_to_iso_no_unbound_var_test
   ## sources /usr/libexec/helper-scripts/has.bsh (absolute), and frozen_snapshot_pin

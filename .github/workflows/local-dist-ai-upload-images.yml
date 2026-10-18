@@ -1,0 +1,43 @@
+## Copyright (C) 2026 - 2026 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
+## See the file COPYING for copying conditions.
+
+## AI-Assisted
+
+## Runs the dist-ai --e2e suite dm-upload-images-tests-e2e (which lives in
+## org-ai-assisted/dist-ai, not in-tree): it stands up a THROWAWAY localhost sshd
+## and drives the REAL dm-upload-images show_files + upload_files over rsync-over-ssh
+## in --dry-run, authenticated with a freshly auto-generated ed25519 key -- proving
+## the image-upload path + ssh key auth that a simulate-by-default build mocks. No
+## production server is touched; nothing is written or sent.
+##
+## This is NOT the managed consumer-dist-ai-tests.yml (--core) template. It runs on
+## push to master, on a daily schedule, and on demand -- not on every PR: the e2e
+## stack (openssh-server + sshd standup) is heavier than the per-PR core lane, and a
+## feature PR does not change the upload mechanism, so the scheduled/dispatch cadence
+## is enough. A failure means the real dm-upload-images upload path or its ssh key
+## auth regressed.
+##
+## Reusable docs:
+## https://github.com/org-ai-assisted/developer-meta-files/blob/master/.github/workflows/reusable-dist-ai-tests.yml
+
+name: dist-ai upload-images e2e
+
+on:
+  push:
+    branches: [master]
+  schedule:
+    - cron: '41 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  dist-ai-upload-images-e2e:
+    uses: org-ai-assisted/developer-meta-files/.github/workflows/reusable-dist-ai-tests.yml@master
+    with:
+      categories: '--e2e'
