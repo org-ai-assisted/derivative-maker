@@ -52,7 +52,11 @@ while [ "$#" -ge 1 ]; do
     --remote-derivative-packages)
       case "${2:-}" in
         true|false)
-          remote_derivative_packages="${2}"
+          ## Canonical name (same var parse-cmd/variables + 'variables.d/35_rsync.bsh'
+          ## read), so the G1 ssh gate below and the real-upload decision cannot
+          ## disagree. Parallel to build_dry_run: a local set from the flag, used by
+          ## the gate, and forwarded.
+          build_remote_derivative_pkgs="${2}"
           ;;
         '')
           error '--remote-derivative-packages requires an argument!'
@@ -103,7 +107,7 @@ set -- "${forwarded_args[@]}"
 if [ "${dist_build_upload:-}" = "true" ] \
   && [ "${CI:-}" != "true" ] \
   && [ "${build_dry_run:-}" != "true" ] \
-  && [ "${remote_derivative_packages:-}" != "true" ]; then
+  && [ "${build_remote_derivative_pkgs:-}" != "true" ]; then
   run_cmd test -d ~/.ssh
 else
   true "INFO: Skipping ~/.ssh test; upload simulated (a real upload needs '--upload true' on a non-CI, non-dry-run, non-remote-packages build)."
