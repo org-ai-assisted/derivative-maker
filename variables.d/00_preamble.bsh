@@ -106,7 +106,14 @@ export HOMEVAR_VBOX_TEMP
 #> VBoxManage: error: Could not create the directory '.' (VERR_ACCESS_DENIED)
 default_if_empty SUDO_TO_VBOX_TEMP "sudo --non-interactive -D ${HOMEVAR_VBOX_TEMP} -u dm-vbox-temp"
 
-default_if_empty HOMEVAR "/home/${user_name}"
+## Default HOMEVAR to the build user's AUTHORITATIVE home from NSS, never a hardcoded
+## /home/${user_name}: the home-dir layout is not baked in, and a `sudo`-to-root build
+## has no /home/root. Matches dm's own getent derivation (ci/dry-run.d/300_run-derivative-maker).
+## An explicit HOMEVAR / binary_build_folder_dist override still wins (default_if_empty).
+default_if_empty HOMEVAR "$(getent passwd "${user_name}" | cut -d: -f6)"
+if [ "${HOMEVAR:-}" = "" ]; then
+   error "Variable HOMEVAR is empty (no home for build user '${user_name}' in passwd)."
+fi
 export HOMEVAR
 
 default_if_empty dist_parent_folder "$(dirname -- "${source_code_folder_dist}")"
