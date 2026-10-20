@@ -85,13 +85,14 @@ path_variable_adjustments
 ## Example PATH:
 ## /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-## Determine the invoking (non-root) user.
-default_if_empty user_name "${SUDO_USER:-}"
-default_if_empty user_name "$(logname 2>/dev/null)" || true
-if [ -z "${user_name:-}" ] && [ "${EUID}" != "0" ]; then
-   user_name="$(whoami)" || true
-   default_if_empty user_name "${USER:-}"
-fi
+## Determine the build user (its $HOME is the output tree). A non-root launch
+## resolves to the EFFECTIVE user, so `sudo -u <user>` / machinectl / systemd-run
+## all work; SUDO_USER/logname are used ONLY when running as root.
+# shellcheck source=../help-steps/determine-build-user.bsh
+source "${source_code_folder_dist}/help-steps/determine-build-user.bsh"
+## no arg -> determine_build_user defaults euid to ${EUID}; the optional $1 is a test seam.
+# shellcheck disable=SC2119
+user_name="$(determine_build_user)"
 if [ "${user_name:-}" = "" ]; then
    error "Variable user_name is empty."
 fi
