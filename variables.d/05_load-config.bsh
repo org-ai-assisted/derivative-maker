@@ -22,8 +22,10 @@ if [ ! "${dist_build_one_parsed:-}" = "true" ]; then
    dist_build_one_parsed="true"
 fi
 
-## Calculate build-slot-related variables now, since they depend on
-## command-line options and config files may reference them.
+## dist_build_slot is a command-line (--build-slot) / environment input
+## only; config files may REFERENCE the derived paths (e.g.
+## binary_build_folder_dist) but must not set the slot. Derived here,
+## before configs are sourced, so configs can read these values.
 export dist_build_slot="${dist_build_slot:-}"
 if [ -n "${binary_build_folder_dist:-}" ]; then
    true "INFO: using explicitly set binary_build_folder_dist='${binary_build_folder_dist}'"
