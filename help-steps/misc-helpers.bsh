@@ -136,7 +136,7 @@ unmount_if_mounted() {
 ## Release every loop device still associated with an image, then verify the
 ## image is fully detached.
 loop_teardown_verify() {
-   local image loop_devices_output loop_devices_item attempt losetup_rc
+   local image loop_devices_output loop_devices_item attempt losetup_rc base maps
    image="$1"
 
    if [ "${image:-}" = "" ]; then
@@ -152,12 +152,23 @@ loop_teardown_verify() {
       if [ "${loop_devices_output:-}" = "" ]; then
          return 0
       fi
+      ## settle first so kpartx -d does not race a udev probe of a partition node
+      ${SUDO_TO_ROOT} udevadm settle --timeout 5 || true
       while read -r loop_devices_item ; do
          if [ "${loop_devices_item:-}" = "" ]; then
             continue
          fi
+         base="${loop_devices_item##*/}"
          ${SUDO_TO_ROOT} kpartx -d -s -v -- "${loop_devices_item}" || true "INFO: kpartx non-zero exit code."
-         ${SUDO_TO_ROOT} losetup --detach "${loop_devices_item}" || true "INFO: losetup non-zero exit code."
+         ## Detach only once no ${base}pN map remains; detaching while one is
+         ## present orphans it (unremovable, "Open count:1"). Repro + fix proof:
+         ## https://github.com/org-ai-assisted/kpartx-dmsetup-loop-teardown-busy
+         maps="$(${SUDO_TO_ROOT} dmsetup ls --noheadings 2>/dev/null | awk '{ print $1 }' | grep -E "^${base}p[0-9]+$" || true)"
+         if [ "${maps:-}" = "" ]; then
+            ${SUDO_TO_ROOT} losetup --detach "${loop_devices_item}" || true "INFO: losetup non-zero exit code."
+         else
+            true "INFO: ${base} partition maps still present; leaving loop attached, will retry."
+         fi
       done <<< "${loop_devices_output}"
       ${SUDO_TO_ROOT} udevadm settle --timeout 5 || true
       sleep 1
