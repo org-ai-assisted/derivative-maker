@@ -18,17 +18,33 @@
 ## set-once per the login session) are IGNORED. This makes every launch resolve
 ## correctly: direct, `sudo -u <user>`, `machinectl --uid`, `systemd-run --uid`.
 ## Only when running as ROOT (a `sudo` build) do we recover the invoking user, via
-## SUDO_USER then logname -- so the output lands in the human's home, not /root.
+## SUDO_USER then logname -- so the output lands in the human's home, not /root. A
+## NUMERIC candidate is refused: as a getent passwd key it coerces to a UID lookup,
+## which would resolve a different account and point HOMEVAR at the wrong home.
 # shellcheck disable=SC2120  # $1 (euid) is an optional test seam; prod call passes none
 determine_build_user() {
    local euid="${1:-${EUID}}"
+   local candidate=""
    if [ "${euid}" != "0" ]; then
       id --user --name
       return
    fi
    if [ -n "${SUDO_USER:-}" ]; then
-      printf '%s\n' "${SUDO_USER}"
-      return
+      candidate="${SUDO_USER}"
+   else
+      candidate="$(logname 2>/dev/null || true)"
    fi
-   logname 2>/dev/null || true
+   ## Reject an all-numeric candidate (optional leading '+', leading zeros --
+   ## strtoul-coercible): a numeric SUDO_USER/logname used as a getent passwd KEY
+   ## resolves by UID to a DIFFERENT account -> HOMEVAR points at the wrong home,
+   ## and the build sources that user's buildconfig.d / .ssh / .signify. A real
+   ## build user is always a NAME; emit nothing so the caller's empty-check aborts.
+   case "${candidate#+}" in
+      ''|*[!0-9]*)
+         printf '%s\n' "${candidate}"
+         ;;
+      *)
+         printf '%s\n' "determine_build_user: refusing numeric build user '${candidate}' (a UID key to getent -> wrong home); pass a real user name." >&2
+         ;;
+   esac
 }
