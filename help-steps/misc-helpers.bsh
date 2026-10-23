@@ -161,13 +161,20 @@ dm_partition_maps() {
    fi
    matched="$(printf '%s\n' "${dm_ls_output}" | awk '{ print $1 }' | grep -E "^${base_name}p[0-9]+$" || true)"
    [ -n "${matched}" ] || return 0
+   local map_dev
    while read -r map_item ; do
       [ -n "${map_item:-}" ] || continue
       map_deps="$(${SUDO_TO_ROOT} dmsetup deps --noheadings -o blkdevname "${map_item}" 2>/dev/null || true)"
-      ## normalise deps to space-padded alphanumeric tokens, then match the loop's name as a whole
-      ## token (so loop0 does not match loop10). OWNED must be tested BEFORE FOREIGN: an owned deps
-      ## string also contains letters.
-      case " ${map_deps//[^a-zA-Z0-9]/ } " in
+      ## dmsetup prints "N dependencies  : (<dev>)" EVEN with --noheadings, so extract the token(s)
+      ## INSIDE the parentheses first -- otherwise the literal word "dependencies" is mistaken for a
+      ## device name and every map misreads as FOREIGN. No parens (empty/odd) -> map_dev is empty.
+      map_dev="${map_deps#*\(}"
+      map_dev="${map_dev%\)*}"
+      [ "${map_dev}" = "${map_deps}" ] && map_dev=""   ## no '(' matched -> no resolvable device
+      ## normalise to space-padded alphanumeric tokens, then match the loop's name as a whole token
+      ## (so loop0 does not match loop10). OWNED must be tested BEFORE FOREIGN: an owned dev also
+      ## contains letters.
+      case " ${map_dev//[^a-zA-Z0-9]/ } " in
          *" ${base_name} "*)
             true "owned: ${map_item} backed by ${base_name}"
             ;;
@@ -190,11 +197,16 @@ dm_partition_maps() {
 ## OWNED map is 'dmsetup remove --retry/--force'd; an UNKNOWN map -- which could be a foreign map
 ## whose name did not resolve -- is never removed, only left for the detach gate to fail loud on.
 dm_map_owned_by() {
-   local base_name map_name map_deps
+   local base_name map_name map_deps map_dev
    base_name="$1"
    map_name="$2"
    map_deps="$(${SUDO_TO_ROOT} dmsetup deps --noheadings -o blkdevname "${map_name}" 2>/dev/null || true)"
-   case " ${map_deps//[^a-zA-Z0-9]/ } " in
+   ## extract the device token(s) INSIDE the parentheses (dmsetup keeps the "N dependencies :"
+   ## prefix even with --noheadings); only an owned loop name there counts as OWNED.
+   map_dev="${map_deps#*\(}"
+   map_dev="${map_dev%\)*}"
+   [ "${map_dev}" = "${map_deps}" ] && map_dev=""
+   case " ${map_dev//[^a-zA-Z0-9]/ } " in
       *" ${base_name} "*)
          return 0
          ;;
