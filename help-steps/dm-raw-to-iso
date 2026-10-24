@@ -452,6 +452,15 @@ done
 ## Build the root squashfs. Exclude API / ephemeral filesystems.
 ##
 ## mksquashfs honors SOURCE_DATE_EPOCH.
+##
+## Keep mksquashfs (squashfs-tools); do NOT port to squashfs-tools-ng
+## (gensquashfs). Benchmarked a wash on pack time and image size (xz fixed for
+## small images); boot speed identical (same xz format). The only -ng win is
+## ~12x lower peak RSS, not worth the port unless build-host memory becomes a
+## real constraint on a GB-scale rootfs. gensquashfs also has no exclude glob
+## (include-only), so the -one-file-system + proc/sys/dev/run/tmp safety below
+## would need a pack-file allowlist, plus a regenerated dist-ai reproducibility
+## baseline.
 printf '%s\n' "${me}: creating filesystem.squashfs" >&2
 mksquashfs "${rootfs_dir}" "${binary_dir}/live/filesystem.squashfs" \
    -reproducible \
