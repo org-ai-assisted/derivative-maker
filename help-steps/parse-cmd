@@ -210,6 +210,7 @@ Advanced Options:
   --skip-published-packages [true|false] : Rebuild only packages that changed since the last build, reusing unchanged packages from the prior build (default: true).
   --package-jobs N                : Build up to N derivative packages concurrently. Default: 1.
   --skip-prepare-build-machine [true|false] : Skip build-steps.d/*_prepare-build-machine. Only safe when the build machine was already prepared by an earlier run in the same session.
+  --skip-sanity-tests [true|false] : Skip build-steps.d/*_sanity-tests (incl. git_sanity_test). Only safe when sanity was already verified by an earlier run in the same session (e.g. dm-build-official-one's per-flavor rebuilds).
   --skip-cowbuilder-setup [true|false] : Skip build-steps.d/*_cowbuilder-setup. Only safe when the cowbuilder chroot was already created by an earlier run in the same session.
   --reproducible-dist-build-version [true|false] : DANGEROUS, DO NOT USE. Drops the '-<n>-g<commit>' version suffix on builds from untagged commits. This will result in the built image carrying a misleading version number! Only useful for AI agents, for reproducing CI-built images outside of CI. Humans should tolerate the version suffix or create a release tag.
   --reuse-cowbuilder-base [true|false] : Reuse an already-present cowbuilder base chroot instead of rebuilding it, if one exists.
@@ -695,6 +696,18 @@ dist_build_one_parse_cmd() {
                   export dist_build_skip_prepare_build_machine="false"
                else
                   printf '%s\n' "${red}${bold}ERROR: supported options for --skip-prepare-build-machine are 'true' or 'false'.${reset}"
+                  exit 1
+               fi
+               shift 2
+               ;;
+           --skip-sanity-tests)
+               if [ "${2:-}" = "true" ]; then
+                  export dist_build_skip_sanity_tests="true"
+                  true "${cyan}INFO: --skip-sanity-tests: not running sanity-tests.${reset}"
+               elif [ "${2:-}" = "false" ]; then
+                  export dist_build_skip_sanity_tests="false"
+               else
+                  printf '%s\n' "${red}${bold}ERROR: supported options for --skip-sanity-tests are 'true' or 'false'.${reset}"
                   exit 1
                fi
                shift 2

@@ -679,6 +679,11 @@ check-required-packages-present() {
 main() {
    true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
+   if [ "${dist_build_skip_sanity_tests:-}" = "true" ]; then
+      true "${bold}${cyan}INFO: run with '--skip-sanity-tests' switch, skipping ${BASH_SOURCE[0]}. ${reset}"
+      return 0
+   fi
+
    test-wc "$@"
    check-redistributable-builds-requirements "$@"
    check-git-folder "$@"
