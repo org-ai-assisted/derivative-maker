@@ -142,9 +142,16 @@ update_repo() {
   ## If we were asked to check out the 'latest' tag, find the latest tag.
   if [ "${target_tag}" = 'latest' ]; then
     true "INFO: latest tag requested: yes"
-    latest_tag_commit="$(git rev-list --tags --max-count=1)" || error 'Failed to find latest tag commit.'
-    [[ -z "${latest_tag_commit:-}" ]] && error 'No tags found.'
-    target_tag="$(git describe --tags -- "${latest_tag_commit}")" || error 'Failed to find latest git tag.'
+    ## Pick the highest-version release tag. 'git rev-list --tags --max-count=1'
+    ## is unreliable: it orders by COMMIT DATE across ALL tags, so non-release
+    ## tags (sync/backup/local) or a release tag that is not on the newest-dated
+    ## commit select the wrong tag. Release tags are versioned 'N.N.N.N[-channel]';
+    ## select the highest via git's version sort, then verify its signature below.
+    ## The channel suffix is restricted to '[a-z0-9-]' so malformed local tags
+    ## (e.g. a version with an appended '_<hash>') are not mistaken for releases.
+    latest_release_tags="$(git tag --list --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9][a-z0-9-]*)?$' || true)"
+    target_tag="${latest_release_tags%%$'\n'*}"
+    [[ -z "${target_tag:-}" ]] && error 'No release tag found.'
   else
     true "INFO: latest tag requested: no"
   fi
