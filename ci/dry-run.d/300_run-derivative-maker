@@ -53,7 +53,7 @@
 ## dm-prepare-release records an empty target name for the source archive and so
 ## SKIPS the per-image work: the reproducibility buildinfo is emitted only for
 ## virtualbox/raw/qcow2/iso. An image target is therefore what makes the real
-## caller exercise dm-reproducible-buildinfo and the sign_and_verify of its output.
+## caller exercise dm-reproducible-buildinfo and the sign_and_verify_all of its output.
 ##
 ## '--freshness frozen' is mandatory for dm-build-official and is the right value
 ## here regardless: it pins the snapshot.debian.org suite, so the lane does not
