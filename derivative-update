@@ -3,29 +3,17 @@
 ## Copyright (C) 2012 - 2025 ENCRYPTED SUPPORT LLC <adrelanos@whonix.org>
 ## See the file COPYING for copying conditions.
 
-set -x
-set -o errexit
-set -o nounset
-set -o pipefail
-set -o errtrace
-shopt -s inherit_errexit
-shopt -s shift_verbose
-export LC_ALL=C
-
-true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
-
-MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-cd "${MYDIR}"
-
-dist_build_source_run="true"
-
-source ./help-steps/pre
-source ./help-steps/variables
-
-## Path to the unified git verification helper. All git verification
-## (main repo + submodules + arbitrary refs) goes through this script.
-git_sanity_test="${dist_source_help_steps_folder}/git_sanity_test"
+## Source-able: a dist-ai unit test sources this file to call its pure helpers
+## (e.g. derivative_update_latest_release_tag) WITHOUT running the update. Only
+## 'main' (guarded by was_executed) performs the top-level setup and the update.
+## provides was_executed
+DM_MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# shellcheck source=./packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/check_runtime.bsh
+source "${DM_MYDIR}/packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/check_runtime.bsh" || true
+if ! declare -F was_executed >/dev/null; then
+  printf '%s\n' "$0: ERROR: cannot source check_runtime.bsh!" >&2
+  exit 1
+fi
 
 error_handler_dist_build_one() {
    true "${red}${bold}ERROR in $0${reset}"
@@ -34,8 +22,6 @@ error_handler_dist_build_one() {
    true "${red}${bold}INFO: Now exiting from $0 (because error was detected, see above).${reset}"
    exit 1
 }
-
-trap "error_handler_dist_build_one" ERR
 
 ## abort_update: roll back to a known-good state on verification failure.
 ##
@@ -79,10 +65,24 @@ abort_update() {
   error "${error_msg}"
 }
 
+## Echo the highest-version release tag ('N.N.N.N[-channel]'), or return
+## non-zero if there is none. PURE (no strict-mode) so a dist-ai unit test can
+## source this file and call it against crafted repositories. 'git rev-list
+## --tags --max-count=1' is unreliable: it orders by COMMIT DATE across ALL
+## tags, so non-release tags (sync/backup/local) or a release tag not on the
+## newest-dated commit select the wrong tag. The channel suffix is restricted
+## to '[a-z0-9-]' so malformed local tags (e.g. a version with an appended
+## '_<hash>') are not mistaken for releases.
+derivative_update_latest_release_tag() {
+  local release_tags
+  release_tags="$(git tag --list --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9][a-z0-9-]*)?$' || true)"
+  [ -n "${release_tags}" ] || return 1
+  printf '%s\n' "${release_tags%%$'\n'*}"
+}
+
 update_repo() {
   local branch_reset_commit current_branch \
-    upstream_branch submodule_path_list submodule_path_item \
-    latest_tag_commit
+    upstream_branch submodule_path_list submodule_path_item
 
   if [ -z "${target_tag}" ] && [ -z "${target_ref}" ] && [ -z "${update_only}" ]; then
     error 'You did not tell me what to check out.
@@ -139,19 +139,11 @@ update_repo() {
   ## it has been read and understood.
   git fetch --recurse-submodules --jobs=100 || error 'Failed to fetch from remote!'
 
-  ## If we were asked to check out the 'latest' tag, find the latest tag.
+  ## If we were asked to check out the 'latest' tag, resolve it. Its signature
+  ## is verified below.
   if [ "${target_tag}" = 'latest' ]; then
     true "INFO: latest tag requested: yes"
-    ## Pick the highest-version release tag. 'git rev-list --tags --max-count=1'
-    ## is unreliable: it orders by COMMIT DATE across ALL tags, so non-release
-    ## tags (sync/backup/local) or a release tag that is not on the newest-dated
-    ## commit select the wrong tag. Release tags are versioned 'N.N.N.N[-channel]';
-    ## select the highest via git's version sort, then verify its signature below.
-    ## The channel suffix is restricted to '[a-z0-9-]' so malformed local tags
-    ## (e.g. a version with an appended '_<hash>') are not mistaken for releases.
-    latest_release_tags="$(git tag --list --sort=-v:refname | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9][a-z0-9-]*)?$' || true)"
-    target_tag="${latest_release_tags%%$'\n'*}"
-    [[ -z "${target_tag:-}" ]] && error 'No release tag found.'
+    target_tag="$(derivative_update_latest_release_tag)" || error 'No release tag found.'
   else
     true "INFO: latest tag requested: no"
   fi
@@ -319,6 +311,30 @@ update_repo() {
 }
 
 main() {
+  set -x
+  set -o errexit
+  set -o nounset
+  set -o pipefail
+  set -o errtrace
+  shopt -s inherit_errexit
+  shopt -s shift_verbose
+  export LC_ALL=C
+
+  true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
+
+  cd "${DM_MYDIR}"
+
+  dist_build_source_run="true"
+
+  source ./help-steps/pre
+  source ./help-steps/variables
+
+  ## Path to the unified git verification helper. All git verification
+  ## (main repo + submodules + arbitrary refs) goes through this script.
+  git_sanity_test="${dist_source_help_steps_folder}/git_sanity_test"
+
+  trap "error_handler_dist_build_one" ERR
+
   if [ "${EUID}" = "0" ]; then
     true "${red}${bold}ERROR: This must NOT be run as root (sudo)!${reset}"
     exit 1
@@ -328,4 +344,7 @@ main() {
   update_repo "$@"
 }
 
-main "$@"
+## Only auto-run when executed, not when sourced (dist-ai unit tests source it).
+if was_executed "${BASH_SOURCE[0]}"; then
+  main "$@"
+fi
