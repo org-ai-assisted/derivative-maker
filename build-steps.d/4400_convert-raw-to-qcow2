@@ -23,25 +23,60 @@ cd help-steps
 source pre
 source variables
 
+qcow2_build_requested() {
+   ## '--target qcow2' builds the libvirt qcow2; '--target utm' reuses this
+   ## step to produce the qcow2 disk the UTM bundle ships.
+   [ "${dist_build_qcow2:-}" = "true" ] || [ "${dist_build_utm:-}" = "true" ]
+}
+
 convert_raw_to_qcow2() {
-   if [ ! "${dist_build_qcow2:-}" = "true" ]; then
-      true "${green}INFO: Skipping ${BASH_SOURCE[0]}, because dist_build_qcow2 is not set to true.${reset}"
+   if ! qcow2_build_requested; then
+      true "${green}INFO: Skipping ${BASH_SOURCE[0]}, because neither dist_build_qcow2 nor dist_build_utm is set to true.${reset}"
       return 0
    fi
 
    mkdir --parents "${dist_binary_build_folder}"
 
+   ## Debugging.
+   qemu-img \
+      info \
+         "${binary_image_raw_file}"
+
+   ## Create qcow2 image from raw image.
    ## VMSIZE defaults to 100G as per help-steps/variables.
-   convert_raw_to_qcow2_image "${binary_image_raw_file}" "${binary_image_qcow2_file}"
+   ##
+   ## Minimum cluster size with extended_l2=on is 16K according to
+   ## https://www.qemu.org/docs/master/interop/qcow2.html, we want a larger
+   ## cluster size than that for performance.
+   ##
+   ## NOTE: In some circumstances, better performance might be reachable by
+   ## using a cluster size of 128 KiB, but this may require a lot of factors to
+   ## be right (4K alignment, right filesystem, good filesystem block size,
+   ## right storage media) to be the case. Might be worth benchmarking in the
+   ## future, but for now, it's easiest to stick with 2 MiB.
+   qemu-img \
+      convert \
+         -p \
+         -O qcow2 \
+         -o compat=1.1 \
+         -o extended_l2=on,cluster_size=2M \
+         -o preallocation=metadata \
+         "${binary_image_raw_file}" \
+         "${binary_image_qcow2_file}"
+
+   ## Debugging.
+   qemu-img \
+      info \
+         "${binary_image_qcow2_file}"
 
    true
 }
 
 main() {
-   if [ "${dist_build_qcow2:-}" = "true" ]; then
+   if qcow2_build_requested; then
       convert_raw_to_qcow2
    else
-      true "${green}INFO: Skipping ${BASH_SOURCE[0]}, because dist_build_qcow2 is not set to 'true'.${reset}"
+      true "${green}INFO: Skipping ${BASH_SOURCE[0]}, because neither dist_build_qcow2 nor dist_build_utm is set to true.${reset}"
    fi
 }
 
