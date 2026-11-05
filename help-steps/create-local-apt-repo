@@ -70,8 +70,14 @@ main() {
                bash -x -- "/${local_apt_repo_mount_folder}/repo-add-dist"
          true "INFO: done with repo-add-dist."
       else
-         ## Sanity test.
-         test -d "${dist_apt_repository_folder}"
+         ## A derivative not built into the local store has no repo dir -- common
+         ## with the FHS /srv store (fresh per machine) vs the old persistent
+         ## ~/derivative-binary that kept every derivative's dir across builds.
+         ## Nothing to mount for it, so skip rather than hard-fail the whole build.
+         if [ ! -d "${dist_apt_repository_folder}" ]; then
+            true "INFO: no local repo for ${derivative_name_item} at ${dist_apt_repository_folder}; skipping."
+            continue
+         fi
          ## If $dist_apt_repository_folder is owned by user and host umask is 027 (others ("o") cannot read),
          ## then the unprivileged APT downloaded cannot access this folder.
          chmod --recursive o+r -- "${dist_apt_repository_folder}"
