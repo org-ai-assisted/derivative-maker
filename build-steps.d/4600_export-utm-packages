@@ -36,14 +36,20 @@ export_utm_packages() {
    ##   relying on APFS hole-punching.
    ## 4400_convert-raw-to-qcow2 produced ${binary_image_qcow2_file} (it runs for
    ## --target utm too). Same build folder -> mv is a cheap rename.
+   local bundle_qcow2_file
+   bundle_qcow2_file="${binary_image_utm_folder}/Data/${VMNAME}.qcow2"
    if [ "${dist_build_qcow2:-}" = "true" ]; then
       ## --target qcow2 also requested: the standalone qcow2 is a deliverable,
       ## so copy (leave it in place). Copy is also idempotent / CI-testable.
-      cp -- "${binary_image_qcow2_file}" "${binary_image_utm_folder}/Data/${VMNAME}.qcow2"
-   else
+      cp -- "${binary_image_qcow2_file}" "${bundle_qcow2_file}"
+   elif [ -e "${binary_image_qcow2_file}" ]; then
       ## utm-only: the qcow2 is just an intermediate 4400 made for us; move it
       ## into the bundle -- no stray artifact, no second full-image copy.
-      mv -- "${binary_image_qcow2_file}" "${binary_image_utm_folder}/Data/${VMNAME}.qcow2"
+      mv -- "${binary_image_qcow2_file}" "${bundle_qcow2_file}"
+   elif [ ! -e "${bundle_qcow2_file}" ]; then
+      ## Rerun-safe: a mv on an earlier run already placed it in the bundle.
+      ## Neither source nor bundle copy present -> the qcow2 was never built.
+      error "qcow2 image missing: neither ${binary_image_qcow2_file} nor ${bundle_qcow2_file} exists"
    fi
    cp -- "${source_utm_file}" "${binary_image_utm_folder}/config.plist"
 
