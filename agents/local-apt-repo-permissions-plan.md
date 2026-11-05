@@ -28,10 +28,10 @@ SCOPE for the build. That removes the entire motivation for a root-owned repo.
   the guest enabler writes a `.sources` stanza. (`dm-shared-apt-repo` + `repo-add-local`)
 
 Writer: the unprivileged build user, via reprepro (`dm-reprepro-wrapper`).
-Store: `${binary_build_folder_dist}/aptrepo_local/<derivative>`, where
-`binary_build_folder_dist` is `~/derivative-binary[/<dist_build_slot>]` -- so the
-repo is already PER-SLOT. Made `_apt`-readable by a recursive `chmod o+r` run as
-the build user.
+Store TODAY: `${binary_build_folder_dist}/aptrepo_local/<derivative>`, where
+`binary_build_folder_dist` is `~/derivative-binary[/<dist_build_slot>]` -- SLOT-AWARE
+(the `/<slot>` component appears only when `--build-slot` is set; default and CI are
+flat). Made `_apt`-readable by a recursive `chmod o+r` run as the build user.
 
 ## Constraints (verified against the code + cited research)
 
@@ -46,9 +46,12 @@ the build user.
    (incl. `list` for the `--skip-published-packages` freshness check) needs write
    to `db/` (`db/lockfile`), and `create-local-temp-apt-repo:73-74` chmods the
    tree as the build user. A root-owned tree EPERM-aborts both.
-4. The build repo MUST stay under `binary_build_folder_dist` (per-slot,
-   concurrency-safe) and be visible to the docker build (`docker-run` mounts
-   `derivative-binary`, not `/srv`, and uses `--rm`).
+4. The build repo MUST be build-user-OWNED (constraint 3), SLOT-AWARE (so
+   concurrent `--build-slot` builds do not collide), and VISIBLE to the docker
+   build (which uses `--rm` and mounts only its declared volumes). A new `/srv`
+   store satisfies all three by: `chown`-ing the leaf to the build user, carrying
+   the `${dist_build_slot:+/<slot>}` component, and being added to the `docker-run`
+   volume mounts.
 
 ## Idiom research (for reference)
 
@@ -65,49 +68,60 @@ the build user.
 
 | # | Strategy | Verdict |
 |---|---|---|
-| 1 | Status quo: `${binary_build_folder_dist}/aptrepo_local`, build-user `chmod o+r`, bind-mount to `/mnt` | KEEP as the build store. Per-slot, docker-mounted, freshness + chmod work. Consistent with the trusted-build-inputs model. |
-| 2 | `/srv/<base>`, build-user-OWNED, build user writes directly | REJECT as the build store: not per-slot, not docker-mounted (constraint 4), and `/srv` is root-owned so the build user cannot `mkdir` there without extra setup. Only tenable as a separate on-target copy (Strategy 4). |
-| 3 | `/srv/<base>`, root-owned, reprepro writes AS ROOT, `[trusted=yes]` | REJECT. ai-review (codex+grok+coderabbit, verified): breaks the build-user chmod (EPERM), the reprepro `db/` lock (freshness ref-rebuilds everything), slot isolation + concurrency, and docker persistence -- and is NOT even LPE-safe (reprepro-as-root reads a build-user-writable `conf/distributions`). The LPE it chased is out of scope anyway. |
-| 4 | Build under `binary_build_folder_dist`; COPY/sync to a root-owned `/srv` only for the TARGET-ROOT/VM enable path | POSSIBLE if an FHS on-target location is genuinely wanted, but adds a copy; and (1)+ the root-owned `/mnt` bind already gives apt a clean read path, so the `_apt` benefit is marginal. Defer unless a concrete need appears. |
-| 5 | root-owned `/srv`, GROUP-writable, build user in a group | REJECT. For an unsigned `[trusted=yes]` repo group-write != root-exclusive-write (any member -> root); no conventional Debian publish group (`_apt` is the sandbox READER). Answers "add build user to group apt?" = no. |
-| 6 | SIGN the local repo, drop `trusted=yes` | Does NOT make a build-user-owned repo "safe" when the build user holds the signing key (ai-review, verified) -- so it buys nothing here over the trusted-build-inputs model. Defer. |
+| 1 | Status quo: `${binary_build_folder_dist}/aptrepo_local`, build-user `chmod o+r`, bind-mount to `/mnt` | WORKS but does NOT fix the `_apt` warning at its root: it relies on world-chmod-ing a subtree under a `0700 $HOME` plus the `/mnt` bind. In `$HOME` (not FHS). Not chosen. |
+| 2 | `/srv/<base>`, build-user-OWNED (`chown` the leaf), `[trusted=yes]` | CHOSEN. The reviewers' breakages below were ROOT-owned-specific; a build-user-owned `/srv` leaf keeps the build-user `chmod` and the reprepro `db/` lock working. `0755` world-traversable fixes the `_apt` warning STRUCTURALLY (no `$HOME` chmod, no bind dependency). Same trust as status quo (build-user-owned either way). |
+| 3 | `/srv/<base>`, ROOT-owned, reprepro writes AS ROOT, `[trusted=yes]` | REJECT. ai-review (codex+grok+coderabbit, verified): breaks the build-user `chmod` (EPERM), the reprepro `db/` lock (freshness rebuilds everything), and is NOT even LPE-safe (reprepro-as-root reads a build-user-writable `conf/distributions`). The LPE it chased is out of scope anyway. |
+| 4 | Build under `binary_build_folder_dist`; COPY to a root-owned `/srv` only for the TARGET enable path | Deferred. Strategy 2 already serves build + consumption from one place; revisit only if a persistent root-owned on-target repo is ever wanted. |
+| 5 | GROUP-writable, build user in a group (e.g. `_apt`) | REJECT / non-starter. There is NO `_apt` group (`_apt` is uid 42, primary group `nogroup`), so nothing to join; group-write also != root-exclusive-write. Answers "add build user to group `_apt`?" = no. |
+| 6 | SIGN the local repo, drop `trusted=yes` | Does NOT make it "safe" when the build user holds the signing key (ai-review, verified); non-idiomatic for a throwaway repo. Defer. |
 | 7 | localhost HTTP | REJECT. Server process; defeats the network-free VBox-shared-folder design. |
 
 ## ai-review reconciliation (2026-11-05, 5 reviewers; agy skipped on an auth window)
 
-All findings verified against the code and ACCEPTED; they invalidated the original
-Strategy 3 recommendation:
+All findings verified against the code and ACCEPTED. They killed the ROOT-owned
+`/srv` variant (Strategy 3), NOT `/srv` itself -- a build-user-owned `/srv`
+(Strategy 2) sidesteps every one:
 - Root-owned tree EPERM-aborts the build-user `chmod` (`create-local-temp-apt-repo:73-74`)
-  and the reprepro `db/` lock (freshness), rebuilds everything.
-- A fixed `/srv` path omits `dist_build_slot` -> concurrent slotted builds collide;
-  unqualified `reprepro remove local <pkg>` removes all arches.
-- `docker-run` (`--rm`, mounts `derivative-binary` not `/srv`) loses a `/srv` repo.
-- Strategy 3 is not LPE-safe (build-user-writable `conf/distributions` + reprepro-as-root);
-  signing (Strategy 6) does not help when the writer holds the key.
-- `docs/` is prohibited (`AGENTS.md:10`); this file moved to `agents/`.
+  and the reprepro `db/` lock -> build-user-OWNED avoids both.
+- A FIXED `/srv` path omits `dist_build_slot` -> collides for concurrent slotted
+  builds -> fixed by slot-pathing the base (below).
+- `docker-run` (`--rm`, mounts `derivative-binary` not `/srv`) loses a `/srv` repo
+  -> fixed by adding `/srv/derivative-maker` to the docker volume mounts.
+- Strategy 3 not LPE-safe; signing (6) does not help when the writer holds the key.
+- `docs/` is prohibited (`AGENTS.md:10`); this file lives in `agents/`.
 
-## Revised recommendation
+## Recommendation (locked)
 
-DROP the `/srv` storage relocation. Keep the LOCAL repo build-user-owned under
-`${binary_build_folder_dist}/aptrepo_local/<derivative>` (Strategy 1) -- per-slot,
-docker-visible, freshness + chmod intact, and consistent with the trusted-build-inputs
-threat model. apt already reads it through a root-owned `/mnt` bind / `/mnt/shared`
-share, so the `_apt` note and FHS concerns are addressed at the CONSUMPTION layer,
-not by moving the store.
+Strategy 2: the LOCAL repo lives at **build-user-owned
+`${local_apt_repository_base}/aptrepo_local/<derivative>`**, where
+`local_apt_repository_base="/srv/derivative-maker${dist_build_slot:+/${dist_build_slot}}"`
+(mirrors `binary_build_folder_dist` -- slot-aware for free; default is a flat
+`/srv/derivative-maker`, no slot subdir). This fixes the `_apt` warning structurally
+(`0755` world-traversable, no `$HOME` world-chmod), is FHS/idiomatic, `[trusted=yes]`,
+and is no less secure than today (build-user-owned either way; root-exclusive-write
+is unachievable without the Strategy 3 breakages and is out of scope per the threat
+model). The REMOTE release repo stays `~/derivative-binary/aptrepo_remote/<derivative>`.
 
-Therefore the remaining local-apt-repo work is NAMING + PLUMBING only, NOT a
-permissions redesign:
-- rename the mount `/mnt/initialdeb` -> `/mnt/local-apt-repo` (+ drop `initialdeb`/`temp`
-  from the sources filename and the `dist_sources_list_*` vars); one clean value+var
-  rename, no `/srv`, no CI override, no reprepro-as-root.
-- the sourceable deb822 stanza generator (landed) + `repo-add-local` (rename of the
-  dist-ai guest helper, home in helper-scripts).
-- dead-code + hardcoded-path cleanups in the developer-meta-files tools.
-- dist-ai orchestration wiring.
+Plumbing:
+- Only the LOCAL (codename `local`) reprepro `outdir`/`dbdir`/`logdir` +
+  `dist_apt_repository_folder` move under `local_apt_repository_base`; the reprepro
+  `--basedir` (conf/distributions, in the source tree) is unchanged.
+- Setup step (`SUDO_TO_ROOT mkdir --parents` + `chown ${user_name}` + `chmod 0755`),
+  mirroring the `1200_prepare-build-machine:270-273` approx-cache precedent.
+- `docker-run`: add `/srv/derivative-maker` to the volume mounts (host volume,
+  survives `--rm`).
+- CI: build-user-owned `/srv` on the ephemeral runner, OR override
+  `local_apt_repository_base=${binary_build_folder_dist}` to keep the existing
+  `~/binary_mnt/aptrepo_local` cache. (Decide at implementation.)
+- Consumption stays SLOT-FREE: the slot is resolved HOST-SIDE (the build/bind/share
+  picks the slot-resolved dir) and bind-mounted to `/mnt/local-apt-repo` (build/target)
+  or shared to `/mnt/shared` (VM). `repo-add-local` enables the ONE delivered repo;
+  multiple slots are supported in theory (optional selector) but never the default.
 
-Open for the human: confirm dropping `/srv` (Strategy 1 as the store). If an FHS
-on-target location is still wanted for the dev/target-root ENABLE path specifically,
-that is Strategy 4 (a copy at enable time), decided separately and later.
+Remaining naming/cleanup (independent of the above): `/mnt/initialdeb` ->
+`/mnt/local-apt-repo` (+ `local_apt_repo_mount_folder`), `create/remove-local-temp-apt-repo`
+-> `create/remove-local-apt-repo`, the sourceable stanza generator (landed) +
+`repo-add-local`, dead-code + hardcoded-path cleanups, dist-ai orchestration.
 
 ## Sources
 
