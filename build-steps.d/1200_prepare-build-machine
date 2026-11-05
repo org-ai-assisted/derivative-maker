@@ -535,10 +535,47 @@ normalize-symlinks() {
    done < <(find "${source_code_folder_dist}" -type l -print0)
 }
 
+local_apt_repo_store_setup() {
+   if [ "${build_dry_run:-}" = "true" ]; then
+      true "${bold}${cyan}INFO: dry-run, skipping local apt repo store setup. ${reset}"
+      return 0
+   fi
+
+   ## Ensure the LOCAL apt repo store (local_apt_repository_base, derived in
+   ## variables.d/05_load-config.bsh) exists, is owned by the build user and is
+   ## world-traversable (0755): reprepro then writes it UNPRIVILEGED and apt reads
+   ## it with no _apt sandbox note (no 0700-$HOME ancestor). /srv is root-owned, so
+   ## a fresh dir there needs root to create + chown to the build user; a store the
+   ## build user can already create itself (the CI override pointing it back under
+   ## binary_build_folder_dist) is made without sudo and left as-is.
+   ## 'install -d -m' sets the mode on EVERY component it creates AND re-modes an
+   ## existing target (fixing messed-up perms), unlike 'mkdir -p -m' (deepest only,
+   ## SC2174) -- so the store and its /srv prefix are world-traversable for _apt
+   ## even under a 027 build umask, in one atomic call. The store is always a
+   ## DEDICATED directory, so forcing 0755 is safe. Try unprivileged first (a store
+   ## under $HOME, or one we already own); fall back to root for a fresh dir under
+   ## root-owned /srv, or one not yet owned by the build user.
+   if ! install -d -m 0755 -- "${local_apt_repository_base}" 2>/dev/null; then
+      ${SUDO_TO_ROOT} install -d -m 0755 -o "${user_name}" -g "${user_name}" -- "${local_apt_repository_base}"
+   fi
+
+   ## Persist the store across reboot on a Qubes AppVM (its root volume resets),
+   ## the same mechanism the approx cache uses above. One snippet PER SLOT so slots
+   ## persist (or are dropped) independently; the default (no slot) binds the base
+   ## itself. Qubes-only (/rw is the AppVM private volume); a no-op elsewhere, where
+   ## /srv persists on real disk (OVH) or is ephemeral by design (CI).
+   if [ -d /rw ]; then
+      ${SUDO_TO_ROOT} mkdir --parents -- /rw/config/qubes-bind-dirs.d
+      printf '%s\n' "binds+=( '${local_apt_repository_base}' )" \
+         | ${SUDO_TO_ROOT} tee -- "/rw/config/qubes-bind-dirs.d/41_derivative-maker_local-apt-repo${dist_build_slot:+_${dist_build_slot}}.conf" >/dev/null
+   fi
+}
+
 main() {
    approx_proxy_setup "$@"
    repo_proxy_test "$@"
    build_machine_setup "$@"
+   local_apt_repo_store_setup "$@"
    check-hostname "$@"
    check-mailname "$@"
    normalize-symlinks "$@"

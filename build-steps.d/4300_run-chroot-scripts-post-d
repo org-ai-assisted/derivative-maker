@@ -71,7 +71,7 @@ run-chroot-scripts-post-d() {
    chroot_run mount
    chroot_run sync
 
-   "${dist_source_help_steps_folder}"/create-local-temp-apt-repo "$@"
+   "${dist_source_help_steps_folder}"/create-local-apt-repo "$@"
 
    ${SUDO_TO_ROOT} sync
 
@@ -91,7 +91,7 @@ run-chroot-scripts-post-d() {
 Not running any chroot scripts.${reset}"
    fi
 
-   "${dist_source_help_steps_folder}"/remove-local-temp-apt-repo "$@"
+   "${dist_source_help_steps_folder}"/remove-local-apt-repo "$@"
 
    "${dist_source_help_steps_folder}"/unchroot-raw "$@"
 

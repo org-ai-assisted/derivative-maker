@@ -149,8 +149,8 @@ command -v "${git_bin}" >/dev/null
 
 #printf "%s\n" "dist_build_current_git_head: $dist_build_current_git_head"
 
-default_if_empty DEB_INSTALL_FOLDER "mnt/initialdeb"
-export DEB_INSTALL_FOLDER
+default_if_empty local_apt_repo_mount_folder "mnt/local-apt-repo"
+export local_apt_repo_mount_folder
 
 default_if_empty retry_run_default_tries "4"
 export retry_run_default_tries

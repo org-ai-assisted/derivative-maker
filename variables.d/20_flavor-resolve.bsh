@@ -204,7 +204,7 @@ export flavor_meta_packages_to_install
 
 ## derivative_name_list is used by:
 ## - help-steps/variables to identify valid derivative names.
-## - help-steps/create-local-temp-apt-repo to create one or multiple local APT repositories.
+## - help-steps/create-local-apt-repo to create one or multiple local APT repositories.
 ## - help-steps/cleanup-files to clean one or multiple folders.
 ## - help-steps/unchroot-raw to unmount one or multiple local APT repositories.
 ## - buildconfig.d/30_pkg_list.conf to create a list of packages to be built.

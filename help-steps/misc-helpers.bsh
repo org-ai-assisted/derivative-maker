@@ -440,7 +440,7 @@ set_dist_build_reprepro_folder_options() {
    ## TODO: Can we make this a variables.d script that runs unconditionally?
 
    ## derivative_repository_name gets set by packages/kicksecure/genmkfile/usr/share/genmkfile/make-helper-one.bsh
-   local derivative_name_item valid_repository_name
+   local derivative_name_item valid_repository_name apt_repo_output_base
    valid_repository_name=false
 
    if [ "${derivative_repository_name:-}" = "" ]; then
@@ -464,19 +464,25 @@ set_dist_build_reprepro_folder_options() {
 
    if [ "${make_reprepro_codename_item:-}" = "local" ]; then
       apt_repo_sub_folder="aptrepo_local/${derivative_repository_name}"
+      ## LOCAL repo output: the FHS-served, build-user-owned /srv store
+      ## (local_apt_repository_base, set in variables.d/05_load-config.bsh). The
+      ## conf (--basedir, in the source tree) is unchanged; only the generated
+      ## tree (outdir/dbdir/logdir) lands in the served store.
+      apt_repo_output_base="${local_apt_repository_base}"
    else
       apt_repo_sub_folder="aptrepo_remote/${derivative_repository_name}"
+      apt_repo_output_base="${binary_build_folder_dist}"
    fi
 
-   dist_apt_repository_folder="${binary_build_folder_dist}/${apt_repo_sub_folder}"
+   dist_apt_repository_folder="${apt_repo_output_base}/${apt_repo_sub_folder}"
    export dist_apt_repository_folder
 
    ## Use an array so path components containing whitespace are preserved
    ## correctly.
    dist_build_reprepro_folder_options=(
       --basedir "${source_code_folder_dist}/${apt_repo_sub_folder}"
-      --outdir  "${binary_build_folder_dist}/${apt_repo_sub_folder}"
-      --dbdir   "${binary_build_folder_dist}/${apt_repo_sub_folder}/db"
-      --logdir  "${binary_build_folder_dist}/${apt_repo_sub_folder}/log"
+      --outdir  "${apt_repo_output_base}/${apt_repo_sub_folder}"
+      --dbdir   "${apt_repo_output_base}/${apt_repo_sub_folder}/db"
+      --logdir  "${apt_repo_output_base}/${apt_repo_sub_folder}/log"
    )
 }

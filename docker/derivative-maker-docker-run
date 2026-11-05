@@ -256,6 +256,13 @@ if [ -n "${dist_build_slot:-}" ]; then
   docker_run_opts+=( --env "dist_build_slot=${dist_build_slot}" )
 fi
 
+## The LOCAL apt repo store defaults to /srv (variables.d/05_load-config.bsh), for
+## direct builds. /srv is not inside this container and is not a mounted/cached
+## volume, so point the store under the mounted derivative-binary volume for docker
+## builds -- a dedicated subdir (never the bare build dir), slot-aware. Keeps it
+## visible to the build and covered by the existing binary-volume cache.
+docker_run_opts+=( --env "local_apt_repository_base=/home/${DOCKER_USER}/derivative-binary/local-apt-repo-store${dist_build_slot:+/${dist_build_slot}}" )
+
 sudo \
   "${sudo_options_maybe[@]}" \
   -- \

@@ -36,8 +36,21 @@ else
 fi
 export binary_build_folder_dist
 
+## Store for the LOCAL (codename 'local') apt repo, separate from the $HOME build
+## tree: FHS-served, build-user-owned, world-traversable 0755. Keeps the repo out
+## of a 0700 $HOME so apt reads it with no _apt sandbox note and no world-chmod of
+## build artifacts under $HOME. Slot-aware (same component as binary_build_folder_dist)
+## so concurrent --build-slot builds do not collide. The REMOTE repo stays under
+## binary_build_folder_dist. Overridable: CI points it back at binary_build_folder_dist
+## to reuse the existing aptrepo_local cache. The build creates + chowns it to the
+## build user (build-steps.d/*_prepare-build-machine).
+if [ -z "${local_apt_repository_base:-}" ]; then
+   local_apt_repository_base="/srv/derivative-maker${dist_build_slot:+/${dist_build_slot}}"
+fi
+export local_apt_repository_base
+
 ## pbuilder word-splits bind-mount paths, therefore reject internal whitespace.
-for space_check_var in HOMEVAR binary_build_folder_dist source_code_folder_dist ; do
+for space_check_var in HOMEVAR binary_build_folder_dist local_apt_repository_base source_code_folder_dist ; do
    if [[ "${!space_check_var}" == *[[:space:]]* ]]; then
       error "${space_check_var} must not contain whitespace, as pbuilder will word-split it. Variable contents: '${!space_check_var}'"
    fi
