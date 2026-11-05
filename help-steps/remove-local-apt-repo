@@ -9,6 +9,9 @@ set -o errexit
 set -o nounset
 set -o pipefail
 set -o errtrace
+shopt -s inherit_errexit
+shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -28,7 +31,7 @@ main() {
       ${SUDO_TO_ROOT} rm --force "${CHROOT_FOLDER}/${apt_target_key_derivative}"
    fi
 
-   ## "$CHROOT_FOLDER/$DEB_INSTALL_FOLDER" gets unmounted in help-steps/unchroot script.
+   ## "$CHROOT_FOLDER/$local_apt_repo_mount_folder" gets unmounted in help-steps/unchroot script.
 }
 
 main "$@"

@@ -27,7 +27,7 @@ fi
 runner_owner="$(id -u):$(id -g)"
 
 cache_dirs=(
-   "${HOME}/binary_mnt/aptrepo_local"
+   "${HOME}/binary_mnt/local-apt-repo-store"
    "${HOME}/binary_mnt/packages-build-status"
    "${HOME}/binary_mnt/genmkfile-packages-result"
    "${HOME}/approx_cache_mnt"

@@ -33,8 +33,8 @@ unmount_install_to_root_binds() {
    local derivative_name_item
 
    for derivative_name_item in ${derivative_name_list} ; do
-      ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/mount-cleanup" -- "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}/${derivative_name_item}"
-      unmount_if_mounted "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}/${derivative_name_item}"
+      ${SUDO_TO_ROOT} "${dist_source_help_steps_folder}/mount-cleanup" -- "${CHROOT_FOLDER}/${local_apt_repo_mount_folder}/${derivative_name_item}"
+      unmount_if_mounted "${CHROOT_FOLDER}/${local_apt_repo_mount_folder}/${derivative_name_item}"
    done
 
    ## Also possibly unmount '.backup' file for bare metal builds.
@@ -85,12 +85,12 @@ main() {
    ## Now that nothing is mounted there, drop the mount point directories.
    local derivative_name_item
    for derivative_name_item in ${derivative_name_list} ; do
-      if test -d "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}/${derivative_name_item}" ; then
-         ${SUDO_TO_ROOT} rmdir --ignore-fail-on-non-empty -- "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}/${derivative_name_item}"
+      if test -d "${CHROOT_FOLDER}/${local_apt_repo_mount_folder}/${derivative_name_item}" ; then
+         ${SUDO_TO_ROOT} rmdir --ignore-fail-on-non-empty -- "${CHROOT_FOLDER}/${local_apt_repo_mount_folder}/${derivative_name_item}"
       fi
    done
-   if test -d "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}" ; then
-      ${SUDO_TO_ROOT} rmdir --ignore-fail-on-non-empty -- "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}"
+   if test -d "${CHROOT_FOLDER}/${local_apt_repo_mount_folder}" ; then
+      ${SUDO_TO_ROOT} rmdir --ignore-fail-on-non-empty -- "${CHROOT_FOLDER}/${local_apt_repo_mount_folder}"
    fi
 
    sync

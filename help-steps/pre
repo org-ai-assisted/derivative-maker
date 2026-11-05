@@ -398,7 +398,7 @@ exception_handler_cleanup_run() {
    case "${cleanup_kind}" in
       unchroot_unmount)
          cleanup_step_list=(
-            remove-local-temp-apt-repo
+            remove-local-apt-repo
             unchroot-raw
             unprevent-daemons-from-starting
             unmount-raw

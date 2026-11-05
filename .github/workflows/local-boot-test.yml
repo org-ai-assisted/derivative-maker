@@ -150,7 +150,7 @@ jobs:
       ## (=/home/user/derivative-binary) to the bind-mounted host /home/runner/
       ## binary_mnt (docker/derivative-maker-docker-run), so these three host
       ## subfolders are exactly where create-debian-packages persists the repo:
-      ##   aptrepo_local/          -- the reprepro local repo (db + .deb pool) the
+      ##   local-apt-repo-store/    -- the reprepro local repo (db + .deb pool) the
       ##                              freshness gate queries for the published version
       ##   packages-build-status/  -- the per-codename source-hash manifest that
       ##                              detects a source edit without a changelog bump
@@ -175,7 +175,7 @@ jobs:
         uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
-            ~/binary_mnt/aptrepo_local
+            ~/binary_mnt/local-apt-repo-store
             ~/binary_mnt/packages-build-status
             ~/binary_mnt/genmkfile-packages-result
           key: ${{ runner.os }}-boot-pkgrepo-${{ matrix.flavor }}-${{ matrix.image_kind }}-${{ env.BOOT_ARCH }}-${{ github.run_id }}
@@ -278,7 +278,7 @@ jobs:
         uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
           path: |
-            ~/binary_mnt/aptrepo_local
+            ~/binary_mnt/local-apt-repo-store
             ~/binary_mnt/packages-build-status
             ~/binary_mnt/genmkfile-packages-result
           key: ${{ runner.os }}-boot-pkgrepo-${{ matrix.flavor }}-${{ matrix.image_kind }}-${{ env.BOOT_ARCH }}-${{ github.run_id }}

@@ -11,6 +11,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -19,9 +20,12 @@ MYDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source "${MYDIR}/pre"
 source "${MYDIR}/variables"
 
+## Single source of truth for the local apt repo deb822 stanza.
+source "${source_code_folder_dist}/packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/local-apt-repo-sources.bsh"
+
 main() {
-   ## DEB_INSTALL_FOLDER Example:
-   ## /mnt/initialdeb
+   ## local_apt_repo_mount_folder Example:
+   ## /mnt/local-apt-repo
 
    ## dist_sources_list_temp_build_folder Example:
    ## /var/lib/whonix/sources_temp_list.d
@@ -42,7 +46,7 @@ main() {
       ## sets: dist_apt_repository_folder
       set_dist_build_reprepro_folder_options
 
-      ${SUDO_TO_ROOT} mkdir --parents -- "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}/${derivative_name_item}"
+      ${SUDO_TO_ROOT} mkdir --parents -- "${CHROOT_FOLDER}/${local_apt_repo_mount_folder}/${derivative_name_item}"
       ${SUDO_TO_ROOT} mkdir --parents -- "${CHROOT_FOLDER}/${dist_sources_list_temp_build_folder}"
 
       true "dist_sources_list_temp_initial_deb_sources_list: ${dist_sources_list_temp_initial_deb_sources_list}"
@@ -50,7 +54,7 @@ main() {
       true "build_remote_derivative_pkgs: ${build_remote_derivative_pkgs:-}"
 
       if [ "${build_remote_derivative_pkgs:-}" = "true" ]; then
-         ${SUDO_TO_ROOT} cp -- "${source_code_folder_dist}/packages/kicksecure/usability-misc/usr/bin/repo-add-dist" "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}/repo-add-dist"
+         ${SUDO_TO_ROOT} cp -- "${source_code_folder_dist}/packages/kicksecure/usability-misc/usr/bin/repo-add-dist" "${CHROOT_FOLDER}/${local_apt_repo_mount_folder}/repo-add-dist"
 
          true "INFO: running repo-add-dist... It is supposed to create ${dist_sources_list_temp_initial_deb_sources_list} ..."
          ## Variable 'codename' is irrelevant because setting variable 'sources_list_build_remote_derivative'.
@@ -62,8 +66,8 @@ main() {
                sources_list_build_remote_derivative="${sources_list_build_remote_derivative}" \
                apt_target_key_derivative="${apt_target_key_derivative}" \
                apt_source_key_temp_folder_derivative="${dist_sources_list_temp_apt_key_folder}" \
-               apt_source_key_derivative="${dist_sources_list_temp_apt_key_folder}/derivative-temp-by-create-local-temp-apt-repo.asc" \
-               bash -x -- "/${DEB_INSTALL_FOLDER}/repo-add-dist"
+               apt_source_key_derivative="${dist_sources_list_temp_apt_key_folder}/derivative-temp-by-create-local-apt-repo.asc" \
+               bash -x -- "/${local_apt_repo_mount_folder}/repo-add-dist"
          true "INFO: done with repo-add-dist."
       else
          ## Sanity test.
@@ -74,18 +78,14 @@ main() {
          find "${dist_apt_repository_folder}" -type d -exec chmod o+rx -- {} +
 
          ## Mount our local apt repository inside the image (or machine).
-         ${SUDO_TO_ROOT} mount --bind -- "${dist_apt_repository_folder}" "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}/${derivative_name_item}"
+         ${SUDO_TO_ROOT} mount --bind -- "${dist_apt_repository_folder}" "${CHROOT_FOLDER}/${local_apt_repo_mount_folder}/${derivative_name_item}"
 
-         ## Create a sources file for our local apt repository.
-         ## Do NOT remove the blank line at the beginning, it is needed to
-         ## keep multiple stanzas separate.
-         printf '%s\n' "
-Types: deb
-URIs: file:/${DEB_INSTALL_FOLDER}/${derivative_name_item}
-Suites: ${dist_build_apt_codename}
-Components: main contrib non-free
-Enabled: yes
-Trusted: yes" | ${SUDO_TO_ROOT} tee --append -- "${dist_sources_list_temp_initial_deb_sources_list}" >/dev/null
+         ## Append this derivative's stanza (the shared generator is the single
+         ## source of truth). A leading blank line keeps multiple stanzas separate.
+         {
+            printf '%s\n' ''
+            local_apt_repo_sources_stanza "file:/${local_apt_repo_mount_folder}/${derivative_name_item}" "${dist_build_apt_codename}"
+         } | ${SUDO_TO_ROOT} tee --append -- "${dist_sources_list_temp_initial_deb_sources_list}" >/dev/null
          ${SUDO_TO_ROOT} chmod o+r -- "${dist_sources_list_temp_initial_deb_sources_list}"
       fi
    done
@@ -95,7 +95,7 @@ Trusted: yes" | ${SUDO_TO_ROOT} tee --append -- "${dist_sources_list_temp_initia
    ${SUDO_TO_ROOT} chmod o+r -- "${CHROOT_FOLDER}/${dist_sources_list_temp_build_folder}/build_sources.sources"
 
    ## For debugging / Info.
-   ls -la -- "${CHROOT_FOLDER}/${DEB_INSTALL_FOLDER}"
+   ls -la -- "${CHROOT_FOLDER}/${local_apt_repo_mount_folder}"
    ls -la -- "${CHROOT_FOLDER}/${dist_sources_list_temp_build_folder}"
 
    ## For debugging / Info.
