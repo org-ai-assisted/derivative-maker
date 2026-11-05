@@ -11,6 +11,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -29,13 +30,15 @@ export_utm_packages() {
    ## copy configs
    mkdir --parents "${binary_image_utm_folder}/Data"
    ${SUDO_TO_ROOT} chown "${user_name}:${user_name}" "${binary_image_raw_file}"
-   ## copy instead of move the raw image
-   ## disadvantage:
-   ## - requires more disk space
-   ## advantage:
-   ## - makes this step idempotent, easier to test and debug
-   ## - can CI test dm-prepare-release
-   cp -- "${binary_image_raw_file}" "${binary_image_utm_folder}/Data/${VMNAME}.raw"
+   ## Ship qcow2, not raw:
+   ## - qcow2 is UTM's own default drive format.
+   ## - a raw image on an APFS host triggers an unaligned-discard error via
+   ##   VirtIO TRIM on Apple Silicon; qcow2 lets QEMU own sparsity instead of
+   ##   relying on APFS hole-punching.
+   ## Convert (not move) the source raw:
+   ## - keeps this step idempotent, easier to test and debug.
+   ## - can CI test dm-prepare-release.
+   convert_raw_to_qcow2_image "${binary_image_raw_file}" "${binary_image_utm_folder}/Data/${VMNAME}.qcow2"
    cp -- "${source_utm_file}" "${binary_image_utm_folder}/config.plist"
 
    ## Fill in correct architecture and target in UTM template files.
@@ -51,7 +54,7 @@ export_utm_packages() {
    ${str_replace_tool} "_ARCH_"   "${utm_arch}"   "${binary_image_utm_folder}/config.plist"
    ${str_replace_tool} "_TARGET_" "${utm_target}" "${binary_image_utm_folder}/config.plist"
 
-   ## Fill in correct flavor for raw image filename and VM name as it appears on UTM.
+   ## Fill in correct flavor for disk image filename and VM name as it appears on UTM.
    ${str_replace_tool} "_FLAVOR_" "${VMNAME}" "${binary_image_utm_folder}/config.plist"
 
    ## TODO: This should be moved to dm-prepare-release.

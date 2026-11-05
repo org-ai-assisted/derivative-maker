@@ -46,6 +46,39 @@ username-plain-for-sudoers() {
    check_valid_linux_user_account_name "${candidate}"
 }
 
+convert_raw_to_qcow2_image() {
+   ## Convert raw image '$1' to a qcow2 image at '$2'. One canonical recipe,
+   ## shared by the '--target qcow2' and '--target utm' paths.
+   ## - compat=1.1: modern qcow2v3.
+   ## - extended_l2 + 2M clusters: fewer, larger L2 entries for throughput (16K
+   ##   is the extended_l2 minimum; 2M balances metadata size vs performance).
+   ## - preallocation=metadata: allocate L1/L2 tables up front to avoid runtime
+   ##   allocation stalls.
+   local src_raw_image dst_qcow2_image
+   src_raw_image="$1"
+   dst_qcow2_image="$2"
+
+   ## Debugging.
+   qemu-img \
+      info \
+         "${src_raw_image}"
+
+   qemu-img \
+      convert \
+         -p \
+         -O qcow2 \
+         -o compat=1.1 \
+         -o extended_l2=on,cluster_size=2M \
+         -o preallocation=metadata \
+         "${src_raw_image}" \
+         "${dst_qcow2_image}"
+
+   ## Debugging.
+   qemu-img \
+      info \
+         "${dst_qcow2_image}"
+}
+
 derive_unified_image_paths() {
    ## Derive the single "other VM" image path for a multi-VM build. Note that
    ## when used with a Whonix build, the Gateway build is not considered
