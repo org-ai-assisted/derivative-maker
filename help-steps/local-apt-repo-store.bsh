@@ -10,33 +10,58 @@
 
 ## local_apt_repo_store_ensure: make the LOCAL apt repo store
 ## (local_apt_repository_base, default /srv/derivative-maker, derived in
-## variables.d/05_load-config.bsh) exist, be owned by the build user (user_name)
-## and be world-traversable (0755) -- so reprepro writes it UNPRIVILEGED and apt
+## variables.d/05_load-config.bsh) a REAL directory, owned by the build user
+## (user_name) at EXACTLY mode 0755 -- so reprepro writes it UNPRIVILEGED and apt
 ## reads it with no _apt sandbox note (no 0700-$HOME ancestor). Sourced by
-## build-steps.d/1200_prepare-build-machine; also sourced standalone by its unit
-## test. Reads user_name, local_apt_repository_base and SUDO_TO_ROOT from the
-## environment (all set by help-steps/variables).
+## build-steps.d/1200_prepare-build-machine (after help-steps/pre, which defines
+## 'error'); also sourced standalone by its unit test (which stubs 'error'). Reads
+## user_name, local_apt_repository_base and SUDO_TO_ROOT from the environment (all
+## set by help-steps/variables).
+##
+## SECURITY. The privileged (SUDO_TO_ROOT) 'install -d' follows a symlink and
+## would act on its target (a store symlinked to /etc is a local privilege
+## escalation), and a '..' component would escape the store tree. So reject a
+## non-absolute / '/' / '..' / '.' / symlinked store up front, then operate only
+## on a real in-tree directory, owned by NUMERIC uid:gid at exactly 0755.
 local_apt_repo_store_ensure() {
-   ## Create unprivileged when the build user can (a store under $HOME it already
-   ## owns, or the CI override pointing it back under binary_build_folder_dist).
-   ## Failure is fine: a fresh dir under root-owned /srv, or a root-run build, is
-   ## corrected below. 'install -d -m' sets the mode on EVERY component it creates
-   ## AND re-modes a dir we own (fixing messed-up perms), unlike 'mkdir -p -m'
-   ## (deepest only, SC2174) -- so the store and its /srv prefix are
-   ## world-traversable for _apt even under a 027 build umask, in one atomic call.
-   ## The store is always a DEDICATED directory, so forcing 0755 is safe.
-   install -d -m 0755 -- "${local_apt_repository_base}" 2>/dev/null || true
+   local store="${local_apt_repository_base}" user="${user_name}"
+   local uid gid
 
-   ## Guarantee final OWNERSHIP + mode. The create above checks CREATION, not
-   ## ownership, and leaves the store root:root whenever root created or already
-   ## owned it: (a) a root-run build (euid 0) created it root:root, or (b) a
-   ## root:root 0755 dir already existed, so 'install -d' succeeded trivially and
-   ## skipped the chmod -- and never chowned. reprepro then writes the store
-   ## UNPRIVILEGED and fails with Permission denied. Re-run as root with -o/-g to
-   ## create-or-fix owner+mode in one idempotent call; skipped entirely when the
-   ## build user already owns it (the $HOME fast path -> no sudo).
+   ## Reject a non-absolute, '/', '..'/'.' or symlinked store BEFORE any fs action.
+   if [ "${store#/}" = "${store}" ] || [ "${store}" = "/" ]; then
+      error "local apt repo store '${store}' must be an absolute path other than '/'."
+   fi
+   case "${store}/" in
+      */../*|*/./*)
+         error "local apt repo store '${store}' contains a '.' or '..' component; refusing."
+         ;;
+   esac
+   if [ -L "${store}" ]; then
+      error "local apt repo store '${store}' is a symlink; refusing to follow it."
+   fi
+
+   ## NUMERIC owner:group: an account whose primary group is not a user-private
+   ## group named after the login (e.g. '_apt' -> 'nogroup') has no group named
+   ## like the login, so 'install -g <login>' would exit 'invalid group'.
+   uid="$(id --user "${user}")" || error "build user '${user}' does not exist."
+   gid="$(id --group "${user}")" || error "build user '${user}' has no primary group."
+
+   ## Create + re-mode unprivileged when the build user can (a $HOME/CI store it
+   ## owns -> no sudo); 'install -d -m' re-modes an existing owned dir too.
+   install -d -m 0755 -- "${store}" 2>/dev/null || true
+
+   ## A regular file at the path left 'install -d' failing silently above (a
+   ## symlink was already rejected); reprepro needs a real directory.
+   if [ -e "${store}" ] && [ ! -d "${store}" ]; then
+      error "local apt repo store '${store}' exists and is not a directory."
+   fi
+
+   ## Create under root-owned /srv, or fix a root:root store, via sudo when the
+   ## store is not yet the build user's. 'install -d -o -g' takes NUMERIC ids and
+   ## forces EXACTLY 0755 (world-writable would let a local user drop a .deb the
+   ## root build installs -- LPE). Skipped when already owned (the $HOME fast path).
    # shellcheck disable=SC2086  # SUDO_TO_ROOT is an intentionally word-split command prefix
-   if [ "$(stat -c '%U' -- "${local_apt_repository_base}" 2>/dev/null)" != "${user_name}" ]; then
-      ${SUDO_TO_ROOT} install -d -m 0755 -o "${user_name}" -g "${user_name}" -- "${local_apt_repository_base}"
+   if [ ! -d "${store}" ] || [ "$(stat -c '%u:%g' -- "${store}")" != "${uid}:${gid}" ]; then
+      ${SUDO_TO_ROOT} install -d -m 0755 -o "${uid}" -g "${gid}" -- "${store}"
    fi
 }
