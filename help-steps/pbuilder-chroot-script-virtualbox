@@ -21,6 +21,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 ## 'help-steps/pre' (which defines 'error') is not available inside the
 ## pbuilder chroot where this script runs, so define a local 'error'
@@ -37,12 +38,10 @@ true "INFO: Currently running cowbuilder VirtualBox chroot script."
 ## /usr/share/doc/pbuilder/examples/D10tmp
 ## https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=725434;msg=45
 if [ -n "${TMP:-}" ]; then
-   [ -d "${TMP}" ] || mkdir -p -- "${TMP}" || true
-   chmod 1777 -- "${TMP}" || true
+   [ -d "${TMP}" ] || mkdir --mode=1777 -- "${TMP}" || true
 fi
 if [ -n "${TMPDIR:-}" ]; then
-   [ -d "${TMPDIR}" ] || mkdir -p -- "${TMPDIR}" || true
-   chmod 1777 -- "${TMPDIR}" || true
+   [ -d "${TMPDIR}" ] || mkdir --mode=1777 -- "${TMPDIR}" || true
 fi
 
 #declare -p | awk '{print $3}' | sort
@@ -135,6 +134,12 @@ success="true"
 ## the related aarch64 'sq' panic that qemu 10.2.0 fixes -- this workaround is
 ## not removable by upgrading the build host's qemu.
 ## https://github.com/org-ai-assisted/qemu-x86_64-aes-gcm-miscompile-ppc64el
+## dist-installer-cli-standalone's flock wrapper (helper-scripts lockfile.sh) requires a per-user
+## runtime dir and by design does NOT fall back outside /run/user/$EUID; a cowbuilder chroot has no
+## logind session to create it, so create it for 'dm-vbox-temp' (the account the installer runs as).
+vbox_temp_uid="$(id --user "dm-vbox-temp")"
+install --directory --owner "dm-vbox-temp" --group "dm-vbox-temp" --mode 0700 -- "/run/user/${vbox_temp_uid}"
+
 if ! sudo --non-interactive -u "dm-vbox-temp" OPENSSL_ia32cap=0 DIST_APTGETOPT_SERIALIZED="${DIST_APTGETOPT_SERIALIZED}" bash -x /usr/bin/dist-installer-cli-standalone "${dist_installer_cli_arguments[@]}" ; then
   success=false
 fi
