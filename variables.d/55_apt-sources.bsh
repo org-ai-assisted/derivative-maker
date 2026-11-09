@@ -44,7 +44,7 @@ if [ -f "${dist_build_sources_list_primary}.in" ] \
     | tee "${dist_build_sources_list_primary}" >/dev/null
 fi
 
-dist_base_name_build_sources_list_primary="$(basename "$dist_build_sources_list_primary")"
+dist_base_name_build_sources_list_primary="$(basename "${dist_build_sources_list_primary}")"
 ## example dist_base_name_build_sources_list_primary:
 ## debian_stable_current_clearnet.sources
 
@@ -56,29 +56,29 @@ dist_mmdebstrap_build_sources_list_primary="/etc/apt/sources.list.d/0000${dist_b
 
 export dist_mmdebstrap_build_sources_list_primary
 
-true "dist_build_sources_list_primary      : $dist_build_sources_list_primary"
-true "dist_build_sources_list_newer        : $dist_build_sources_list_newer"
+true "dist_build_sources_list_primary      : ${dist_build_sources_list_primary}"
+true "dist_build_sources_list_newer        : ${dist_build_sources_list_newer}"
 
 if [ "${dist_build_apt_stable_release:-}" = "" ]; then
-   test -r "$dist_build_sources_list_primary"
-   temp_="$(grep --invert-match "#" "$dist_build_sources_list_primary")"
-   temp_="$(grep -- "^Suites:" <<< "$temp_")"
-   temp_="$(head -n1 <<< "$temp_")"
-   distri_="$(cut -d' ' -f2 <<< "$temp_")"
-   dist_build_apt_stable_release="$distri_"
+   test -r "${dist_build_sources_list_primary}"
+   temp_="$(grep --invert-match "#" "${dist_build_sources_list_primary}")"
+   temp_="$(grep -- "^Suites:" <<< "${temp_}")"
+   temp_="$(head -n1 <<< "${temp_}")"
+   distri_="$(cut -d' ' -f2 <<< "${temp_}")"
+   dist_build_apt_stable_release="${distri_}"
    ## example dist_build_apt_stable_release
    ## trixie
    export dist_build_apt_stable_release
 fi
 
-true "dist_build_apt_stable_release        : $dist_build_apt_stable_release"
+true "dist_build_apt_stable_release        : ${dist_build_apt_stable_release}"
 
 if [ "${dist_build_apt_sources_mirror:-}" = "" ]; then
-   test -r "$dist_build_sources_list_primary"
-   temp_="$(grep --invert-match -- "#" "$dist_build_sources_list_primary")"
-   temp_="$(grep -- "^URIs:" <<< "$temp_")"
-   temp_="$(head -n1 <<< "$temp_")"
-   uri_="$(cut -d' ' -f2 <<< "$temp_")"
+   test -r "${dist_build_sources_list_primary}"
+   temp_="$(grep --invert-match -- "#" "${dist_build_sources_list_primary}")"
+   temp_="$(grep -- "^URIs:" <<< "${temp_}")"
+   temp_="$(head -n1 <<< "${temp_}")"
+   uri_="$(cut -d' ' -f2 <<< "${temp_}")"
    ## Used for:
    ## cowbuilder (debootstrap)
    ## grml-debootstrap (debootstrap) (VM builds only)
@@ -93,15 +93,15 @@ fi
 ## export so it can be read by genmkfile.
 export dist_build_apt_sources_mirror
 
-true "dist_build_apt_sources_mirror        : $dist_build_apt_sources_mirror"
+true "dist_build_apt_sources_mirror        : ${dist_build_apt_sources_mirror}"
 
 if [ "${dist_build_apt_sources_security_mirror:-}" = "" ]; then
-   test -r "$dist_build_sources_list_primary"
-   temp_="$(grep --invert-match -- "#" "$dist_build_sources_list_primary")"
-   temp_="$(grep -- "^URIs:" <<< "$temp_")"
-   temp_="$(head -n2 <<< "$temp_")"
-   temp_="$(tail -n1 <<< "$temp_")"
-   uri_="$(cut -d' ' -f2 <<< "$temp_")"
+   test -r "${dist_build_sources_list_primary}"
+   temp_="$(grep --invert-match -- "#" "${dist_build_sources_list_primary}")"
+   temp_="$(grep -- "^URIs:" <<< "${temp_}")"
+   temp_="$(head -n2 <<< "${temp_}")"
+   temp_="$(tail -n1 <<< "${temp_}")"
+   uri_="$(cut -d' ' -f2 <<< "${temp_}")"
    ## Used for:
    ## cowbuilder (debootstrap)
    ## grml-debootstrap (debootstrap) (VM builds only)
@@ -113,24 +113,24 @@ if [ "${dist_build_apt_sources_security_mirror:-}" = "" ]; then
    ## http://2s4yqjx5ul6okpp3f2gaunr2syex5jgbfpfvhxxbbjwnrsvbk5v3qbid.onion/debian
 fi
 
-true "dist_build_apt_sources_security_mirror        : $dist_build_apt_sources_security_mirror"
+true "dist_build_apt_sources_security_mirror        : ${dist_build_apt_sources_security_mirror}"
 
 ## export so it can be read by genmkfile.
-make_cowbuilder_mirror="$dist_build_apt_sources_mirror"
+make_cowbuilder_mirror="${dist_build_apt_sources_mirror}"
 export make_cowbuilder_mirror
 
 if [ "${dist_build_apt_newer_release_codename:-}" = "" ]; then
-   test -r "$dist_build_sources_list_newer"
-   temp_="$(grep --invert-match -- "#" "$dist_build_sources_list_newer")"
-   temp_="$(grep -- "^Suites:" <<< "$temp_")"
-   temp_="$(head -n1 <<< "$temp_")"
-   distri_="$(cut -d' ' -f2 <<< "$temp_")"
-   dist_build_apt_newer_release_codename="$distri_"
+   test -r "${dist_build_sources_list_newer}"
+   temp_="$(grep --invert-match -- "#" "${dist_build_sources_list_newer}")"
+   temp_="$(grep -- "^Suites:" <<< "${temp_}")"
+   temp_="$(head -n1 <<< "${temp_}")"
+   distri_="$(cut -d' ' -f2 <<< "${temp_}")"
+   dist_build_apt_newer_release_codename="${distri_}"
    ## example dist_build_apt_newer_release_codename:
    ## sid
 fi
 
-true "dist_build_apt_newer_release_codename: $dist_build_apt_newer_release_codename"
+true "dist_build_apt_newer_release_codename: ${dist_build_apt_newer_release_codename}"
 
 if [ "${dist_build_sources_list_torproject:-}" = "" ]; then
    if [ "${dist_build_sources_clearnet_or_onion:-}" = "clearnet" ]; then
@@ -161,14 +161,22 @@ if [ "${dist_build_sources_list_debian_forky_backports:-}" = "" ]; then
    fi
 fi
 
+if [ "${dist_build_sources_list_debian_trixie_backports:-}" = "" ]; then
+   if [ "${dist_build_sources_clearnet_or_onion:-}" = "clearnet" ]; then
+      dist_build_sources_list_debian_trixie_backports="${source_code_folder_dist}/build_sources/debian_trixie_backports_current_clearnet.sources"
+   else
+      dist_build_sources_list_debian_trixie_backports="${source_code_folder_dist}/build_sources/debian_trixie_backports_current_onion.sources"
+   fi
+fi
+
 if [ "${build_remote_repo_enable:-}" = "true" ]; then
-   DERIVATIVE_APT_REPOSITORY_OPTS="--enable --codename $dist_build_apt_stable_release"
+   DERIVATIVE_APT_REPOSITORY_OPTS="--enable --codename ${dist_build_apt_stable_release}"
 fi
 
 dist_sources_list_temp_apt_key_folder="/var/lib/derivative-maker/key-temp"
 dist_sources_list_temp_build_folder="/var/lib/derivative-maker/sources-temp-list.d"
-dist_sources_list_temp_build_file="$dist_sources_list_temp_build_folder/temp-initialdeb.sources"
-dist_sources_list_temp_initial_deb_sources_list="$CHROOT_FOLDER/$dist_sources_list_temp_build_file"
+dist_sources_list_temp_build_file="${dist_sources_list_temp_build_folder}/temp-initialdeb.sources"
+dist_sources_list_temp_initial_deb_sources_list="${CHROOT_FOLDER}/${dist_sources_list_temp_build_file}"
 
 if [ "${build_remote_derivative_pkgs:-}" = "true" ]; then
    ## 'repo-add-dist' default uses by default variable:
@@ -179,7 +187,7 @@ if [ "${build_remote_derivative_pkgs:-}" = "true" ]; then
    fi
 
    if [ "${sources_list_target_build_remote_derivative:-}" = "" ]; then
-      sources_list_target_build_remote_derivative="$dist_sources_list_temp_build_file"
+      sources_list_target_build_remote_derivative="${dist_sources_list_temp_build_file}"
    fi
 
    if [ "${codename_build_remote_derivative:-}" = "" ]; then
@@ -188,17 +196,17 @@ if [ "${build_remote_derivative_pkgs:-}" = "true" ]; then
 
    if [ "${sources_list_build_remote_derivative:-}" = "" ]; then
       ## '[signed-by=/usr/share/keyrings/derivative.asc]' is incompatible with build-step create-lb-iso.
-      if printf '%s\n' "$derivative_name_list" | grep -i -- "Whonix" >/dev/null 2>&1; then
+      if printf '%s\n' "${derivative_name_list}" | grep -i -- "Whonix" >/dev/null 2>&1; then
          [ -n "${sources_list_build_remote_derivative:-}" ] || sources_list_build_remote_derivative="
 Types: deb
 URIs: http://127.0.0.1:9977/kicksecure/
-Suites: $codename_build_remote_derivative
+Suites: ${codename_build_remote_derivative}
 Components: main contrib non-free
 Enabled: yes
 
 Types: deb
 URIs: http://127.0.0.1:9977/whonix/
-Suites: $codename_build_remote_derivative
+Suites: ${codename_build_remote_derivative}
 Components: main contrib non-free
 Enabled: yes
 "
@@ -206,7 +214,7 @@ Enabled: yes
          [ -n "${sources_list_build_remote_derivative:-}" ] || sources_list_build_remote_derivative="
 Types: deb
 URIs: http://127.0.0.1:9977/kicksecure/
-Suites: $codename_build_remote_derivative
+Suites: ${codename_build_remote_derivative}
 Components: main contrib non-free
 Enabled: yes
 "
