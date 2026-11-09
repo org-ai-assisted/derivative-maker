@@ -16,7 +16,7 @@
 ## contention acceptable.
 ##
 ## Reusable docs:
-## https://github.com/org-ai-assisted/developer-meta-files/blob/master/.github/workflows/reusable-scorecard.yml
+## https://github.com/org-ai-assisted/developer-meta-files/blob/ai/.github/workflows/reusable-scorecard.yml
 
 name: Scorecard
 
@@ -33,11 +33,14 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  ## No pull_request trigger here (push / schedule / dispatch only), so there are
+  ## no superseded PR runs to cancel and each master / scheduled scan must run to
+  ## completion -- never cancel.
+  cancel-in-progress: false
 
 jobs:
   scorecard:
-    uses: org-ai-assisted/developer-meta-files/.github/workflows/reusable-scorecard.yml@master
+    uses: org-ai-assisted/developer-meta-files/.github/workflows/reusable-scorecard.yml@ai
     permissions:
       security-events: write
       contents: read
