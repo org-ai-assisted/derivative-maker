@@ -107,8 +107,14 @@ Not running any chroot scripts.${reset}"
    sbom_image_file="${CHROOT_FOLDER}/usr/share/sbom/system.cdx.json"
    if [ -f "${sbom_image_file}" ]; then
       mkdir --parents -- "${dist_binary_build_folder}"
-      ${SUDO_TO_ROOT} cp -- "${sbom_image_file}" "${dist_binary_build_folder}/system.cdx.json"
-      ${SUDO_TO_ROOT} chown -- "$(id -u):$(id -g)" "${dist_binary_build_folder}/system.cdx.json"
+      ## Name the copy after this build's raw image. Flavor and target builds
+      ## share ${dist_binary_build_folder}, so a fixed name would let each
+      ## build's SBOM overwrite the previous one. The embedded in-image name
+      ## stays fixed: each image has its own filesystem.
+      sbom_out_file="${binary_image_raw_file}.cdx.json"
+      ${SUDO_TO_ROOT} safe-rm --force -- "${sbom_out_file}"
+      ${SUDO_TO_ROOT} cp -- "${sbom_image_file}" "${sbom_out_file}"
+      ${SUDO_TO_ROOT} chown -- "$(id -u):$(id -g)" "${sbom_out_file}"
    fi
 
    "${dist_source_help_steps_folder}"/unmount-raw "$@"
