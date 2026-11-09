@@ -53,6 +53,26 @@ hostname_check() {
    true
 }
 
+## Copy the image-level SBOM out of the still-mounted rootfs so the release step
+## can sign it as a sidecar next to each image artifact. The embedded copy stays
+## in the image and rides the image signature; only the sidecar needs its own
+## detached signature. The chroot-post.d hook skips generation when
+## SOURCE_DATE_EPOCH is unset, so the file may be absent (no-op).
+copy_image_sbom_out() {
+   local sbom_image_file sbom_out_file
+   sbom_image_file="${CHROOT_FOLDER}/usr/share/sbom/system.cdx.json"
+   [ -f "${sbom_image_file}" ] || return 0
+   mkdir --parents -- "${dist_binary_build_folder}"
+   ## Name the copy after this build's raw image. Flavor and target builds share
+   ## ${dist_binary_build_folder}, so a fixed name would let each build's SBOM
+   ## overwrite the previous one. The embedded in-image name stays fixed: each
+   ## image has its own filesystem.
+   sbom_out_file="${binary_image_raw_file}.cdx.json"
+   ${SUDO_TO_ROOT} safe-rm --force -- "${sbom_out_file}"
+   ${SUDO_TO_ROOT} cp -- "${sbom_image_file}" "${sbom_out_file}"
+   ${SUDO_TO_ROOT} chown -- "$(id -u):$(id -g)" "${sbom_out_file}"
+}
+
 run-chroot-scripts-post-d() {
    exception_handler_setup "exception_handler_unchroot_unmount" ERR INT TERM
 
@@ -99,23 +119,7 @@ Not running any chroot scripts.${reset}"
 
    "${dist_source_help_steps_folder}"/unprevent-daemons-from-starting "$@"
 
-   ## Copy the image-level SBOM out of the still-mounted rootfs so the release
-   ## step can sign it as a sidecar next to each image artifact. The embedded
-   ## copy stays in the image and rides the image signature; only the sidecar
-   ## needs its own detached signature. The chroot-post.d hook skips generation
-   ## when SOURCE_DATE_EPOCH is unset, so the file may be absent.
-   sbom_image_file="${CHROOT_FOLDER}/usr/share/sbom/system.cdx.json"
-   if [ -f "${sbom_image_file}" ]; then
-      mkdir --parents -- "${dist_binary_build_folder}"
-      ## Name the copy after this build's raw image. Flavor and target builds
-      ## share ${dist_binary_build_folder}, so a fixed name would let each
-      ## build's SBOM overwrite the previous one. The embedded in-image name
-      ## stays fixed: each image has its own filesystem.
-      sbom_out_file="${binary_image_raw_file}.cdx.json"
-      ${SUDO_TO_ROOT} safe-rm --force -- "${sbom_out_file}"
-      ${SUDO_TO_ROOT} cp -- "${sbom_image_file}" "${sbom_out_file}"
-      ${SUDO_TO_ROOT} chown -- "$(id -u):$(id -g)" "${sbom_out_file}"
-   fi
+   copy_image_sbom_out
 
    "${dist_source_help_steps_folder}"/unmount-raw "$@"
 
