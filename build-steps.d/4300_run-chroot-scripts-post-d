@@ -99,6 +99,18 @@ Not running any chroot scripts.${reset}"
 
    "${dist_source_help_steps_folder}"/unprevent-daemons-from-starting "$@"
 
+   ## Copy the image-level SBOM out of the still-mounted rootfs so the release
+   ## step can sign it as a sidecar next to each image artifact. The embedded
+   ## copy stays in the image and rides the image signature; only the sidecar
+   ## needs its own detached signature. The chroot-post.d hook skips generation
+   ## when SOURCE_DATE_EPOCH is unset, so the file may be absent.
+   sbom_image_file="${CHROOT_FOLDER}/usr/share/sbom/system.cdx.json"
+   if [ -f "${sbom_image_file}" ]; then
+      mkdir --parents -- "${dist_binary_build_folder}"
+      ${SUDO_TO_ROOT} cp -- "${sbom_image_file}" "${dist_binary_build_folder}/system.cdx.json"
+      ${SUDO_TO_ROOT} chown -- "$(id -u):$(id -g)" "${dist_binary_build_folder}/system.cdx.json"
+   fi
+
    "${dist_source_help_steps_folder}"/unmount-raw "$@"
 
    sync
