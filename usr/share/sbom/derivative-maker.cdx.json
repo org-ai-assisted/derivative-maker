@@ -1,0 +1,30 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.6.schema.json",
+  "bomFormat": "CycloneDX",
+  "dependencies": [
+    {
+      "ref": "pkg:deb/debian/derivative-maker@3:18.2.4.2-1"
+    }
+  ],
+  "metadata": {
+    "component": {
+      "bom-ref": "pkg:deb/debian/derivative-maker@3:18.2.4.2-1",
+      "name": "derivative-maker",
+      "purl": "pkg:deb/debian/derivative-maker@3:18.2.4.2-1",
+      "type": "application",
+      "version": "3:18.2.4.2-1"
+    },
+    "properties": [
+      {
+        "name": "kicksecure:sbom:source",
+        "value": "debian/control top-level dependencies (Pre-Depends, Depends)"
+      },
+      {
+        "name": "kicksecure:sbom:tier",
+        "value": "declared-floor"
+      }
+    ]
+  },
+  "specVersion": "1.6",
+  "version": 1
+}
