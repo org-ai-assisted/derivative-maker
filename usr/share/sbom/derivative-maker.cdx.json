@@ -16,11 +16,11 @@
     },
     "properties": [
       {
-        "name": "kicksecure:sbom:source",
+        "name": "genmkfile:sbom:source",
         "value": "debian/control top-level dependencies (Pre-Depends, Depends)"
       },
       {
-        "name": "kicksecure:sbom:tier",
+        "name": "genmkfile:sbom:tier",
         "value": "declared-floor"
       }
     ]
