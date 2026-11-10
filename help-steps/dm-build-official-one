@@ -12,6 +12,10 @@ shopt -s inherit_errexit
 shopt -s shift_verbose
 export LC_ALL=C
 
+HELPER_SCRIPTS_PATH="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )/../packages/kicksecure/helper-scripts"
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/log_run_die.sh
+source "${HELPER_SCRIPTS_PATH}"/usr/libexec/helper-scripts/log_run_die.sh
+
 true "$0: START"
 
 run_cmd() {
@@ -40,10 +44,10 @@ while [ "$#" -ge 1 ]; do
           build_dry_run="${2}"
           ;;
         '')
-          error '--dry-run requires an argument!'
+          die 1 '--dry-run requires an argument!'
           ;;
         *)
-          error "--dry-run only accepts 'true' or 'false' as arguments!"
+          die 1 "--dry-run only accepts 'true' or 'false' as arguments!"
           ;;
       esac
       forwarded_args+=( "${1}" "${2}" )
@@ -59,10 +63,10 @@ while [ "$#" -ge 1 ]; do
           build_remote_derivative_pkgs="${2}"
           ;;
         '')
-          error '--remote-derivative-packages requires an argument!'
+          die 1 '--remote-derivative-packages requires an argument!'
           ;;
         *)
-          error "--remote-derivative-packages only accepts 'true' or 'false' as arguments!"
+          die 1 "--remote-derivative-packages only accepts 'true' or 'false' as arguments!"
           ;;
       esac
       forwarded_args+=( "${1}" "${2}" )
@@ -77,10 +81,10 @@ while [ "$#" -ge 1 ]; do
           dist_build_upload="${2}"
           ;;
         '')
-          error '--upload requires an argument!'
+          die 1 '--upload requires an argument!'
           ;;
         *)
-          error "--upload only accepts 'true' or 'false' as arguments!"
+          die 1 "--upload only accepts 'true' or 'false' as arguments!"
           ;;
       esac
       forwarded_args+=( "${1}" "${2}" )
