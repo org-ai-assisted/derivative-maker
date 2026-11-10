@@ -10,6 +10,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 true "INFO: Currently running script: ${BASH_SOURCE[0]} $*"
 
@@ -21,6 +22,9 @@ cd help-steps
 
 source pre
 source variables
+
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/has.bsh
+source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/has.bsh
 
 prepare-release(){
    ## VirtualBox OVA export inside the amd64 cowbuilder chroot:
