@@ -23,8 +23,10 @@ dist-ai-tests:
   ## (asserting zero SC2154) -- absent, the test FATALs on a missing shellcheck;
   ## and openssh-server + openssh-client + rsync, which the --e2e suite
   ## dm-upload-images-tests-e2e needs to stand up a throwaway localhost sshd and drive
-  ## the real dm-upload-images rsync-over-ssh upload path (it FATALs on any missing).
-  apt-packages: "python3 python3-pytest python3-hypothesis procps safe-rm xz-utils strip-nondeterminism xkb-data passwd sudo lsb-release e2fsprogs shellcheck openssh-server openssh-client rsync"
+  ## the real dm-upload-images rsync-over-ssh upload path (it FATALs on any missing);
+  ## and shfmt, which source_imports_test.sh uses to parse shell to an AST (it FATALs
+  ## without it) for the direct-import gate.
+  apt-packages: "python3 python3-pytest python3-hypothesis procps safe-rm xz-utils strip-nondeterminism xkb-data passwd sudo lsb-release e2fsprogs shellcheck shfmt openssh-server openssh-client rsync"
 
   ## dm-help-steps suites drive helper-scripts: raw_to_iso_no_unbound_var_test
   ## sources /usr/libexec/helper-scripts/has.bsh (absolute), and frozen_snapshot_pin
