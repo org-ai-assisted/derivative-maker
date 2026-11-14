@@ -229,4 +229,16 @@ export dist_build_apt_codename
 
 default_if_empty dist_build_file_system "ext4"
 
-default_if_empty iso_pkg_repo_seed_list "grub-efi grub-pc ucf libtext-wrapi18n-perl libtext-charwidth-perl grub-efi-${dist_build_target_arch:-}"
+## grub-pc is the PC/BIOS GRUB platform -- Debian ships it for amd64/i386 only. On
+## arm64 (and other EFI-only arches) it has no apt candidate, so seeding it into the
+## on-ISO apt repo aborts the build ('apt download grub-pc' -> exit 100). Seed it only
+## where a BIOS target exists; grub-efi + grub-efi-<arch> cover EFI everywhere.
+case "${dist_build_target_arch:-}" in
+   amd64|i386)
+      iso_pkg_repo_grub_bios_seed="grub-pc "
+      ;;
+   *)
+      iso_pkg_repo_grub_bios_seed=""
+      ;;
+esac
+default_if_empty iso_pkg_repo_seed_list "grub-efi ${iso_pkg_repo_grub_bios_seed}ucf libtext-wrapi18n-perl libtext-charwidth-perl grub-efi-${dist_build_target_arch:-}"
