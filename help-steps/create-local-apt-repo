@@ -30,9 +30,9 @@ main() {
    ## dist_sources_list_temp_build_folder Example:
    ## /var/lib/whonix/sources_temp_list.d
 
-   ## dist_apt_repository_folder Examples:
-   ## /home/user/derivative-binary/aptrepo_local/kicksecure
-   ## /home/user/derivative-binary/aptrepo_local/whonix
+   ## dist_apt_repository_folder Examples (local_apt_repository_base, slot-aware):
+   ## /srv/derivative-maker/aptrepo_local/kicksecure
+   ## /srv/derivative-maker/aptrepo_local/whonix
 
    ${SUDO_TO_ROOT} safe-rm --force -- "${dist_sources_list_temp_initial_deb_sources_list}"
 
