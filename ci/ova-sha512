@@ -28,12 +28,13 @@ out="ova-sha512.txt"
 ## Read-only over the build output; write the evidence into the workspace, not
 ## next to the (in-container-uid-owned) .ova, so no chown dance is needed.
 ##
-## FIXME: Either replace this with a readarray one-liner, or use find's -print0
-## option.
+## Capture before iterating (bash-style R-016): a 'done < <(find ...)' process
+## substitution runs find in a subshell whose exit status the loop never sees,
+## so a failed producer would read as an empty list rather than an error. .ova
+## names are dm-generated (no newlines), so a newline-split readarray is safe.
+ova_listing="$(find "${binary_mnt}" -type f -name '*.ova' | sort)"
 ova_list=()
-while IFS= read -r ova_item; do
-   ova_list+=("${ova_item}")
-done < <(find "${binary_mnt}" -type f -name '*.ova' | sort)
+[ -z "${ova_listing}" ] || readarray -t ova_list <<< "${ova_listing}"
 
 if [ "${#ova_list[@]}" -eq 0 ]; then
    printf '%s\n' "${BASH_SOURCE[0]}: no .ova found under ${binary_mnt}" >&2
