@@ -32,6 +32,8 @@ MYDIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" && pwd )"
 
 # shellcheck source=./misc-helpers.bsh
 source "${MYDIR}/misc-helpers.bsh"
+# shellcheck source=../packages/kicksecure/helper-scripts/usr/libexec/helper-scripts/live-boot-cmdline.bsh
+source "${HELPER_SCRIPTS_PATH:-}"/usr/libexec/helper-scripts/live-boot-cmdline.bsh
 
 usage() {
    cat <<EOF
@@ -553,7 +555,7 @@ printf '%s\n' "${me}: writing GRUB configuration" >&2
 cp -a -- "${rootfs_dir}/usr/share/grub/unicode.pf2" "${binary_dir}/boot/grub/unicode.pf2"
 
 ## Prepare to assemble GRUB config.
-iso_cmdline="rd.live.overlay.overlayfs=1 splash rd.live.image root=live:CDLABEL=${volume_label} rd.live.dir=live rd.live.squashimg=filesystem.squashfs iso-scan/filename=\${iso_path}"
+iso_cmdline="$(live_boot_base_iso_cmdline "${volume_label}")"
 grub_timeout="30"
 if [ "${serial_console}" = "true" ]; then
    iso_cmdline="${iso_cmdline} console=tty0 console=ttyS0,115200n8"
