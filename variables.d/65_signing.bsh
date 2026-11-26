@@ -18,8 +18,6 @@ default_if_empty openpgp_policy_file_project "${source_code_folder_dist}/buildco
 ## signing-key-create writes to the highest-precedence (last) entry.
 [ -n "${openpgp_policy_dir_user:-}" ] || openpgp_policy_dir_user="${dist_build_config_dirs_list##* }"
 default_if_empty openpgp_policy_file_user "${openpgp_policy_dir_user}/${openpgp_policy_filename}"
-## FIXME: openpgp_cert_file_user isn't used by anything.
-default_if_empty openpgp_cert_file_user "${openpgp_policy_dir_user}/${openpgp_cert_filename}"
 
 ## ${openpgp_policy_file_resolved} / ${openpgp_cert_file_resolved} = last
 ## existing-and-readable file of each kind, or empty if none.
