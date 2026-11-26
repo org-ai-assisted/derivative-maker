@@ -14,10 +14,9 @@ effects_atomic_write() {
    mv -- "${effects_tmp}" "${effects_dest}"
 }
 
-## FIXME: Variable naming is confusing; binary_build_folder_dist is the path to
-## derivative-binary, dist_binary_build_folder is the folder under that where
-## the image build occurs. Perhaps rename the former to
-## dist_binary_work_folder?
+## Two similarly-named paths, distinct roles:
+##   binary_build_folder_dist  -- the 'derivative-binary' OUTPUT ROOT.
+##   dist_binary_build_folder  -- the per-build image folder UNDER that root.
 mkdir --parents -- "${binary_build_folder_dist}"
 mkdir --parents -- "${dist_binary_build_folder}"
 mkdir --parents -- "${make_cowbuilder_dist_folder}"
