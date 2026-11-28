@@ -269,7 +269,10 @@ cowbuilder_setup_do() {
       ## Copy unconditionally for simplicity.
       ${SUDO_TO_ROOT} cp -- "${binary_image_installer_dist_source}" "${base_folder}/usr/bin/${dist_installer_cli_file_name}"
       ${SUDO_TO_ROOT} chmod o+rx -- "${base_folder}/usr/bin/${dist_installer_cli_file_name}"
-      ${SUDO_TO_ROOT} chown --recursive -- "${user_name}:${user_name}" "${base_folder}/home/${user_name}"
+      ## No build-user home to stage here: the config handoff moved to /root
+      ## above, and the in-chroot 'adduser' creates and owns "/home/${user_name}"
+      ## at execute time. (A chown of it here would fail on a fresh base, where
+      ## the directory does not yet exist.)
 
       cowbuilder_script_list=()
       cowbuilder_script_list+=("${dist_build_pbuilder_main_chroot_script}")
