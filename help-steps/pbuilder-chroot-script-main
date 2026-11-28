@@ -14,6 +14,7 @@ set -o pipefail
 set -o errtrace
 shopt -s inherit_errexit
 shopt -s shift_verbose
+export LC_ALL=C
 
 ## colors is not available in the pbuilder chroot where this
 ## script runs, so plain (uncolored) log messages.
@@ -22,18 +23,18 @@ true "INFO: Currently running cowbuilder main chroot script."
 ## /usr/share/doc/pbuilder/examples/D10tmp
 ## https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=725434;msg=45
 if [ -n "${TMP:-}" ]; then
-   [ -d "${TMP}" ] || mkdir -p -- "${TMP}" || true
-   chmod 1777 -- "${TMP}" || true
+   ## style-ok: lpe-world-writable-perms -- 1777 is the sticky /tmp mode (pbuilder D10tmp workaround, Debian #725434); the sticky bit blocks cross-user deletion, so this is the intended, correct mode.
+   [ -d "${TMP}" ] || mkdir --mode=1777 -- "${TMP}" || true
 fi
 if [ -n "${TMPDIR:-}" ]; then
-   [ -d "${TMPDIR}" ] || mkdir -p -- "${TMPDIR}" || true
-   chmod 1777 -- "${TMPDIR}" || true
+   ## style-ok: lpe-world-writable-perms -- 1777 is the sticky /tmp mode (pbuilder D10tmp workaround, Debian #725434); the sticky bit blocks cross-user deletion, so this is the intended, correct mode.
+   [ -d "${TMPDIR}" ] || mkdir --mode=1777 -- "${TMPDIR}" || true
 fi
 
 ## Debugging.
-cat -- "/home/${user_name}/pbuilder_config_file"
+cat -- "/root/pbuilder_config_file"
 
-source "/home/${user_name}/pbuilder_config_file"
+source "/root/pbuilder_config_file"
 
 ## help-steps/pre is not available in the pbuilder chroot, so define a minimal
 ## error handler and source just the standalone retry_run helper (copied in by
@@ -43,7 +44,7 @@ error() {
    exit 1
 }
 # shellcheck source=./retry-run
-source "/home/${user_name}/retry-run"
+source "/root/retry-run"
 
 ## Debugging.
 true "apt_unattended_opts: ${apt_unattended_opts}"

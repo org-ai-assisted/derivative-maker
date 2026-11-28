@@ -38,18 +38,20 @@ true "INFO: Currently running cowbuilder VirtualBox chroot script."
 ## /usr/share/doc/pbuilder/examples/D10tmp
 ## https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=725434;msg=45
 if [ -n "${TMP:-}" ]; then
+   ## style-ok: lpe-world-writable-perms -- 1777 is the sticky /tmp mode (pbuilder D10tmp workaround, Debian #725434); the sticky bit blocks cross-user deletion, so this is the intended, correct mode.
    [ -d "${TMP}" ] || mkdir --mode=1777 -- "${TMP}" || true
 fi
 if [ -n "${TMPDIR:-}" ]; then
+   ## style-ok: lpe-world-writable-perms -- 1777 is the sticky /tmp mode (pbuilder D10tmp workaround, Debian #725434); the sticky bit blocks cross-user deletion, so this is the intended, correct mode.
    [ -d "${TMPDIR}" ] || mkdir --mode=1777 -- "${TMPDIR}" || true
 fi
 
 #declare -p | awk '{print $3}' | sort
 
 ## Debugging.
-cat -- "/home/${user_name}/pbuilder_config_file"
+cat -- "/root/pbuilder_config_file"
 
-source "/home/${user_name}/pbuilder_config_file"
+source "/root/pbuilder_config_file"
 
 ## virtualbox-installer / dist-installer-cli refuses to run as 'root'.
 ## Hence run virtualbox-installer / dist-installer-cli under account 'dm-vbox-temp'.
@@ -68,6 +70,7 @@ test -d "/"
 ls -la -- "${HOMEVAR_VBOX_TEMP}"
 ## }}
 
+## style-ok: lpe-home-recursive-write -- dm-vbox-temp home is freshly adduser-created just above; the account is granted NOPASSWD sudo in this throwaway VBox build VM, so there is no privilege boundary to cross. chown -R (default -P) does not follow symlinked dirs.
 chown --recursive -- "dm-vbox-temp" "/home/dm-vbox-temp"
 
 adduser "dm-vbox-temp" sudo

@@ -51,16 +51,17 @@ printf -v dist_build_pbuilder_config_content "%s\n" "\
 ## Edits will be lost!
 
 ## build-step cowbuilder-setup copies this file into the cowbuilder chroot to:
-## '/home/\$user_name/pbuilder_config_file'
-## REMINDER: The in-chroot path is hardcoded because
-## 'pbuilder-chroot-script-main' creates the in-chroot user via 'adduser'
-## with '--home /home/\$user_name' regardless of the host's HOMEVAR setting.
+## '/root/pbuilder_config_file'
+## The in-chroot path is root-owned: the chroot scripts run as root
+## ('cowbuilder --execute') and source this before any build user is created,
+## so root's own home is the correct handoff -- never a user-writable home an
+## unprivileged account could plant in.
 
 ## dist_build_pbuilder_config_file is passed to cowbuilder. example:
 ## '--configfile /home/user/derivative-binary/pbuilder.conf'
 ## REMINDER: Cowbuilder ignores arbitrary environment variables such as
 ## 'DIST_APTGETOPT_SERIALIZED'.  Therefore, cowbuilder chroot scripts must run:
-## 'source /home/${user_name}/pbuilder_config_file'
+## 'source /root/pbuilder_config_file'
 ## Maybe false. Just requires correct 'export'.
 
 ## Debugging.
