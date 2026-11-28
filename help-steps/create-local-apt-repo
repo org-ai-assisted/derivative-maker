@@ -74,8 +74,8 @@ main() {
          ## with the FHS /srv store (fresh per machine) vs the old persistent
          ## ~/derivative-binary that kept every derivative's dir across builds.
          ## Nothing to mount for it, so skip rather than hard-fail the whole build.
-         if [ ! -d "${dist_apt_repository_folder}" ]; then
-            true "INFO: no local repo for ${derivative_name_item} at ${dist_apt_repository_folder}; skipping."
+         if [ ! -d "${dist_apt_repository_folder}/dists/${dist_build_apt_codename}" ]; then
+            true "INFO: no exported local repo for ${derivative_name_item} (suite ${dist_build_apt_codename}) at ${dist_apt_repository_folder}; skipping."
             continue
          fi
          ## If $dist_apt_repository_folder is owned by user and host umask is 027 (others ("o") cannot read),
@@ -88,9 +88,17 @@ main() {
 
          ## Append this derivative's stanza (the shared generator is the single
          ## source of truth). A leading blank line keeps multiple stanzas separate.
+         ## The chroot-side 'file:' URI is not a host path, so the generator cannot
+         ## derive the repo location from it; pass the host repo dir + target arch
+         ## explicitly so it scans the real exported tree and emits exactly the
+         ## components (main/contrib/non-free) that actually carry packages.
          {
             printf '%s\n' ''
-            local_apt_repo_sources_stanza "file:/${local_apt_repo_mount_folder}/${derivative_name_item}" "${dist_build_apt_codename}"
+            local_apt_repo_sources_stanza \
+               "file:/${local_apt_repo_mount_folder}/${derivative_name_item}" \
+               "${dist_build_apt_codename}" \
+               "${dist_apt_repository_folder}" \
+               "${dist_build_target_arch}"
          } | ${SUDO_TO_ROOT} tee --append -- "${dist_sources_list_temp_initial_deb_sources_list}" >/dev/null
          ${SUDO_TO_ROOT} chmod o+r -- "${dist_sources_list_temp_initial_deb_sources_list}"
       fi
