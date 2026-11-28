@@ -36,9 +36,9 @@ command -v sq >/dev/null
 #declare -p | awk '{print $3}' | sort
 
 ## Debugging.
-cat -- "/home/${user_name}/pbuilder_config_file"
+cat -- "/root/pbuilder_config_file"
 
-source "/home/${user_name}/pbuilder_config_file"
+source "/root/pbuilder_config_file"
 
 error() {
    printf '%s\n' "ERROR: $*" >&2
@@ -47,7 +47,7 @@ error() {
 
 ## retry_run helper is copied into the chroot by *_cowbuilder-setup.
 # shellcheck source=./retry-run
-source "/home/${user_name}/retry-run"
+source "/root/retry-run"
 
 true "---------------"
 true "INFO: HOMEVAR_VBOX_TEMP: ${HOMEVAR_VBOX_TEMP}"
