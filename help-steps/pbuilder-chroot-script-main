@@ -24,11 +24,15 @@ true "INFO: Currently running cowbuilder main chroot script."
 ## https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=725434;msg=45
 if [ -n "${TMP:-}" ]; then
    ## style-ok: lpe-world-writable-perms -- 1777 is the sticky /tmp mode (pbuilder D10tmp workaround, Debian #725434); the sticky bit blocks cross-user deletion, so this is the intended, correct mode.
-   [ -d "${TMP}" ] || mkdir --mode=1777 -- "${TMP}" || true
+   ## --parents handles a nested libpam-tmpdir TMP ('/tmp/user/<uid>') whose parent may be absent in the chroot; --mode sets 1777 on the deepest component (TMP), the only one that must be world-writable-sticky.
+   # shellcheck disable=SC2174
+   [ -d "${TMP}" ] || mkdir --mode=1777 --parents -- "${TMP}" || true
 fi
 if [ -n "${TMPDIR:-}" ]; then
    ## style-ok: lpe-world-writable-perms -- 1777 is the sticky /tmp mode (pbuilder D10tmp workaround, Debian #725434); the sticky bit blocks cross-user deletion, so this is the intended, correct mode.
-   [ -d "${TMPDIR}" ] || mkdir --mode=1777 -- "${TMPDIR}" || true
+   ## --parents handles a nested libpam-tmpdir TMPDIR ('/tmp/user/<uid>') whose parent may be absent in the chroot; --mode sets 1777 on the deepest component (TMPDIR), the only one that must be world-writable-sticky.
+   # shellcheck disable=SC2174
+   [ -d "${TMPDIR}" ] || mkdir --mode=1777 --parents -- "${TMPDIR}" || true
 fi
 
 ## Debugging.
