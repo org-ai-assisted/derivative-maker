@@ -34,7 +34,13 @@ main() {
    ## /srv/derivative-maker/aptrepo_local/kicksecure
    ## /srv/derivative-maker/aptrepo_local/whonix
 
+   ## Start from an empty list that always exists: when every derivative below is
+   ## skipped (no exported local repo for its suite), the skip path must still
+   ## leave a valid empty sources file for the final cat and apt, not ENOENT.
+   ${SUDO_TO_ROOT} mkdir --parents -- "${CHROOT_FOLDER}/${dist_sources_list_temp_build_folder}"
    ${SUDO_TO_ROOT} safe-rm --force -- "${dist_sources_list_temp_initial_deb_sources_list}"
+   printf '%s' '' | ${SUDO_TO_ROOT} tee -- "${dist_sources_list_temp_initial_deb_sources_list}" >/dev/null
+   ${SUDO_TO_ROOT} chmod o+r -- "${dist_sources_list_temp_initial_deb_sources_list}"
 
    true "derivative_name_list: ${derivative_name_list}"
 
